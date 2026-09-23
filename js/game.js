@@ -206,6 +206,16 @@ ShopEnv.prototype.summon = function (a, b, c2, d2) {
   pet.side = -1;
   g.team.push(pet);
   this.emit({ e: 'summonShop', t: pet.uid, defId: defId });
+  // 友方被召唤时（星包羊驼）
+  for (const q of g.team) {
+    if (q === pet) continue;
+    const dq = q.def;
+    if (dq && dq.hooks && dq.hooks.friendSummoned) {
+      this.actor = q;
+      dq.hooks.friendSummoned(this, { self: q, lvl: q.lvl, target: pet });
+    }
+  }
+  this.actor = null;
   return pet;
 };
 
@@ -255,6 +265,41 @@ ShopEnv.prototype.notifyPerkGained = function (pet, perkId) {
     }
   }
   this.actor = null;
+};
+
+/* 打乱「前方友方」之间的位置（星包科莫多巨蜥）。
+ * 只在这段区间内洗牌，保证它们仍然都在自己前面。 */
+ShopEnv.prototype.shuffleAhead = function (pet) {
+  const team = this.game.team;
+  const i = team.indexOf(pet);
+  if (i <= 0) return;
+  const head = team.slice(0, i);
+  for (let k = head.length - 1; k > 0; k--) {
+    const j = RNG.int(k + 1);
+    const tmp = head[k]; head[k] = head[j]; head[j] = tmp;
+  }
+  for (let k = 0; k < head.length; k++) team[k] = head[k];
+  this.emit({ e: 'shuffle', n: head.length });
+};
+
+/* 移除 Perk（商店侧）也要通知友方（星包真迅猛龙） */
+ShopEnv.prototype.removePerkNotify = function (pet, id) {
+  if (!pet) return false;
+  const before = pet.perks.length;
+  pet.perks = pet.perks.filter(function (p) { return p.id !== id; });
+  if (pet.perks.length === before) return false;
+  pet._lostPerk = id;
+  this.emit({ e: 'perkLost', t: pet.uid, id: id });
+  for (const q of this.game.team) {
+    if (q === pet) continue;
+    const dq = q.def;
+    if (dq && dq.hooks && dq.hooks.friendLostPerk) {
+      this.actor = q;
+      dq.hooks.friendLostPerk(this, { self: q, lvl: q.lvl, target: pet, perk: id });
+    }
+  }
+  this.actor = null;
+  return true;
 };
 
 /* 反向查：某个 Perk 对应哪种食物（星包红雀要「库存前方友方的 Perk」） */
@@ -892,7 +937,7 @@ Game.prototype.endTurn = function () {
   const foeTeam = opponent.map(clonePet);
   // 遗物的开战效果（战旗 / 獠牙 / 铁甲 / 猎杀标记）
   applyRelicBattleStart(this, myTeam, foeTeam);
-  const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier(), rolls: this.rollsThisTurn || 0 });
+  const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier(), rolls: this.rollsThisTurn || 0, turn: this.turn });
 
   this.phase = 'battle';
   this.lastResult = {

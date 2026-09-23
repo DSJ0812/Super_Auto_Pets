@@ -83,6 +83,7 @@ function Battle(teamA, teamB, opts) {
   opts = opts || {};
   this.tier = opts.tier || 1;      // 当前商店等级（星包鹳要「上一星级」）
   this.rolls = opts.rolls || 0;    // 本回合刷新次数（星包马岛长尾狸猫）
+  this.turn = opts.turn || 1;      // 当前回合数（星包剑龙按回合数放大）
   this.sides = [cloneTeam(teamA), cloneTeam(teamB)];
   this.sides[0].forEach(function (p) { p.side = 0; });
   this.sides[1].forEach(function (p) { p.side = 1; });
@@ -200,7 +201,15 @@ Battle.prototype.removePerk = function (pet, id) {
   const before = pet.perks.length;
   pet.perks = pet.perks.filter(function (p) { return p.id !== id; });
   if (pet.perks.length === before) return false;
+  pet._lostPerk = id;
   this.emit({ e: 'perkLost', t: pet.uid, id: id });
+  // 友方失去 Perk 时（星包真迅猛龙）
+  const mates = this.sides[pet.side];
+  for (let i = 0; i < mates.length; i++) {
+    if (mates[i] !== pet && mates[i].hp > 0) {
+      this.triggerOn('friendLostPerk', mates[i], { target: pet, perk: id });
+    }
+  }
   return true;
 };
 

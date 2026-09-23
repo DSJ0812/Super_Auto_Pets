@@ -1572,6 +1572,223 @@ const PETS = {
       buy:  function (g, c) { zebraBuff(g, c); },
       sell: function (g, c) { zebraBuff(g, c); }
     }
+  },
+
+  /* ==================== 星包 Tier 6 ==================== */
+
+  Alpaca: {
+    name: 'Alpaca', cn: '羊驼', tier: 6, atk: 3, hp: 7, pack: 'star',
+    texts: ['友方被召唤时：给它 +1 经验（战斗中三倍）。每回合 1 次',
+            '友方被召唤时：给它 +1 经验（战斗中三倍）。每回合 2 次',
+            '友方被召唤时：给它 +1 经验（战斗中三倍）。每回合 3 次'],
+    hooks: {
+      friendSummoned: function (g, c) {
+        c.self._alpaca = (c.self._alpaca || 0) + 1;
+        if (c.self._alpaca > c.lvl) return;
+        if (!c.target) return;
+        const n = g.sides ? c.lvl * 3 : c.lvl;      // 战斗里三倍
+        if (g.grantExp) g.grantExp(c.target, n);
+        else g.game.addExp(c.target, n);
+      },
+      startTurn: function (g, c) { c.self._alpaca = 0; }
+    }
+  },
+
+  HammerheadShark: {
+    name: 'Hammerhead Shark', cn: '锤头鲨', tier: 6, atk: 5, hp: 5, pack: 'star',
+    texts: ['回合开始：若有 3 级友方，+3 金',
+            '回合开始：若有 3 级友方，+6 金',
+            '回合开始：若有 3 级友方，+9 金'],
+    hooks: {
+      startTurn: function (g, c) {
+        if (g.friends(c.self).some(function (p) { return p.lvl === 3; })) {
+          g.addGold(c.lvl * 3);
+        }
+      }
+    }
+  },
+
+  HarpyEagle: {
+    name: 'Harpy Eagle', cn: '角雕', tier: 6, atk: 6, hp: 6, pack: 'star',
+    texts: ['受伤时：召唤 1 个随机 1 阶宠物，属性 5/5。每回合 3 次',
+            '受伤时：召唤 1 个随机 1 阶宠物，属性 10/10。每回合 3 次',
+            '受伤时：召唤 1 个随机 1 阶宠物，属性 15/15。每回合 3 次'],
+    hooks: {
+      hurt: function (g, c) {
+        c.self._harpy = (c.self._harpy || 0) + 1;
+        if (c.self._harpy > 3) return;
+        const pool = petsOfTier(1, (typeof activePack === 'function') ? activePack() : 'turtle');
+        if (!pool.length) return;
+        const n = c.lvl * 5;
+        g.summon(c.self.side, g.indexOf(c.self), RNG.pick(pool), { atk: n, hp: n, lvl: 1 });
+      }
+    }
+  },
+
+  Komodo: {
+    name: 'Komodo', cn: '科莫多巨蜥', tier: 6, atk: 6, hp: 6, pack: 'star',
+    texts: ['回合结束：给前方友方 +1/+1，然后打乱它们的位置',
+            '回合结束：给前方友方 +2/+2，然后打乱它们的位置',
+            '回合结束：给前方友方 +3/+3，然后打乱它们的位置'],
+    hooks: {
+      endTurn: function (g, c) {
+        const ahead = g.ahead(c.self, 99);
+        if (!ahead.length) return;
+        for (const p of ahead) g.buff(p, c.lvl, c.lvl);
+        if (ahead.length > 1) g.shuffleAhead(c.self);
+      }
+    }
+  },
+
+  Orca: {
+    name: 'Orca', cn: '虎鲸', tier: 6, atk: 5, hp: 7, pack: 'star',
+    texts: ['阵亡：召唤 1 个任意包的随机「有遗言技能」宠物，属性 6/6',
+            '阵亡：召唤 2 个任意包的随机「有遗言技能」宠物，属性 6/6',
+            '阵亡：召唤 3 个任意包的随机「有遗言技能」宠物，属性 6/6'],
+    hooks: {
+      faint: function (g, c) {
+        // 「任意包」——所以不能按当前包过滤
+        const pool = Object.keys(PETS).filter(function (k) {
+          const d = PETS[k];
+          return !d.token && d.tier >= 1 && d.hooks && d.hooks.faint;
+        });
+        if (!pool.length) return;
+        for (let i = 0; i < c.lvl; i++) {
+          g.summon(c.self.side, g.indexOf(c.self), RNG.pick(pool), { atk: 6, hp: 6, lvl: 1 });
+        }
+      }
+    }
+  },
+
+  Ostrich: {
+    name: 'Ostrich', cn: '鸵鸟', tier: 6, atk: 2, hp: 8, pack: 'star',
+    texts: ['回合结束：商店里每有一个 5 阶或以上的宠物，自己 +3/+3',
+            '回合结束：商店里每有一个 5 阶或以上的宠物，自己 +6/+6',
+            '回合结束：商店里每有一个 5 阶或以上的宠物，自己 +9/+9'],
+    hooks: {
+      endTurn: function (g, c) {
+        let n = 0;
+        for (const sp of g.game.shopPets) {
+          if (sp && ((PETS[sp.defId] || {}).tier || 0) >= 5) n++;
+        }
+        if (n) g.buff(c.self, n * c.lvl * 3, n * c.lvl * 3);
+      }
+    }
+  },
+
+  Piranha: {
+    name: 'Piranha', cn: '食人鱼', tier: 6, atk: 10, hp: 4, pack: 'star',
+    texts: ['受伤时：给全体友方 +3 攻击',
+            '受伤时：给全体友方 +6 攻击',
+            '受伤时：给全体友方 +9 攻击'],
+    hooks: {
+      hurt: function (g, c) {
+        for (const p of g.friends(c.self)) g.buff(p, c.lvl * 3, 0);
+      }
+    }
+  },
+
+  RealVelociraptor: {
+    name: 'Real Velociraptor', cn: '真迅猛龙', tier: 6, atk: 2, hp: 3, pack: 'star',
+    texts: ['友方失去标记时：把标记还给它。每回合 1 次',
+            '友方失去标记时：把标记还给它。每回合 1 次，且每个友方每场战斗只还一次',
+            '友方失去标记时：把标记还给它。每回合 1 次，且每个友方每场战斗只还一次'],
+    hooks: {
+      friendLostPerk: function (g, c) {
+        c.self._rv = (c.self._rv || 0) + 1;
+        if (c.self._rv > 1) return;                 // 每回合 1 次
+        if (!c.target || !c.perk) return;
+        if (c.lvl >= 2) {
+          // 2 级起：每个友方每场战斗只还一次
+          c.target._rvDone = c.target._rvDone || {};
+          if (c.target._rvDone[c.perk]) return;
+          c.target._rvDone[c.perk] = 1;
+        }
+        if (g.givePerk) g.givePerk(c.target, c.perk);
+        else { c.target.perks = [{ id: c.perk, uses: 1 }]; }
+      },
+      startTurn: function (g, c) { c.self._rv = 0; }
+    }
+  },
+
+  Reindeer: {
+    name: 'Reindeer', cn: '驯鹿', tier: 6, atk: 6, hp: 4, pack: 'star',
+    texts: ['攻击前：获得西瓜。每场战斗 1 次',
+            '攻击前：获得西瓜。每场战斗 2 次',
+            '攻击前：获得西瓜。每场战斗 3 次'],
+    hooks: {
+      beforeAttack: function (g, c) {
+        c.self._deer = (c.self._deer || 0) + 1;
+        if (c.self._deer > c.lvl) return;
+        g.givePerk(c.self, 'Melon');
+      }
+    }
+  },
+
+  SabertoothTiger: {
+    name: 'Sabertooth Tiger', cn: '剑齿虎', tier: 6, atk: 3, hp: 5, pack: 'star',
+    texts: ['阵亡：每受过一次伤害，召唤 1 个猛犸（+2/+3）',
+            '阵亡：每受过一次伤害，召唤 2 个猛犸（+2/+3）',
+            '阵亡：每受过一次伤害，召唤 3 个猛犸（+2/+3）'],
+    hooks: {
+      hurt: function (g, c) { c.self._st = (c.self._st || 0) + 1; },
+      faint: function (g, c) {
+        const n = c.self._st || 0;
+        if (!n) return;
+        for (let i = 0; i < n * c.lvl; i++) {
+          g.summon(c.self.side, g.indexOf(c.self), 'Mammoth', { atk: 2, hp: 3, lvl: 1 });
+        }
+      }
+    }
+  },
+
+  Spinosaurus: {
+    name: 'Spinosaurus', cn: '棘龙', tier: 6, atk: 4, hp: 4, pack: 'star',
+    texts: ['友方阵亡时：给随机 1 个友方 +2/+3',
+            '友方阵亡时：给随机 1 个友方 +4/+6',
+            '友方阵亡时：给随机 1 个友方 +6/+9'],
+    hooks: {
+      friendFaints: function (g, c) {
+        const t = g.random(g.friends(c.self).filter(function (p) { return p.hp > 0; }), 1);
+        if (t[0]) g.buff(t[0], c.lvl * 2, c.lvl * 3);
+      }
+    }
+  },
+
+  Stegosaurus: {
+    name: 'Stegosaurus', cn: '剑龙', tier: 6, atk: 3, hp: 8, pack: 'star',
+    texts: ['开战时：给随机 1 个没有食物标记的友方 +1/+1（×回合数），到战斗结束',
+            '开战时：给随机 1 个没有食物标记的友方 +2/+2（×回合数），到战斗结束',
+            '开战时：给随机 1 个没有食物标记的友方 +3/+3（×回合数），到战斗结束'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const cand = g.friends(c.self).filter(function (p) {
+          return (!p.perks || !p.perks.length) && p.hp > 0;
+        });
+        if (!cand.length) return;
+        const n = c.lvl * (g.turn || 1);
+        g.buff(RNG.pick(cand), n, n);
+      }
+    }
+  },
+
+  Velociraptor: {
+    name: 'Velociraptor', cn: '迅猛龙', tier: 6, atk: 3, hp: 2, pack: 'star',
+    texts: ['友方攻击时：偷走前方带草莓的友方，给全体友方 +2/+3',
+            '友方攻击时：偷走前方带草莓的友方，给全体友方 +4/+6',
+            '友方攻击时：偷走前方带草莓的友方，给全体友方 +6/+9'],
+    hooks: {
+      friendAttack: function (g, c) {
+        // 找一个「自己前方、带草莓标记」的友方
+        let src = null;
+        for (const p of g.ahead(c.self, 99)) {
+          if (g.hasPerk(p, 'Strawberry')) { src = p; break; }
+        }
+        if (!src) return;
+        g.removePerk(src, 'Strawberry');
+        for (const p of g.friends(c.self)) g.buff(p, c.lvl * 2, c.lvl * 3);
+      }
+    }
   }
 };
 
