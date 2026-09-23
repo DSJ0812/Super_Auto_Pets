@@ -1912,7 +1912,29 @@ const FOODS = {
   /* 巧克力（官方 wiki："Give an animal +1 Experience."）
    * 官方原文还有一条：因巧克力升级时，会在该食物位生成上一星级的宠物 —— 未实现。 */
   Chocolate:   { name: 'Chocolate',   cn: '巧克力',   cost: 3, exp: 1, pack: 'star',
-                 text: '给一只宠物 +1 经验' }
+                 text: '给一只宠物 +1 经验' },
+
+  /* ---- 星包其余食物（效果取自官方 Food Perks 页）---- */
+  Cucumber:    { name: 'Cucumber',    cn: '黄瓜',     cost: 3, perk: 'Cucumber', pack: 'star',
+                 text: '回合结束：+1 生命' },
+  Cheese:      { name: 'Cheese',      cn: '奶酪',     cost: 3, perk: 'Cheese',   pack: 'star',
+                 text: '攻击时伤害翻倍（一次）' },
+  Grapes:      { name: 'Grapes',      cn: '葡萄',     cost: 3, perk: 'Grapes',   pack: 'star',
+                 text: '每回合开始 +1 金' },
+  Carrot:      { name: 'Carrot',      cn: '胡萝卜',   cost: 3, perk: 'Carrot',   pack: 'star',
+                 text: '回合结束：+1/+1' },
+  Pepper:      { name: 'Pepper',      cn: '胡椒',     cost: 3, perk: 'Pepper',   pack: 'star',
+                 text: '生命不会低于 1，受伤后消失' },
+  Popcorn:     { name: 'Popcorn',     cn: '爆米花',   cost: 3, perk: 'Popcorn',  pack: 'star',
+                 text: '阵亡后召唤 1 个同星级的随机宠物' }
+
+  /* ⚠️ 安眠药（Sleeping Pill）尚未加入：
+   * 官方它属于龟包/小狗包（不是星包），效果是「让一只宠物阵亡、永久移出队伍，
+   * 但会触发它的遗言」，只卖 1 金。
+   * 难点是「在商店阶段触发遗言」—— 现有的遗言钩子是按战斗上下文写的
+   * （萤火虫要用 hitWithin、蟑螂要用 grantExp，商店侧的 ShopEnv 都没有），
+   * 所以需要一个能模拟整套战斗 API 的商店环境。在那之前不做，
+   * 免得出现一个「买了没反应」的道具。鼠妇也因此还没做。 */
 };
 
 if (typeof module !== 'undefined' && module.exports) {

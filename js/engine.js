@@ -118,10 +118,32 @@ Battle.prototype.buff = function (pet, atk, hp) {
 // 造成伤害（含减伤计算），返回实际伤害
 Battle.prototype.hit = function (pet, amount) {
   if (!pet || pet.hp <= 0) return 0;
-  const dmg = this.calcDamage(pet, amount);
+  const dmg = this.pepperGuard(pet, this.calcDamage(pet, amount));
   pet.hp -= dmg;
   this.emit({ e: 'dmg', t: pet.uid, n: dmg });
   return dmg;
+};
+
+/* 星包胡椒：生命不会低于 1，受到伤害后该 Perk 消失。
+ * 只在「这一下会打死」时才介入，所以返回的是调整后的伤害。 */
+Battle.prototype.pepperGuard = function (pet, dmg) {
+  if (!pet || dmg <= 0 || pet.hp <= 0) return dmg;
+  if (!this.hasPerk(pet, 'Pepper')) return dmg;
+  if (pet.hp - dmg >= 1) return dmg;           // 打不死就不用管
+  const pk = pet.perks.filter(function (x) { return x.id === 'Pepper'; })[0];
+  if (pk) pk.uses = 0;
+  this.emit({ e: 'perkUsed', t: pet.uid, id: 'Pepper' });
+  return Math.max(0, pet.hp - 1);              // 留 1 点生命
+};
+
+/* 消耗一次某个 Perk（星包奶酪） */
+Battle.prototype.usePerk = function (pet, id) {
+  if (!pet) return false;
+  const pk = pet.perks.filter(function (x) { return x.id === id && x.uses > 0; })[0];
+  if (!pk) return false;
+  pk.uses--;
+  this.emit({ e: 'perkUsed', t: pet.uid, id: id });
+  return true;
 };
 
 // 伤害计算：Melon 减 20、Garlic 减 2、Coconut 完全免疫一次；否则最低 1
@@ -405,12 +427,20 @@ Battle.prototype.resolveDeaths = function () {
     // 2) 遗言类技能
     this.triggerOn('faint', dead, {});
 
-    // 3) Honey 之类：死亡时召唤
+    // 3) Honey / Popcorn 之类：死亡时召唤
     for (let k = 0; k < dead.perks.length; k++) {
       const pk = dead.perks[k];
       if (pk.id === 'Honey' && pk.uses > 0) {
         pk.uses--;
         this.summon(side, idx, 'Bee', { atk: 1, hp: 1, lvl: 1 });
+      } else if (pk.id === 'Popcorn' && pk.uses > 0) {
+        // 星包爆米花：阵亡后召唤 1 个【同星级】的随机宠物
+        // ⚠️ 用召唤物自己的基础属性 —— 不能沿用 dead 的属性，因为 dead.hp 已经是
+        //    负的（刚被打死），照抄会召出一只「生下来就死了」的宠物
+        pk.uses--;
+        const t = (dead.def || {}).tier || 1;
+        const pool = petsOfTier(t);
+        if (pool.length) this.summon(side, idx, RNG.pick(pool), { lvl: 1 });
       }
     }
 
@@ -442,9 +472,17 @@ Battle.prototype.exchange = function (a, b) {
   let dmgToB = this.calcDamage(b, a.atk);
   let dmgToA = this.calcDamage(a, b.atk);
 
+  // 星包奶酪：攻击时伤害翻倍，一次（先乘再交给花生，顺序不影响结果）
+  if (dmgToB > 0 && this.hasPerk(a, 'Cheese')) { dmgToB *= 2; this.usePerk(a, 'Cheese'); }
+  if (dmgToA > 0 && this.hasPerk(b, 'Cheese')) { dmgToA *= 2; this.usePerk(b, 'Cheese'); }
+
   // Peanut：带花生的宠物「秒杀」被它攻击并受伤的目标（血量 > 1 时直接归零）
   if (dmgToB > 0 && this.hasPerk(a, 'Peanut') && b.hp > 1) dmgToB = b.hp;
   if (dmgToA > 0 && this.hasPerk(b, 'Peanut') && a.hp > 1) dmgToA = a.hp;
+
+  // 星包胡椒：生命不会低于 1（攻击路径也要过一遍，和 hit() 一致）
+  dmgToA = this.pepperGuard(a, dmgToA);
+  dmgToB = this.pepperGuard(b, dmgToB);
 
   // 同时结算
   a.hp -= dmgToA;

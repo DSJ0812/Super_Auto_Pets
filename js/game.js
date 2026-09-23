@@ -302,6 +302,11 @@ ShopEnv.prototype.removePerkNotify = function (pet, id) {
   return true;
 };
 
+/* 宠物身上有没有某个 Perk（商店阶段用，和 Battle.hasPerk 同义） */
+function petHasPerk(pet, id) {
+  return !!(pet && pet.perks && pet.perks.some(function (x) { return x.id === id && x.uses > 0; }));
+}
+
 /* 反向查：某个 Perk 对应哪种食物（星包红雀要「库存前方友方的 Perk」） */
 function foodForPerk(perkId) {
   for (const k of Object.keys(FOODS)) {
@@ -810,6 +815,15 @@ Game.prototype.movePet = function (from, to) {
 Game.prototype.triggerTurnStart = function () {
   const env = new ShopEnv(this);
   env.lastBattleLost = this.lastBattleLost;
+  // 回合开始生效的食物 Perk（星包葡萄 +1 金）
+  for (const p of this.team) {
+    if (petHasPerk(p, 'Grapes')) {
+      this.gold += 1;
+      env.actor = p;
+      env.emit({ e: 'gold', n: 1 });
+    }
+  }
+  env.actor = null;
   for (const p of this.team) {
     p._ox = 0; p._rabbit = 0;   // 重置每回合计数
     p._catUsed = 0;             // Cat 的食物翻倍次数
@@ -833,6 +847,12 @@ Game.prototype.triggerTurnStart = function () {
 Game.prototype.triggerTurnEnd = function () {
   const env = new ShopEnv(this);
   env.lastBattleLost = this.lastBattleLost;
+  // 回合结束生效的食物 Perk（星包黄瓜 +1 生命 / 胡萝卜 +1/+1）
+  for (const p of this.team) {
+    if (petHasPerk(p, 'Cucumber')) { p.hp += 1; env.actor = p; env.emit({ e: 'buff', t: p.uid, atk: 0, hp: 1 }); }
+    if (petHasPerk(p, 'Carrot'))   { p.atk += 1; p.hp += 1; env.actor = p; env.emit({ e: 'buff', t: p.uid, atk: 1, hp: 1 }); }
+  }
+  env.actor = null;
   for (const p of this.team) {
     const d = p.def;
     if (d && d.hooks && d.hooks.endTurn) {
