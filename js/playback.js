@@ -154,6 +154,11 @@ BattlePlayer.prototype.step = function () {
       }
       break;
     }
+    case 'perkLost': {
+      const t = battleFind(state.view, ev.t);
+      if (t) t.pet.perks = t.pet.perks.filter(function (x) { return x.id !== ev.id; });
+      break;
+    }
     case 'faint': {
       const t = battleFind(state.view, ev.t);
       if (t) { t.pet.hp = 0; t.pet._dead = true; label = petName(t.pet.def) + ' 阵亡'; }
@@ -228,6 +233,11 @@ BattlePlayer.prototype.apply = function (ev) {
     case 'perkUsed': {
       const t = battleFind(state.view, ev.t);
       if (t) { const pk = t.pet.perks.find(function (x) { return x.id === ev.id; }); if (pk) pk.uses--; }
+      break;
+    }
+    case 'perkLost': {
+      const t = battleFind(state.view, ev.t);
+      if (t) t.pet.perks = t.pet.perks.filter(function (x) { return x.id !== ev.id; });
       break;
     }
     case 'faint':  { const t = battleFind(state.view, ev.t); if (t) { t.pet.hp = 0; t.pet._dead = true; } break; }

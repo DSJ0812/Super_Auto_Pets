@@ -839,9 +839,31 @@ const PETS = {
     }
   },
 
+  Hummingbird: {
+    name: 'Hummingbird', cn: '蜂鸟', tier: 1, atk: 3, hp: 1, pack: 'star',
+    texts: ['开战时：给前方最近的 1 个友方草莓标记',
+            '开战时：给前方最近的 2 个友方草莓标记',
+            '开战时：给前方最近的 3 个友方草莓标记'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        for (const p of g.ahead(c.self, c.lvl)) g.givePerk(p, 'Strawberry');
+      }
+    }
+  },
+
+  Kiwi: {
+    name: 'Kiwi', cn: '几维鸟', tier: 1, atk: 1, hp: 4, pack: 'star',
+    texts: ['受伤/出售：给随机 1 个带草莓标记的友方 +1 攻击',
+            '受伤/出售：给随机 1 个带草莓标记的友方 +2 攻击',
+            '受伤/出售：给随机 1 个带草莓标记的友方 +3 攻击'],
+    hooks: {
+      hurt: function (g, c) { kiwiBuff(g, c); },
+      sell: function (g, c) { kiwiBuff(g, c); }
+    }
+  },
+
   Marmoset: {
-    name: 'Marmoset', cn: '狨猴', tier: 1, atk: 2, hp: 3, pack: 'star',
-    texts: ['出售：接下来 1 次刷新免费',
+    name: 'Marmoset', cn: '狨猴', tier: 1, atk: 2, hp: 3, pack: 'star',    texts: ['出售：接下来 1 次刷新免费',
             '出售：接下来 2 次刷新免费',
             '出售：接下来 3 次刷新免费'],
     hooks: {
@@ -878,6 +900,165 @@ const PETS = {
         g.setAtk(c.self, g.game.getShopTier() + c.lvl);
       }
     }
+  },
+
+  /* ==================== 星包 Tier 2 ==================== */
+
+  AtlanticPuffin: {
+    name: 'Atlantic Puffin', cn: '海鹦', tier: 2, atk: 2, hp: 3, pack: 'star',
+    texts: ['友方攻击时：移除它的草莓标记，对最后一名敌人造成 2 伤害',
+            '友方攻击时：移除它的草莓标记，对最后一名敌人造成 4 伤害',
+            '友方攻击时：移除它的草莓标记，对最后一名敌人造成 6 伤害'],
+    hooks: {
+      friendAttack: function (g, c) {
+        const atk = c.attacker;
+        if (!atk || !g.hasPerk(atk, 'Strawberry')) return;
+        g.removePerk(atk, 'Strawberry');
+        const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
+        if (foes.length) g.hit(foes[foes.length - 1], c.lvl * 2);
+      }
+    }
+  },
+
+  Bass: {
+    name: 'Bass', cn: '鲈鱼', tier: 2, atk: 3, hp: 3, pack: 'star',
+    texts: ['阵亡/出售：给随机一个「2 级且带出售技能」的友方 +1 经验',
+            '阵亡/出售：给随机一个「2 级且带出售技能」的友方 +2 经验',
+            '阵亡/出售：给随机一个「2 级且带出售技能」的友方 +3 经验'],
+    hooks: {
+      // 战斗里用 grantExp，商店里走 Game.addExp
+      faint: function (g, c) {
+        const t = g.random(sellFriends(g, c.self), 1);
+        if (t[0]) g.grantExp(t[0], c.lvl);
+      },
+      sell: function (g, c) {
+        const t = g.random(sellFriends(g, c.self), 1);
+        if (t[0]) g.game.addExp(t[0], c.lvl);
+      }
+    }
+  },
+
+  Dove: {
+    name: 'Dove', cn: '鸽子', tier: 2, atk: 1, hp: 1, pack: 'star',
+    texts: ['阵亡：把随机 2 个友方的草莓标记换成 +2/+2',
+            '阵亡：把随机 2 个友方的草莓标记换成 +4/+4',
+            '阵亡：把随机 2 个友方的草莓标记换成 +6/+6'],
+    hooks: {
+      faint: function (g, c) {
+        const cand = g.friends(c.self).filter(function (p) { return g.hasPerk(p, 'Strawberry'); });
+        for (const p of g.random(cand, 2)) {
+          g.removePerk(p, 'Strawberry');
+          g.buff(p, c.lvl * 2, c.lvl * 2);
+        }
+      }
+    }
+  },
+
+  GuineaPig: {
+    name: 'Guinea Pig', cn: '豚鼠', tier: 2, atk: 2, hp: 3, pack: 'star',
+    texts: ['购买时：召唤 1 个 1/1 豚鼠', '购买时：召唤 1 个 2/2 豚鼠', '购买时：召唤 1 个 3/3 豚鼠'],
+    hooks: {
+      buy: function (g, c) {
+        g.summon('GuineaPig', { atk: c.lvl, hp: c.lvl, lvl: 1 });
+      }
+    }
+  },
+
+  Iguana: {
+    name: 'Iguana', cn: '鬣蜥', tier: 2, atk: 2, hp: 4, pack: 'star',
+    texts: ['敌人被召唤或被推时：对它造成 2 伤害',
+            '敌人被召唤或被推时：对它造成 4 伤害',
+            '敌人被召唤或被推时：对它造成 6 伤害'],
+    hooks: {
+      foeSummoned: function (g, c) { if (c.target && c.target.hp > 0) g.hit(c.target, c.lvl * 2); },
+      foePushed:   function (g, c) { if (c.target && c.target.hp > 0) g.hit(c.target, c.lvl * 2); }
+    }
+  },
+
+  Jellyfish: {
+    name: 'Jellyfish', cn: '水母', tier: 2, atk: 2, hp: 3, pack: 'star',
+    texts: ['友方升级时：自己 +1/+1', '友方升级时：自己 +2/+2', '友方升级时：自己 +3/+3'],
+    hooks: {
+      friendLevelUp: function (g, c) { g.buff(c.self, c.lvl, c.lvl); }
+    }
+  },
+
+  Panda: {
+    name: 'Panda', cn: '熊猫', tier: 2, atk: 2, hp: 4, pack: 'star',
+    texts: ['开战时：若有前方友方，把 50% 攻防给它然后自己阵亡',
+            '开战时：若有前方友方，把 100% 攻防给它然后自己阵亡',
+            '开战时：若有前方友方，把 150% 攻防给它然后自己阵亡'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const ahead = g.ahead(c.self, 1)[0];
+        if (!ahead) return;                       // 没有前方友方就什么都不做
+        const mul = c.lvl * 0.5;                  // 50% / 100% / 150%
+        const atk = Math.floor(c.self.atk * mul);
+        const hp  = Math.floor(c.self.hp  * mul);
+        if (atk || hp) g.buff(ahead, atk, hp);
+        c.self.hp = 0;                            // 然后自己阵亡
+      }
+    }
+  },
+
+  Salamander: {
+    name: 'Salamander', cn: '蝾螈', tier: 2, atk: 1, hp: 1, pack: 'star',
+    texts: ['开战时：每个带出售技能的友方，按其等级给自己 +1/+1',
+            '开战时：每个带出售技能的友方，按其等级给自己 +2/+2',
+            '开战时：每个带出售技能的友方，按其等级给自己 +3/+3'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        let n = 0;
+        for (const p of g.friends(c.self)) {
+          if (p.def && p.def.hooks && p.def.hooks.sell) n += p.lvl;
+        }
+        if (n) g.buff(c.self, n * c.lvl, n * c.lvl);
+      }
+    }
+  },
+
+  Seahorse: {
+    name: 'Seahorse', cn: '海马', tier: 2, atk: 2, hp: 4, pack: 'star',
+    texts: ['开战时：把最后一名敌人向前推 1 格',
+            '开战时：把最后一名敌人向前推 2 格',
+            '开战时：把最后一名敌人向前推 3 格'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
+        if (foes.length) g.push(foes[foes.length - 1], c.lvl);
+      }
+    }
+  },
+
+  Stork: {
+    name: 'Stork', cn: '鹳', tier: 2, atk: 2, hp: 1, pack: 'star',
+    texts: ['阵亡：以 3/2 召唤上一星级随机一只 1 级宠物',
+            '阵亡：以 6/4 召唤上一星级随机一只 2 级宠物',
+            '阵亡：以 9/6 召唤上一星级随机一只 3 级宠物'],
+    hooks: {
+      faint: function (g, c) {
+        const tier = Math.max(1, (g.tier || 1) - 1);   // 上一星级
+        const pack = (typeof activePack === 'function') ? activePack() : 'turtle';
+        const pool = petsOfTier(tier, pack);
+        if (!pool.length) return;
+        const id = RNG.pick(pool);
+        g.summon(c.self.side, g.indexOf(c.self), id,
+                 { atk: c.lvl * 3, hp: c.lvl * 2, lvl: c.lvl });
+      }
+    }
+  },
+
+  Yak: {
+    name: 'Yak', cn: '牦牛', tier: 2, atk: 3, hp: 5, pack: 'star',
+    texts: ['回合结束：对自己造成 1 伤害，+1 攻击',
+            '回合结束：对自己造成 1 伤害，+2 攻击',
+            '回合结束：对自己造成 1 伤害，+3 攻击'],
+    hooks: {
+      endTurn: function (g, c) {
+        g.hit(c.self, 1);
+        g.buff(c.self, c.lvl, 0);
+      }
+    }
   }
 };
 
@@ -890,6 +1071,36 @@ for (const k in TOKEN_PETS) PETS[k] = TOKEN_PETS[k];
 function petName(def) {
   if (!def) return '?';
   return def.cn || def.name || '?';
+}
+
+/* ------------------------------------------------------------
+ *  星包鲈鱼用：「2 级且带出售技能」的友方
+ *  战斗和商店两个上下文都有 g.friends()，所以这一个函数两边都能用
+ * ---------------------------------------------------------- */
+function sellFriends(g, self) {
+  return g.friends(self).filter(function (p) {
+    return p.lvl === 2 && p.def && p.def.hooks && p.def.hooks.sell;
+  });
+}
+
+/* 星包鹳：取某个星级的可购买宠物。
+ * ⚠️ 刻意不调用 game.js 的 buyablePool() —— data.js 的钩子只该依赖引擎原语。
+ *    （之前这么写导致只加载 data+engine 的战斗测试里直接 ReferenceError） */
+function petsOfTier(tier, pack) {
+  return Object.keys(PETS).filter(function (k) {
+    const d = PETS[k];
+    if (d.token || d.tier !== tier) return false;
+    if (pack == null) return true;
+    return (d.pack || 'turtle') === pack;
+  });
+}
+
+/* 星包几维鸟：受伤/出售时给随机一个带草莓标记的友方加攻击
+ * （战斗和商店两个上下文都有 friends / random / buff / hasPerk） */
+function kiwiBuff(g, c) {
+  const cand = g.friends(c.self).filter(function (p) { return g.hasPerk(p, 'Strawberry'); });
+  const t = g.random(cand, 1);
+  if (t[0]) g.buff(t[0], c.lvl, 0);
 }
 
 /* ------------------------------------------------------------
@@ -920,7 +1131,19 @@ const FOODS = {
   // 牛奶由 Cow 的技能提供（免费，逐级更强）
   Milk:        { name: 'Milk',        cn: '牛奶',     cost: 0, buff: [1, 2], text: '给一只宠物 +1/+2', token: true },
   BetterMilk:  { name: 'Better Milk', cn: '优质牛奶', cost: 0, buff: [2, 4], text: '给一只宠物 +2/+4', token: true },
-  BestMilk:    { name: 'Best Milk',   cn: '顶级牛奶', cost: 0, buff: [3, 6], text: '给一只宠物 +3/+6', token: true }
+  BestMilk:    { name: 'Best Milk',   cn: '顶级牛奶', cost: 0, buff: [3, 6], text: '给一只宠物 +3/+6', token: true },
+
+  /* ---- 星包食物 ----
+   * ⚠️ 官方每个包的食物池是【独立的】。星包的食物只有这 7 种：
+   *     草莓 / 黄瓜 / 奶酪 / 葡萄 / 胡萝卜 / 胡椒 / 爆米花
+   *    —— 星包里【没有】苹果、蜂蜜、西瓜。所以宠物包的食物也必须按包过滤
+   *      （见 Game.makeShopFood）。
+   *
+   * 草莓（官方 wiki「Food Perks」页原文："Enables Strawberry abilities."）
+   * 它【自身没有任何效果】—— 只是一个标记，供星包特定宠物消费
+   * （海鹦 / 鸽子 / 几维鸟）。它占掉唯一的食物槽，带上就没法再带别的 Perk。 */
+  Strawberry:  { name: 'Strawberry',  cn: '草莓',     cost: 3, perk: 'Strawberry', pack: 'star',
+                 text: '给一只宠物草莓标记（供特定技能使用，本身无效果）' }
 };
 
 if (typeof module !== 'undefined' && module.exports) {

@@ -189,6 +189,45 @@ ShopEnv.prototype.freeRolls = function (n) {
   this.emit({ e: 'freeRoll', n: n });
 };
 
+/* 往队伍里加一只宠物（豚鼠「购买时召唤一只豚鼠」）。
+ * 队伍满了就什么都不做 —— 官方也是这么处理的。 */
+ShopEnv.prototype.summon = function (defId, opts) {
+  opts = opts || {};
+  const g = this.game;
+  if (g.team.length >= g.getTeamMax()) return null;
+  const pet = makePet(defId, opts.lvl || 1, { atk: opts.atk, hp: opts.hp });
+  pet.side = -1;
+  g.team.push(pet);
+  this.emit({ e: 'summonShop', t: pet.uid, defId: defId });
+  return pet;
+};
+
+/* 商店里对自己造成伤害（牦牛「回合结束：对自己造成 1 伤害」）。
+ * 官方里商店阶段宠物不会真的死，所以最低留 1 点生命。 */
+ShopEnv.prototype.hit = function (pet, n) {
+  if (!pet) return 0;
+  const before = pet.hp;
+  pet.hp = Math.max(1, pet.hp - n);
+  const real = before - pet.hp;
+  if (real) this.emit({ e: 'dmg', t: pet.uid, n: real });
+  return real;
+};
+
+/* 移除 Perk（海鹦 / 鸽子要把草莓标记「花掉」） */
+ShopEnv.prototype.removePerk = function (pet, id) {
+  if (!pet) return false;
+  const before = pet.perks.length;
+  pet.perks = pet.perks.filter(function (p) { return p.id !== id; });
+  if (pet.perks.length === before) return false;
+  this.emit({ e: 'perkLost', t: pet.uid, id: id });
+  return true;
+};
+
+ShopEnv.prototype.hasPerk = function (pet, id) {
+  if (!pet) return false;
+  return pet.perks.some(function (p) { return p.id === id; });
+};
+
 /* ------------------------------------------------------------
  *  把商店阶段的事件汇总成一句人话（方案 B：汇总成一条）
  *  返回形如 ["虫子 库存 苹果", "天鹅 +2 金"] 的字符串数组
@@ -231,6 +270,13 @@ function describeShopNotes(game, events) {
       notes.push((who ? who + ' ' : '') + '把 ' + (nameOf(ev.t) || '自己') + ' 的攻击设为 ' + ev.n);
     } else if (ev.e === 'freeRoll') {
       notes.push((who ? who + ' ' : '') + '接下来 ' + ev.n + ' 次刷新免费');
+    } else if (ev.e === 'summonShop') {
+      const d = PETS[ev.defId];
+      notes.push((who ? who + ' ' : '') + '召唤了 ' + (d ? petName(d) : ev.defId));
+    } else if (ev.e === 'dmg') {
+      notes.push((who ? who + ' ' : '') + '自己受到 ' + ev.n + ' 伤害');
+    } else if (ev.e === 'perkLost') {
+      notes.push((who ? who + ' ' : '') + '失去了 ' + ev.id + ' 标记');
     }
   }
   return notes;
@@ -319,7 +365,13 @@ Game.prototype.makeShopPet = function (defId) {
 };
 
 Game.prototype.makeShopFood = function () {
-  const keys = Object.keys(FOODS).filter(function (k) { return !FOODS[k].token; });
+  // 食物也要按宠物包过滤 —— 草莓是星包的，不该出现在龟包的商店里
+  const pack = activePack();
+  const keys = Object.keys(FOODS).filter(function (k) {
+    if (FOODS[k].token) return false;
+    return (FOODS[k].pack || 'turtle') === pack;
+  });
+  if (!keys.length) return null;
   return { id: RNG.pick(keys), cost: CFG.FOOD_COST };
 };
 
@@ -478,6 +530,16 @@ Game.prototype.addExp = function (pet, n) {
         env.emit({ e: 'ability', t: pet.uid, hook: 'levelUp' });
         def.hooks.levelUp(env, { self: pet, lvl: pet.lvl });
       }
+      // 友方升级时的触发（星包水母）
+      for (const q of this.team) {
+        if (q === pet) continue;
+        const dq = q.def;
+        if (dq && dq.hooks && dq.hooks.friendLevelUp) {
+          env.actor = q;
+          dq.hooks.friendLevelUp(env, { self: q, lvl: q.lvl, target: pet });
+        }
+      }
+      env.actor = null;
       // 官方：升星时给「下一星级的两个宠物」；但合成到 3 级不触发
       if (pet.lvl < 3) this.tierUpReward();
     }
@@ -738,7 +800,7 @@ Game.prototype.endTurn = function () {
   const foeTeam = opponent.map(clonePet);
   // 遗物的开战效果（战旗 / 獠牙 / 铁甲 / 猎杀标记）
   applyRelicBattleStart(this, myTeam, foeTeam);
-  const result = runBattle(myTeam, foeTeam);
+  const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier() });
 
   this.phase = 'battle';
   this.lastResult = {

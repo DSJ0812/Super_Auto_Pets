@@ -215,7 +215,7 @@ Melee.prototype.endTurn = function () {
     const bTeam = b.game.team.map(clonePet);
     applyRelicBattleStart(a.game, aTeam, bTeam);
     applyRelicBattleStart(b.game, bTeam, aTeam);
-    const res = runBattle(aTeam, bTeam);
+    const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier() });
 
     let winner = null, loser = null;
     if (res.winner === 0)      { winner = a; loser = b; }

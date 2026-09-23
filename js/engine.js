@@ -79,7 +79,9 @@ function cloneTeam(team) {
 /* ------------------------------------------------------------
  *  战斗
  * ---------------------------------------------------------- */
-function Battle(teamA, teamB) {
+function Battle(teamA, teamB, opts) {
+  opts = opts || {};
+  this.tier = opts.tier || 1;      // 当前商店等级（星包鹳要「上一星级」）
   this.sides = [cloneTeam(teamA), cloneTeam(teamB)];
   this.sides[0].forEach(function (p) { p.side = 0; });
   this.sides[1].forEach(function (p) { p.side = 1; });
@@ -161,6 +163,16 @@ Battle.prototype.givePerk = function (pet, id, uses) {
   this.emit({ e: 'perk', t: pet.uid, id: id });
 };
 
+/* 移除某个 Perk（星包海鹦 / 鸽子要把草莓标记「花掉」）。返回是否真的移除了 */
+Battle.prototype.removePerk = function (pet, id) {
+  if (!pet) return false;
+  const before = pet.perks.length;
+  pet.perks = pet.perks.filter(function (p) { return p.id !== id; });
+  if (pet.perks.length === before) return false;
+  this.emit({ e: 'perkLost', t: pet.uid, id: id });
+  return true;
+};
+
 // 召唤：index 为插入位置
 Battle.prototype.summon = function (side, index, defId, opts) {
   opts = opts || {};
@@ -180,6 +192,12 @@ Battle.prototype.summon = function (side, index, defId, opts) {
     if (team2[i] !== pet && team2[i].hp > 0) {
       this.triggerOn('friendSummoned', team2[i], { target: pet });
     }
+  }
+
+  // 敌方被召唤时的触发（星包鬣蜥）
+  const foes = this.sides[1 - side];
+  for (let i = 0; i < foes.length; i++) {
+    if (foes[i].hp > 0) this.triggerOn('foeSummoned', foes[i], { target: pet });
   }
   return pet;
 };
@@ -232,6 +250,12 @@ Battle.prototype.push = function (pet, spaces) {
   team.splice(from, 1);
   team.splice(to, 0, pet);
   this.emit({ e: 'push', t: pet.uid, side: pet.side, from: from, to: to });
+
+  // 敌方被推时的触发（星包鬣蜥）
+  const foes = this.sides[1 - pet.side];
+  for (let i = 0; i < foes.length; i++) {
+    if (foes[i].hp > 0) this.triggerOn('foePushed', foes[i], { target: pet });
+  }
 };
 
 /* ---- N 格内范围伤害 ----
@@ -270,7 +294,16 @@ Battle.prototype.grantExp = function (pet, n) {
     pet.atk += 1;
     pet.hp  += 1;
     gained++;
-    if (pet.exp >= EXP_BONUS[pet.lvl + 1]) pet.lvl += 1;
+    if (pet.exp >= EXP_BONUS[pet.lvl + 1]) {
+      pet.lvl += 1;
+      // 友方升级（星包水母）
+      const mates = this.sides[pet.side];
+      for (let k = 0; k < mates.length; k++) {
+        if (mates[k] !== pet && mates[k].hp > 0) {
+          this.triggerOn('friendLevelUp', mates[k], { target: pet });
+        }
+      }
+    }
   }
   if (gained) this.emit({ e: 'buff', t: pet.uid, atk: gained, hp: gained });
 };
@@ -406,6 +439,14 @@ Battle.prototype.exchange = function (a, b) {
   this.triggerOn('selfAttack', a, {});
   this.triggerOn('selfAttack', b, {});
 
+  // 任意友方攻击时（星包海鹦「友方攻击时…」）
+  for (const fp of this.sides[a.side].slice()) {
+    if (fp !== a && fp.hp > 0) this.triggerOn('friendAttack', fp, { attacker: a });
+  }
+  for (const fp of this.sides[b.side].slice()) {
+    if (fp !== b && fp.hp > 0) this.triggerOn('friendAttack', fp, { attacker: b });
+  }
+
   // 击倒触发（Hippo / Rhino）：必须在死亡结算前，宠物还活着才能吃到加成
   if (b.hp <= 0) this.triggerOn('knockOut', a, { target: b });
   if (a.hp <= 0) this.triggerOn('knockOut', b, { target: a });
@@ -477,8 +518,8 @@ Battle.prototype.run = function () {
 };
 
 /* 便捷入口 */
-function runBattle(teamA, teamB) {
-  return new Battle(teamA, teamB).run();
+function runBattle(teamA, teamB, opts) {
+  return new Battle(teamA, teamB, opts).run();
 }
 
 if (typeof module !== 'undefined' && module.exports) {
