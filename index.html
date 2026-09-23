@@ -14,9 +14,18 @@
     <p class="home-sub">选择一个模式开始</p>
   </header>
 
+  <!-- 宠物包：一局只用一个包（两个包混进同一个池子会把重复率砍半，
+       合成升级会变得几乎不可能），所以这里选一次，三个模式都跟着走 -->
+  <div class="pack-pick">
+    <span class="pp-label">宠物包</span>
+    <button class="pp-btn active" data-pack="turtle">🐢 龟包 <b>61</b> 只</button>
+    <button class="pp-btn" data-pack="star">⭐ 星包 <b>67</b> 只</button>
+    <span class="pp-note" id="packNote">经典 Turtle Pack</span>
+  </div>
+
   <div class="mode-grid">
 
-    <a class="mode-card" href="solo.html">
+    <a class="mode-card" id="cardSolo" href="solo.html">
       <div class="mode-icon">🎯</div>
       <div class="mode-name">经典模式</div>
       <div class="mode-desc">
@@ -27,7 +36,7 @@
       <div class="mode-tag">单人闯关</div>
     </a>
 
-    <a class="mode-card accent" href="melee.html">
+    <a class="mode-card accent" id="cardMelee" href="melee.html">
       <div class="mode-icon">⚔️</div>
       <div class="mode-name">8 人混战</div>
       <div class="mode-desc">
@@ -50,7 +59,7 @@
       <div class="mode-tag">局域网</div>
     </a>
 
-    <a class="mode-card daily" href="solo.html?daily=1">
+    <a class="mode-card daily" id="cardDaily" href="solo.html?daily=1">
       <div class="mode-icon">📅</div>
       <div class="mode-name">每日挑战</div>
       <div class="mode-desc">
@@ -64,13 +73,45 @@
   </div>
 
   <div class="home-foot" id="homeFoot">
-    61 只宠物 · 7 种召唤物 · 11 种道具 &nbsp;|&nbsp; 双击即玩，无需安装
+    龟包 61 只 + 星包 67 只 · 7 种召唤物 · 道具 &nbsp;|&nbsp; 打开即玩，无需安装
   </div>
 
 </div>
 
 <script src="js/rng.js"></script>
 <script>
+/* 宠物包选择：选中的包会写进三个模式卡片的链接（?pack=xxx）。
+ * 一局只用一个包 —— 两个包混进同一个池子会把重复率砍半，
+ * 而 SAP 的升级完全依赖反复出现同名宠物。 */
+(function () {
+  var PACKS = {
+    turtle: { icon: '🐢', cn: '龟包', note: '经典 Turtle Pack', count: 61 },
+    star:   { icon: '⭐', cn: '星包', note: 'Star Pack（官方第二个包）', count: 67 }
+  };
+  var cur = 'turtle';
+  var btns = document.querySelectorAll('.pp-btn');
+
+  function apply() {
+    var q = cur === 'turtle' ? '' : ('?pack=' + cur);
+    document.getElementById('cardSolo').href = 'solo.html' + q;
+    document.getElementById('cardMelee').href = 'melee.html' + q;
+    document.getElementById('cardDaily').href = 'solo.html?daily=1' +
+      (cur === 'turtle' ? '' : '&pack=' + cur);
+    document.getElementById('packNote').textContent = PACKS[cur].note;
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].dataset.pack === cur);
+    }
+  }
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener('click', function () {
+      cur = this.dataset.pack;
+      if (!PACKS[cur]) cur = 'turtle';
+      apply();
+    });
+  }
+  apply();
+})();
+
 /* 联机入口只在「真的有服务器」时出现。
  *
  * 这样同一份 index.html 能同时服务两种场景：
@@ -82,7 +123,7 @@
 (function () {
   var card = document.getElementById('onlineCard');
   var foot = document.getElementById('homeFoot');
-  var base = '61 只宠物 · 7 种召唤物 · 11 种道具';
+  var base = '龟包 61 只 + 星包 67 只 · 7 种召唤物 · 道具';
   // 同一份 index.html 会用在两种场景：file:// 双击打开、以及网页链接打开，
   // 所以文案用「打开即玩」而不是「双击即玩」
   var offlineFoot = base + ' &nbsp;|&nbsp; 打开即玩，无需安装' +

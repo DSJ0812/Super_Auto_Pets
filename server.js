@@ -22,11 +22,13 @@ const { loadCore } = require('./js/node-loader.js');
 const ROOT = __dirname;
 const ARGV = process.argv.slice(2);
 
-/* 参数：node server.js [端口] [--seed=XXXX] */
+/* 参数：node server.js [端口] [--seed=XXXX] [--pack=star] */
 let seedArg = null;
+let packArg = null;
 let PORT = 8000;
 for (const a of ARGV) {
   if (/^--seed=/.test(a)) seedArg = a.slice(7);
+  else if (/^--pack=/.test(a)) packArg = a.slice(7);
   else if (/^--port=/.test(a)) PORT = parseInt(a.slice(7), 10);
   else if (/^\d+$/.test(a)) PORT = parseInt(a, 10);
 }
@@ -45,6 +47,9 @@ const { OnlineGame, MELEE_CFG, packSelf, rosterOf, RNG } = CORE;
  *    · 命令行传 --seed=xxx 时，整局完全可复现（测试/排查用）
  * ---------------------------------------------------------- */
 let roomSeed = seedArg;                 // 有值 = 固定种子（命令行指定）
+if (packArg && CORE.PACKS[packArg]) {   // 房间用哪个宠物包（联机由服务器决定）
+  CORE.CFG.PACK = packArg;
+}
 let game = null;
 let generation = 1;
 
@@ -294,6 +299,8 @@ server.listen(PORT, '0.0.0.0', function () {
     lines.push('  ⚠️  没检测到局域网 IP，确认一下网络连接');
   }
   lines.push('  ' + '-'.repeat(46));
+  lines.push('  宠物包: ' + CORE.activePack() + '（' + CORE.PACKS[CORE.activePack()].cn + '，' +
+             CORE.buyablePool().length + ' 只）');
   lines.push('  别人打开上面任意一个地址，输入昵称即可加入房间。');
   lines.push('  人不够时剩下的座位会自动由电脑补位。');
   lines.push('  关掉这个窗口 = 服务器停止，大家都会掉线。');
