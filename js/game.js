@@ -961,7 +961,9 @@ Game.prototype.endTurn = function () {
   const foeTeam = opponent.map(clonePet);
   // 遗物的开战效果（战旗 / 獠牙 / 铁甲 / 猎杀标记）
   applyRelicBattleStart(this, myTeam, foeTeam);
-  applySynergyBattleStart(this, myTeam);   // 阵营羁绊（自创机制）
+  // 阵营羁绊（自创机制）：⚠️ 两边都要给 —— 只给玩家的话等于单方面降低难度
+  applySynergyBattleStart(this, myTeam);
+  applySynergyBattleStart(this, foeTeam);
   const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier(), rolls: this.rollsThisTurn || 0, turn: this.turn });
 
   this.phase = 'battle';
