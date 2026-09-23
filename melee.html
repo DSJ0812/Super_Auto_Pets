@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>8 人混战 · Super Auto Pets</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ===================== 顶栏 ===================== -->
+  <header id="topbar">
+    <div class="tb-stat">
+      <span class="tb-k">回合</span>
+      <span class="tb-v" id="mTurn">1</span>
+    </div>
+    <div class="tb-stat gold">
+      <span class="tb-k">金币</span>
+      <span class="tb-v" id="mGold">0</span>
+    </div>
+    <div class="tb-stat hp">
+      <span class="tb-k">血量</span>
+      <span class="tb-v" id="mHp">30</span>
+    </div>
+    <div class="tb-stat">
+      <span class="tb-k">存活</span>
+      <span class="tb-v" id="mAlive">8</span>
+    </div>
+    <div class="tb-goal">
+      <a class="back-link" href="index.html">← 返回模式选择</a>
+    </div>
+  </header>
+
+  <div id="message"></div>
+
+  <!-- ===================== 8 人血量面板 ===================== -->
+  <section id="roster" class="roster"></section>
+
+  <!-- ===================== 战报 ===================== -->
+  <section id="report" class="report" style="display:none"></section>
+
+  <!-- ===================== 主区域 ===================== -->
+  <main id="board">
+
+    <!-- 战斗视图 -->
+    <section id="mbattle" style="display:none">
+      <div class="row-wrap">
+        <div class="row-label">对手</div>
+        <div id="mFoeRow" class="pet-row"></div>
+      </div>
+      <div class="row-wrap">
+        <div class="row-label">我的队伍</div>
+        <div id="mMyBattleRow" class="pet-row"></div>
+      </div>
+      <div class="battle-ctrl">
+        <div id="mBattleLabel" class="battle-label"></div>
+        <div class="battle-btns">
+          <div class="speed-ctl" id="mSpeedCtl">
+            <button class="spd" data-mspeed="0.5">0.5×</button>
+            <button class="spd active" data-mspeed="1">1×</button>
+            <button class="spd" data-mspeed="2">2×</button>
+            <button class="spd" data-mspeed="4">4×</button>
+          </div>
+          <button id="mBtnSkip" class="btn">⏩ 跳过动画</button>
+          <button id="mBtnNext" class="btn primary" style="display:none"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 商店视图 -->
+    <section id="mShopView">
+      <div class="row-wrap">
+        <div class="row-label">
+          我的队伍
+          <span class="sub">拖拽调整顺序 · 点两次出售</span>
+        </div>
+        <div id="mMyRow" class="pet-row"></div>
+      </div>
+
+      <section id="mShop">
+        <div class="shop-head">
+          <h3>商店 <span id="mTierBadge" class="shop-tier-badge">等级 1</span></h3>
+          <div id="mHint" class="hint"></div>
+        </div>
+        <div id="mShopNotes" class="shop-notes" style="display:none"></div>
+
+        <div class="shop-cols">
+          <div class="shop-col">
+            <div class="col-label">宠物（按星级定价）</div>
+            <div id="mShopPets" class="slot-row"></div>
+          </div>
+          <div class="shop-col narrow">
+            <div class="col-label">道具（3 金）</div>
+            <div id="mShopFoods" class="slot-row"></div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="mBtnRoll" class="btn">🎲 刷新（2 金）</button>
+          <button id="mBtnEnd" class="btn primary">⚔️ 结束回合，开打！</button>
+        </div>
+      </section>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/render.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/game.js"></script>
+<script src="js/melee.js"></script>
+<script src="js/melee-ui.js"></script>
+</body>
+</html>

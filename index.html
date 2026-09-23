@@ -7,111 +7,43 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div id="app">
+<div id="home">
 
-  <!-- ===================== 顶栏 ===================== -->
-  <header id="topbar">
-    <div class="tb-stat">
-      <span class="tb-k">回合</span>
-      <span class="tb-v" id="turnNum">1</span>
-    </div>
-    <div class="tb-stat gold">
-      <span class="tb-k">金币</span>
-      <span class="tb-v" id="goldNum">10</span>
-    </div>
-    <div class="tb-stat">
-      <span class="tb-k">战绩</span>
-      <span class="tb-v"><span id="winNum" class="win">0</span><span class="sep">胜</span><span id="loseNum" class="lose">0</span><span class="sep">败</span></span>
-    </div>
-    <div class="tb-goal">
-      目标 <b id="goalWins">10</b> 胜 ・ 上限 <b id="goalLoses">3</b> 败
-    </div>
-    <button id="btnCodex" class="btn tiny">📖 宠物图鉴</button>
+  <header class="home-head">
+    <h1>🐾 Super Auto Pets</h1>
+    <p class="home-sub">选择一个模式开始</p>
   </header>
 
-  <div id="message"></div>
+  <div class="mode-grid">
 
-  <!-- ===================== 主区域 ===================== -->
-  <main id="board">
-
-    <!-- 战斗：对手 -->
-    <section id="foeRow" class="row-wrap" style="display:none"></section>
-
-    <!-- 战斗：我的 + 控制条 -->
-    <section id="battlePanel" style="display:none">
-      <div class="row-wrap">
-        <div class="row-label">我的队伍</div>
-        <div id="myBattleRow" class="pet-row"></div>
+    <a class="mode-card" href="solo.html">
+      <div class="mode-icon">🎯</div>
+      <div class="mode-name">经典模式</div>
+      <div class="mode-desc">
+        <b>10 胜</b>通关 · <b>3 败</b>出局<br>
+        每回合 10 金（不累积）<br>
+        对手按回合强度生成
       </div>
-      <div class="battle-ctrl">
-        <div id="battleLabel" class="battle-label"></div>
-        <div class="battle-btns">
-          <div class="speed-ctl" id="speedCtl">
-            <button class="spd" data-speed="0.5">0.5×</button>
-            <button class="spd active" data-speed="1">1×</button>
-            <button class="spd" data-speed="2">2×</button>
-            <button class="spd" data-speed="4">4×</button>
-          </div>
-          <button id="btnSkip" class="btn">⏩ 跳过动画</button>
-          <button id="btnNext" class="btn primary" style="display:none"></button>
-        </div>
+      <div class="mode-tag">单人闯关</div>
+    </a>
+
+    <a class="mode-card accent" href="melee.html">
+      <div class="mode-icon">⚔️</div>
+      <div class="mode-name">8 人混战</div>
+      <div class="mode-desc">
+        你和 <b>7 个人机</b>同场竞技<br>
+        每回合两两配对，输一场扣血<br>
+        <b>活到最后</b>就是赢家
       </div>
-    </section>
+      <div class="mode-tag">大逃杀</div>
+    </a>
 
-    <!-- 商店：我的队伍 -->
-    <section id="myRowWrap" class="row-wrap">
-      <div class="row-label">
-        我的队伍
-        <span class="sub">拖拽调整顺序 · 点两次出售</span>
-      </div>
-      <div id="myRow" class="pet-row"></div>
-    </section>
+  </div>
 
-  </main>
-
-  <!-- ===================== 商店 ===================== -->
-  <section id="shop">
-    <div class="shop-head">
-      <h3>商店 <span id="shopTierBadge" class="shop-tier-badge">等级 1</span></h3>
-      <div id="hint" class="hint"></div>
-    </div>
-    <!-- 商店阶段技能触发的汇总提示（回合开始 / 结束 / 买卖带出的效果） -->
-    <div id="shopNotes" class="shop-notes" style="display:none"></div>
-
-    <div class="shop-cols">
-      <div class="shop-col">
-        <div class="col-label">宠物（3 金）</div>
-        <div id="shopPets" class="slot-row"></div>
-      </div>
-      <div class="shop-col narrow">
-        <div class="col-label">道具（3 金）</div>
-        <div id="shopFoods" class="slot-row"></div>
-      </div>
-    </div>
-
-    <div class="actions">
-      <button id="btnRoll" class="btn">🎲 刷新（1 金）</button>
-      <button id="btnEnd" class="btn primary">⚔️ 结束回合，开打！</button>
-    </div>
-  </section>
-
-  <!-- ===================== 宠物图鉴 ===================== -->
-  <div id="codex" class="codex-overlay" style="display:none">
-    <div class="codex-panel">
-      <div class="codex-head">
-        <h2>📖 宠物图鉴</h2>
-        <span class="codex-sub" id="codexSub"></span>
-        <button id="btnCodexClose" class="btn">✕ 关闭</button>
-      </div>
-      <div id="codexBody" class="codex-body"></div>
-    </div>
+  <div class="home-foot">
+    61 只宠物 · 7 种召唤物 · 11 种道具 &nbsp;|&nbsp; 双击即玩，无需安装
   </div>
 
 </div>
-
-<script src="js/data.js"></script>
-<script src="js/engine.js"></script>
-<script src="js/game.js"></script>
-<script src="js/ui.js"></script>
 </body>
 </html>

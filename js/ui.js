@@ -1,36 +1,13 @@
 'use strict';
 /* ============================================================
- *  ui.js — 界面渲染与交互
+ *  ui.js — 单人模式（solo.html）的界面渲染与交互
  *
  *  关键点：战斗不是「一次性算出结果」，而是拿引擎给的事件日志
  *  逐条播放。这样动画、血条、召唤都能自然发生，而且天然支持回放。
+ *
+ *  公共渲染函数（petCard / esc / $ / el / say / PET_EMOJI …）
+ *  已抽到 render.js，本文件只保留单人模式专属逻辑。
  * ============================================================ */
-
-/* 宠物表情（纯装饰） */
-const PET_EMOJI = {
-  Ant: '🐜', Beaver: '🦫', Cricket: '🦗', Duck: '🦆', Fish: '🐟', Horse: '🐴',
-  Mosquito: '🦟', Otter: '🦦', Pig: '🐷', Pigeon: '🐦', Sloth: '🦥',
-  Crab: '🦀', Flamingo: '🦩', Hedgehog: '🦔', Kangaroo: '🦘', Peacock: '🦚',
-  Rat: '🐀', Snail: '🐌', Spider: '🕷️', Swan: '🦢', Worm: '🪱',
-  Badger: '🦡', Camel: '🐫', Dodo: '🦤', Dog: '🐕', Dolphin: '🐬',
-  Elephant: '🐘', Giraffe: '🦒', Ox: '🐂', Rabbit: '🐰', Sheep: '🐑',
-  /* Tier 4 */
-  Bison: '🦬', Blowfish: '🐡', Deer: '🦌', Hippo: '🦛', Parrot: '🦜',
-  Penguin: '🐧', Skunk: '🦨', Squirrel: '🐿️', Turtle: '🐢', Whale: '🐋',
-  /* Tier 5 */
-  Armadillo: '🦔', Cow: '🐄', Crocodile: '🐊', Monkey: '🐒', Rhino: '🦏',
-  Rooster: '🐓', Scorpion: '🦂', Seal: '🦭', Shark: '🦈', Turkey: '🦃',
-  /* Tier 6 */
-  Boar: '🐗', Cat: '🐈', Dragon: '🐉', Fly: '🪰', Gorilla: '🦍',
-  Leopard: '🐆', Mammoth: '🦣', Snake: '🐍', Tiger: '🐅', Wolverine: '🐺',
-  /* 召唤物 */
-  ZombieCricket: '🧟', DirtyRat: '🐭', Ram: '🐏', Bee: '🐝',
-  Bus: '🚌', Chick: '🐤', ZombieFly: '🪳'
-};
-const PERK_EMOJI = {
-  Melon: '🍉', Honey: '🍯', Garlic: '🧄',
-  Chili: '🌶️', Peanut: '🥜', Coconut: '🥥'
-};
 
 const UI = {
   game: null,
@@ -45,77 +22,9 @@ const UI = {
 };
 
 /* ------------------------------------------------------------
- *  小工具
+ *  单人模式专属：商店渲染
+ *  （$ / el / esc / say / petCard / skillTextOf 均来自 render.js）
  * ---------------------------------------------------------- */
-function $(sel) { return document.querySelector(sel); }
-function el(tag, cls, html) {
-  const n = document.createElement(tag);
-  if (cls) n.className = cls;
-  if (html != null) n.innerHTML = html;
-  return n;
-}
-function say(msg) {
-  UI.message = msg;
-  const box = $('#message');
-  if (box) {
-    box.textContent = msg;
-    box.classList.add('show');
-    clearTimeout(UI.msgTimer);
-    UI.msgTimer = setTimeout(function () { box.classList.remove('show'); }, 2200);
-  }
-}
-
-/* ------------------------------------------------------------
- *  宠物卡片
- * ---------------------------------------------------------- */
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-  });
-}
-
-/* 取某等级对应的技能描述（texts 数组在 data.js 里，索引 = 等级-1） */
-function skillTextOf(def, lvl) {
-  if (!def || !def.texts) return '';
-  const i = Math.min(Math.max(lvl || 1, 1), 3) - 1;
-  return def.texts[i] || def.texts[0] || '';
-}
-
-function petCard(p, opts) {
-  opts = opts || {};
-  const def = p.def || PETS[p.defId] || { name: p.defId, cn: '', tier: 0 };
-  const card = el('div', 'pet');
-  card.dataset.uid = p.uid;
-  card.dataset.side = p.side;
-  card.dataset.tier = def.tier || 0;
-
-  if (opts.selectable) card.classList.add('selectable');
-  if (opts.selected) card.classList.add('selected');
-  if (p.hp <= 0) card.classList.add('dead');
-
-  let perkHtml = '';
-  for (const pk of (p.perks || [])) {
-    if (pk.uses > 0) perkHtml += `<span class="perk" title="${pk.id}">${PERK_EMOJI[pk.id] || '🎁'}</span>`;
-  }
-
-  const skill = skillTextOf(def, p.lvl);
-
-  card.innerHTML =
-    // 星级只用边框颜色表达（data-tier 驱动 CSS），不再显示文字徽章
-    '<div class="pet-top">' +
-      '<span class="pet-emoji">' + (PET_EMOJI[p.defId] || '🐾') + '</span>' +
-      '<span class="pet-lvl">' + p.lvl + '级</span>' +
-    '</div>' +
-    '<div class="pet-name">' + esc(petName(def)) + '</div>' +
-    '<div class="pet-stats">' +
-      '<span class="stat atk">' + p.atk + '</span>' +
-      '<span class="slash">/</span>' +
-      '<span class="stat hp">' + p.hp + '</span>' +
-    '</div>' +
-    '<div class="pet-perks">' + perkHtml + '</div>' +
-    (skill ? '<div class="pet-skill" title="' + esc(skill) + '">' + esc(skill) + '</div>' : '');
-  return card;
-}
 
 /* ------------------------------------------------------------
  *  顶栏
@@ -652,8 +561,8 @@ function applyEventSilent(ev) {
 
 /* ------------------------------------------------------------
  *  宠物图鉴
+ *  （TIER_NAME / FOOD_EMOJI 已移到 render.js）
  * ---------------------------------------------------------- */
-const TIER_NAME = { 1: 'Tier 1', 2: 'Tier 2', 3: 'Tier 3', 4: 'Tier 4', 5: 'Tier 5', 6: 'Tier 6' };
 
 /* 列出可购买的宠物（排除召唤物），按 tier → 名字排序 */
 function codexEntries() {
@@ -697,12 +606,7 @@ function codexPetCard(id) {
     '</div>';
 }
 
-/* ---- 图鉴：道具卡片 ---- */
-const FOOD_EMOJI = {
-  Apple: '🍎', BetterApple: '🍎', BestApple: '🍎',
-  Honey: '🍯', Melon: '🍉', BreadCrumbs: '🍞'
-};
-
+/* ---- 图鉴：道具卡片（FOOD_EMOJI 来自 render.js）---- */
 function codexFoodCard(id) {
   const f = FOODS[id];
   return '<div class="codex-card food" data-tier="0">' +

@@ -18,10 +18,32 @@ const CFG = {
   LOSE_MAX: 3,          // 3 败结束
   SHOP_PET_SLOTS: 5,
   SHOP_FOOD_SLOTS: 2,
-  AP_SCALE: 0.4         // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
+  AP_SCALE: 0.4,        // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
                         // 本作只有 Turtle Pack 61 只、对手全是幽灵，按原版会碾压玩家。
                         // 实测：0.40→约 46%，0.35→53%（测试 AI 是下限，真人会更高）
+
+  /* ---- 经济模式（8 人混战会切成 'tft'）----
+   * sap：每回合固定 10 金、不累积、宠物统一 3 金          （经典模式）
+   * tft：金币累积 + 利息 + 连胜奖励、宠物按星级定价        （8 人混战） */
+  ECONOMY: 'sap',
+  TFT_BASE_GOLD: 5,        // 每回合基础金币
+  TFT_INTEREST_PER: 10,    // 每存满 10 金吃 1 点利息
+  TFT_INTEREST_MAX: 5,     // 利息上限
+  TFT_STREAK_CAP: 3,       // 连胜/连败奖励上限
+  TFT_ROLL_COST: 2         // 刷新费用
 };
+
+/* 宠物价格：SAP 统一价；TFT 按星级（T1=1 金 … T6=6 金） */
+function petCostOf(defId) {
+  if (CFG.ECONOMY !== 'tft') return CFG.PET_COST;
+  const d = PETS[defId];
+  return (d && d.tier >= 1) ? d.tier : CFG.PET_COST;
+}
+
+/* 刷新费用 */
+function rollCostOf() {
+  return CFG.ECONOMY === 'tft' ? CFG.TFT_ROLL_COST : CFG.ROLL_COST;
+}
 
 /* 可购买池：全部非代币宠物（Tier 1-6）
  * 具体能买到几星由「商店等级」按回合决定，见 unlockedPool() */
@@ -259,12 +281,13 @@ Game.prototype.foodCost = function (f) {
 Game.prototype.buyPet = function (slotIdx, teamIdx) {
   const pet = this.shopPets[slotIdx];
   if (!pet) return { ok: false, msg: '这个位置没有宠物' };
-  if (this.gold < CFG.PET_COST) return { ok: false, msg: '金币不够' };
+  const cost = petCostOf(pet.defId);                 // SAP 固定价 / TFT 按星级
+  if (this.gold < cost) return { ok: false, msg: '金币不够（需要 ' + cost + ' 金）' };
 
   // 1) 先看能否合并（队伍里有同名且未满级）—— 合并时位置无意义
   const same = this.team.find(function (p) { return p.defId === pet.defId && p.lvl < 3; });
   if (same) {
-    this.gold -= CFG.PET_COST;
+    this.gold -= cost;
     this.shopPets[slotIdx] = null;
     this.frozenPets[slotIdx] = false;      // 商品没了，冻结标记也要清掉
     const before = same.lvl;
@@ -281,7 +304,7 @@ Game.prototype.buyPet = function (slotIdx, teamIdx) {
     return { ok: false, msg: '队伍已满（本回合上限 ' + max + ' 只），先卖掉一只' };
   }
 
-  this.gold -= CFG.PET_COST;
+  this.gold -= cost;
   this.shopPets[slotIdx] = null;
   this.frozenPets[slotIdx] = false;        // 商品没了，冻结标记也要清掉
   const np = clonePet(pet);
@@ -472,8 +495,9 @@ Game.prototype.applyFood = function (teamIdx) {
 
 /* ---- 刷新商店 ---- */
 Game.prototype.roll = function () {
-  if (this.gold < CFG.ROLL_COST) return { ok: false, msg: '金币不够刷新' };
-  this.gold -= CFG.ROLL_COST;
+  const rc = rollCostOf();                 // SAP 1 金 / TFT 2 金
+  if (this.gold < rc) return { ok: false, msg: '金币不够刷新' };
+  this.gold -= rc;
   this.pendingFood = null;
   this.rollShop(false);
   return { ok: true, msg: '刷新了商店' };
@@ -642,11 +666,35 @@ Game.prototype.endTurn = function () {
   return { ok: true, result: this.lastResult };
 };
 
+/* ---- 回合收入 ----
+ * SAP：固定 10 金，回合结束清零（不累积）
+ * TFT：基础金 + 利息（每存满 N 金吃 1 点）+ 连胜/连败奖励，金币累积 */
+Game.prototype.grantIncome = function () {
+  if (CFG.ECONOMY !== 'tft') {
+    this.gold = CFG.GOLD_PER_TURN;
+    this.lastIncome = { base: CFG.GOLD_PER_TURN, interest: 0, streak: 0 };
+    return this.lastIncome;
+  }
+  const base = CFG.TFT_BASE_GOLD;
+  const interest = Math.min(CFG.TFT_INTEREST_MAX,
+                            Math.floor(this.gold / CFG.TFT_INTEREST_PER));
+  // 连胜/连败奖励（金铲铲式分档）：2-3 场 +1，4-5 场 +2，6+ 场 +3
+  const s = Math.abs(this.streak || 0);
+  let streakGold = 0;
+  if (s >= 6)      streakGold = 3;
+  else if (s >= 4) streakGold = 2;
+  else if (s >= 2) streakGold = 1;
+  const gain = base + interest + streakGold;
+  this.gold += gain;
+  this.lastIncome = { base: base, interest: interest, streak: streakGold, gain: gain };
+  return this.lastIncome;
+};
+
 /* ---- 进入下一回合 ---- */
 Game.prototype.nextTurn = function () {
   if (this.phase === 'gameover') return;
   this.turn++;
-  this.gold = CFG.GOLD_PER_TURN;
+  this.grantIncome();
   this.phase = 'shop';
   this.pendingFood = null;
   this.foodDiscount = 0;         // 每回合重置，Squirrel 会在开局重新打折

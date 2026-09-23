@@ -459,6 +459,118 @@ html, body {
   padding-top: 1px;
 }
 
+/* ===================== 起始界面（模式选择） ===================== */
+#home {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 64px 24px 40px;
+  text-align: center;
+}
+.home-head h1 { font-size: 34px; letter-spacing: 1px; margin-bottom: 8px; }
+.home-sub { color: var(--dim); font-size: 14px; margin-bottom: 42px; }
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 20px;
+}
+.mode-card {
+  display: block;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  padding: 28px 22px 22px;
+  text-align: left;
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.mode-card:hover {
+  transform: translateY(-4px);
+  border-color: #4d96f8;
+  box-shadow: 0 12px 32px rgba(0,0,0,.45);
+}
+.mode-card.accent { border-color: #8a4a32; }
+.mode-card.accent:hover { border-color: #ff8a5c; box-shadow: 0 12px 32px rgba(255,120,80,.22); }
+
+.mode-icon { font-size: 40px; line-height: 1; margin-bottom: 12px; }
+.mode-name { font-size: 21px; font-weight: 800; margin-bottom: 10px; }
+.mode-desc { font-size: 13px; line-height: 1.95; color: var(--dim); }
+.mode-desc b { color: var(--gold); }
+.mode-tag {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8fd0ff;
+  background: rgba(87,166,255,.13);
+  border: 1px solid rgba(87,166,255,.3);
+  border-radius: 999px;
+}
+.mode-card.accent .mode-tag {
+  color: #ffb08f;
+  background: rgba(255,138,92,.13);
+  border-color: rgba(255,138,92,.3);
+}
+.home-foot { margin-top: 46px; color: #5d6675; font-size: 12.5px; line-height: 1.8; }
+
+/* ===================== 8 人混战 ===================== */
+.back-link { color: var(--dim); text-decoration: none; font-size: 13px; }
+.back-link:hover { color: var(--text); }
+
+/* 8 人血量面板 */
+.roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.roster-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 9px;
+  transition: border-color .15s, opacity .2s;
+}
+.roster-card.me { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(87,166,255,.16); }
+.roster-card.out { opacity: .35; }
+.rc-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.rc-name { font-size: 12.5px; font-weight: 700; }
+.roster-card.me .rc-name { color: #8fd0ff; }
+.rc-hp { font-size: 13px; font-weight: 800; color: var(--hp); font-variant-numeric: tabular-nums; }
+.rc-rank { font-size: 10.5px; color: var(--dim); }
+.rc-bar { height: 5px; background: #2b303b; border-radius: 3px; overflow: hidden; }
+.rc-bar i {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, #43b96a, #6bd47f);
+  transition: width .3s;
+}
+.roster-card.out .rc-bar i { background: #555c6a; }
+.rc-team { font-size: 11px; margin-top: 4px; height: 15px; overflow: hidden; letter-spacing: 1px; }
+
+/* 回合战报 */
+.report {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  margin-bottom: 14px;
+}
+.report-head { font-size: 13px; font-weight: 700; color: var(--gold); margin-bottom: 8px; }
+.report-list { display: flex; flex-direction: column; gap: 5px; }
+.report-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12.5px; padding: 4px 9px; border-radius: 7px;
+  background: rgba(255,255,255,.02);
+}
+.report-row.mine { background: rgba(87,166,255,.10); }
+.report-row.bye { color: var(--dim); }
+.rr-pair b { color: var(--dim); font-weight: 400; margin: 0 5px; }
+.rr-lose { color: var(--lose); font-weight: 700; }
+.rr-draw { color: var(--gold); }
+.rr-res { margin-left: auto; padding-left: 12px; }
+
 @media (max-width: 720px) {
   .pet, .shop-slot { width: 96px; }
   .pet-stats { font-size: 15px; }
