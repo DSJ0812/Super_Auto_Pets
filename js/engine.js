@@ -115,13 +115,27 @@ Battle.prototype.buff = function (pet, atk, hp) {
   this.emit({ e: 'buff', t: pet.uid, atk: atk || 0, hp: hp || 0 });
 };
 
-// 造成伤害（含减伤计算），返回实际伤害
-Battle.prototype.hit = function (pet, amount) {
+// 造成伤害（含减伤计算），返回实际伤害。opts.friendly 见 calcDamage
+Battle.prototype.hit = function (pet, amount, opts) {
   if (!pet || pet.hp <= 0) return 0;
-  const dmg = this.pepperGuard(pet, this.calcDamage(pet, amount));
+  const dmg = this.pepperGuard(pet, this.calcDamage(pet, amount, opts));
   pet.hp -= dmg;
+  this.consumeUsedDefensive(pet);        // 技能伤害也要消耗掉减伤 Perk（否则西瓜能无限挡）
   this.emit({ e: 'dmg', t: pet.uid, n: dmg });
   return dmg;
+};
+
+/* 消耗「这一次实际生效的那个」防御 Perk（由 calcDamage 记在 pet._defUsed 上）。
+ * 只消耗生效的那个，所以桉树叶挡不了友方伤害时也不会被白白浪费。 */
+Battle.prototype.consumeUsedDefensive = function (pet) {
+  const id = pet && pet._defUsed;
+  if (!id) return false;
+  pet._defUsed = null;
+  const pk = pet.perks.filter(function (x) { return x.id === id && x.uses > 0; })[0];
+  if (!pk) return false;
+  pk.uses--;
+  this.emit({ e: 'perkUsed', t: pet.uid, id: id });
+  return true;
 };
 
 /* 星包胡椒：生命不会低于 1，受到伤害后该 Perk 消失。
@@ -146,18 +160,26 @@ Battle.prototype.usePerk = function (pet, id) {
   return true;
 };
 
-// 伤害计算：Melon 减 20、Garlic 减 2、Coconut 完全免疫一次；否则最低 1
+// 伤害计算：Melon 减 20、Garlic 减 2、Eucalyptus 减 4、Coconut 完全免疫一次；否则最低 1
 // 注意：Perk 只能带一个，但这里仍用「只吃第一个」的写法做双保险，
 //       避免任何情况下出现减伤叠加（red += 会变成减 40）
-Battle.prototype.calcDamage = function (pet, raw) {
+// opts.friendly = true 表示这是【友方】造成的伤害：桉树叶挡不了（官方原文如此）
+Battle.prototype.calcDamage = function (pet, raw, opts) {
+  const friendly = !!(opts && opts.friendly);
   let dmg = null;
+  let used = null;
   for (let i = 0; i < pet.perks.length; i++) {
     const pk = pet.perks[i];
     if (pk.uses === 0) continue;
-    if (pk.id === 'Melon')   { dmg = Math.max(0, raw - 20); break; }
-    if (pk.id === 'Garlic')  { dmg = Math.max(0, raw - 2); break; }
-    if (pk.id === 'Coconut') { dmg = 0; break; }        // 官方：Ignore damage once
+    if (pk.id === 'Melon')   { dmg = Math.max(0, raw - 20); used = pk.id; break; }
+    if (pk.id === 'Garlic')  { dmg = Math.max(0, raw - 2); used = pk.id; break; }
+    if (pk.id === 'Eucalyptus') { if (friendly) continue; dmg = Math.max(0, raw - 4); used = pk.id; break; }
+    if (pk.id === 'Coconut') { dmg = 0; used = pk.id; break; }   // 官方：Ignore damage once
   }
+  // 记下「这一次实际吃掉了哪个防御 Perk」，好让调用方精确消耗它。
+  // ⚠️ 以前只有 exchange()（普通攻击）会消耗，导致技能伤害能无限次吃西瓜减伤
+  //    —— 实测西瓜能连挡两次 10 点技能伤害都不消失。这里补上。
+  if (used) pet._defUsed = used;
   if (dmg === null) dmg = Math.max(1, raw);
   // 星包麻雀给的一次性减伤（和 Food Perk 无关，所以单独记一个字段）
   if (pet.reduceOnce > 0) {
@@ -178,11 +200,13 @@ Battle.prototype.inflictWeak = function (pet) {
   this.emit({ e: 'weak', t: pet.uid });
 };
 
-// 消耗一次性防御道具（Melon / Garlic / Coconut）
+// 消耗一次性防御道具（Melon / Garlic / Eucalyptus / Coconut）
 Battle.prototype.consumeDefensive = function (pet) {
+  pet._defUsed = null;             // 清掉标记：上面已经全消耗过了，别让 hit() 再消耗一次
   for (let i = 0; i < pet.perks.length; i++) {
     const pk = pet.perks[i];
-    if ((pk.id === 'Melon' || pk.id === 'Garlic' || pk.id === 'Coconut') && pk.uses > 0) {
+    if ((pk.id === 'Melon' || pk.id === 'Garlic' ||
+         pk.id === 'Eucalyptus' || pk.id === 'Coconut') && pk.uses > 0) {
       pk.uses--;
       this.emit({ e: 'perkUsed', t: pet.uid, id: pk.id });
     }

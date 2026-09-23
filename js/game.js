@@ -224,14 +224,32 @@ ShopEnv.prototype.summon = function (a, b, c2, d2) {
 };
 
 /* 商店里对自己造成伤害（牦牛「回合结束：对自己造成 1 伤害」）。
- * 官方里商店阶段宠物不会真的死，所以最低留 1 点生命。 */
+ * 官方里商店阶段宠物不会真的死，所以最低留 1 点生命。
+ * 受伤后要通知「友方受伤」（星包考拉在商店里也给桉树叶）。 */
 ShopEnv.prototype.hit = function (pet, n) {
   if (!pet) return 0;
   const before = pet.hp;
   pet.hp = Math.max(1, pet.hp - n);
   const real = before - pet.hp;
-  if (real) this.emit({ e: 'dmg', t: pet.uid, n: real });
+  if (real) {
+    this.emit({ e: 'dmg', t: pet.uid, n: real });
+    this.notifyFriendHurt(pet);
+  }
   return real;
+};
+
+/* 通知全体友方「这个友方受伤了」（星包考拉） */
+ShopEnv.prototype.notifyFriendHurt = function (pet) {
+  if (!pet || pet.hp <= 0) return;      // 已经阵亡的再给标记没意义
+  for (const q of this.game.team) {
+    if (q === pet) continue;
+    const dq = q.def;
+    if (dq && dq.hooks && dq.hooks.friendHurt) {
+      this.actor = q;
+      dq.hooks.friendHurt(this, { self: q, lvl: q.lvl, hurt: pet });
+    }
+  }
+  this.actor = null;
 };
 
 /* 移除 Perk（海鹦 / 鸽子要把草莓标记「花掉」）。
@@ -314,6 +332,16 @@ ShopEnv.prototype.kill = function (pet) {
 ShopEnv.prototype.hasPerk = function (pet, id) {
   if (!pet) return false;
   return pet.perks.some(function (p) { return p.id === id; });
+};
+
+/* 商店里给 Perk（星包考拉：友方在商店受伤时给桉树叶）。
+ * 和 engine.js 的 Battle.givePerk 同规则：一只宠物同时只能带 1 个 Food Perk。 */
+ShopEnv.prototype.givePerk = function (pet, id, uses) {
+  if (!pet || pet.hp <= 0) return;
+  pet.perks = [{ id: id, uses: uses == null ? 1 : uses }];
+  pet.weak = false;
+  this.emit({ e: 'perk', t: pet.uid, id: id });
+  this.notifyPerkGained(pet, id);
 };
 
 /* 「直到战斗结束」的临时属性（星包霍加狓：刷新时 +1/+1 直到战斗结束）。
@@ -897,6 +925,7 @@ Game.prototype.triggerTurnStart = function () {
   for (const p of this.team) {
     p._ox = 0; p._rabbit = 0;   // 重置每回合计数
     p._catUsed = 0;             // Cat 的食物翻倍次数
+    p._koala = 0;               // 星包考拉：本回合还能给几次桉树叶
     const d = p.def;
     if (d && d.hooks && d.hooks.startTurn) {
       env.actor = p;

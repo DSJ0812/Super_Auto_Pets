@@ -58,11 +58,11 @@ const FACTION_MEMBERS = {
   beast: ['Horse', 'Pig', 'Elephant', 'Giraffe', 'Ox', 'Bison', 'Deer', 'Hippo', 'Rhino', 'Boar',
           'Gorilla', 'Leopard', 'Mammoth', 'Tiger', 'Wolverine', 'Lion', 'PolarBear', 'Zebra',
           'Elk', 'Yak', 'Camel', 'Kangaroo', 'Panda', 'Anteater', 'Cow', 'Donkey', 'Alpaca',
-          'Reindeer', 'SabertoothTiger'],
+          'Reindeer', 'SabertoothTiger', 'Ibex'],
   critter: ['Beaver', 'Otter', 'Sloth', 'Hedgehog', 'Rat', 'Badger', 'Dog', 'Rabbit', 'Sheep',
             'Skunk', 'Squirrel', 'Armadillo', 'Monkey', 'Cat', 'Chihuahua', 'Gibbon', 'Marmoset',
             'Mouse', 'GuineaPig', 'Capybara', 'Okapi', 'Orangutan', 'Pug', 'Fossa', 'Fox',
-            'Hamster', 'SiberianHusky'],
+            'Hamster', 'SiberianHusky', 'Koala'],
   // 龙、乌龟、鳄鱼都算爬行 —— 它们在分类上本来就是爬行动物。
   // 乌龟/鳄鱼放这里是为了让龟包里的爬行阵营从 T4 起就能凑到（否则龟包里
   // 爬行只有 T6 的蛇和龙，等于永远激活不了）。

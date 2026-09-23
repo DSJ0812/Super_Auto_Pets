@@ -151,21 +151,6 @@ const PETS = {
             '无技能。「树懒没有特殊能力。战斗力有点可怜。但它真的相信你！」']
   },
 
-  /* 鼠妇 —— 龟包宠物。1/2 的旧版是星包、技能是「商店升级给身后 2 只加血」，
-   * 官方后来把那个技能移给了新宠 Gibbon，鼠妇重做成现在这样。 */
-  Pillbug: {
-    name: 'Pillbug', cn: '鼠妇', tier: 1, atk: 2, hp: 3,
-    texts: ['出售：库存 1 个免费安眠药',
-            '出售：库存 2 个免费安眠药',
-            '出售：库存 3 个免费安眠药'],
-    hooks: {
-      sell: function (g, c) {
-        // ⚠️ 商店只有 2 个食物位（CFG.SHOP_FOOD_SLOTS），所以 3 级实际只留得下 2 个
-        for (let i = 0; i < c.lvl; i++) g.stock('SleepingPill', 0);
-      }
-    }
-  },
-
   /* ==================== Tier 2 ==================== */
 
   Crab: {
@@ -765,17 +750,31 @@ const PETS = {
    *  星包 Star Pack
    *
    *  数据来源：官方 wiki 的宠物页（本仓库 sap_ref/wiki_pet.html）。
-   *  ⚠️ sap_ref 里的 Rust 参考实现是【旧版本】，不能按宠物名信：
-   *     它里面 PetName::Pillbug 挂的是「商店升级 → 身后 2 只 +1 生命」。
-   *     官方后来把鼠妇重做了 —— 那个技能【移给了新宠 Gibbon（长臂猿）】，
-   *     鼠妇改成龟包宠物「出售 → 库存免费安眠药」（安眠药本来就是龟包食物）。
-   *     所以：技能一律照【当前】官方数据实现，Rust 只用来按内容查机制语义。
-   *     fandom wiki 的鼠妇页至今仍是旧版（Star 词条里没有 Gibbon），别照抄。
+   *  ⚠️ 资料源有两个，而且【官方在 v0.34 重做过星包】，别照抄旧页面：
+   *     · 本项目星包名单 = 官方 76 只版本（D:\DDZZQ\sap_pets.json 的转储），
+   *       它里面 PetName::Pillbug 挂的是「商店升级 → 身后 2 只 +1 生命」。
+   *     · 官方后来把鼠妇重做了 —— 那个技能【移给了新宠 Gibbon（长臂猿）】，
+   *       鼠妇改成「出售 → 库存免费安眠药」。鼠妇仍然属于【星包】。
+   *     · 技能语义优先查 wiki.gg（当前官方 wiki，2026 仍在更新）；
+   *       fandom 是旧站，鼠妇页和星包词条都没更新，别照抄。
    *
    *  没写 pack 字段的宠物都算龟包（见 game.js 的 packOf），所以这里每只都要写。
    * ============================================================ */
 
   /* ==================== 星包 Tier 1 ==================== */
+
+  Pillbug: {
+    name: 'Pillbug', cn: '鼠妇', tier: 1, atk: 2, hp: 3, pack: 'star',
+    texts: ['出售：库存 1 个免费安眠药',
+            '出售：库存 2 个免费安眠药',
+            '出售：库存 3 个免费安眠药'],
+    hooks: {
+      sell: function (g, c) {
+        // ⚠️ 商店只有 2 个食物位（CFG.SHOP_FOOD_SLOTS），所以 3 级实际只留得下 2 个
+        for (let i = 0; i < c.lvl; i++) g.stock('SleepingPill', 0);
+      }
+    }
+  },
 
   Chihuahua: {
     name: 'Chihuahua', cn: '吉娃娃', tier: 1, atk: 4, hp: 1, pack: 'star',
@@ -890,7 +889,7 @@ const PETS = {
   },
 
   Mouse: {
-    name: 'Mouse', cn: '老鼠', tier: 1, atk: 1, hp: 2, pack: 'star',
+    name: 'Mouse', cn: '小鼠', tier: 1, atk: 1, hp: 2, pack: 'star',
     texts: ['出售：把商店食物换成一个免费苹果',
             '出售：把商店食物换成一个免费优质苹果',
             '出售：把商店食物换成一个免费顶级苹果'],
@@ -957,7 +956,7 @@ const PETS = {
   },
 
   Dove: {
-    name: 'Dove', cn: '鸽子', tier: 2, atk: 1, hp: 1, pack: 'star',
+    name: 'Dove', cn: '斑鸠', tier: 2, atk: 1, hp: 1, pack: 'star',
     texts: ['阵亡：把随机 2 个友方的草莓标记换成 +2/+2',
             '阵亡：把随机 2 个友方的草莓标记换成 +4/+4',
             '阵亡：把随机 2 个友方的草莓标记换成 +6/+6'],
@@ -1090,6 +1089,24 @@ const PETS = {
           g.givePerk(p, 'Strawberry');
           g.buff(p, 2, 0);
         }
+      }
+    }
+  },
+
+  /* 考拉：商店和战斗里都生效（官方原文 "whether in shop or battle"）。
+   * 桉树叶 = 受到敌方伤害减 4，一次。 */
+  Koala: {
+    name: 'Koala', cn: '考拉', tier: 2, atk: 3, hp: 2, pack: 'star',
+    texts: ['友方受伤时：给它桉树叶标记。每回合 1 次',
+            '友方受伤时：给它桉树叶标记。每回合 2 次',
+            '友方受伤时：给它桉树叶标记。每回合 3 次'],
+    hooks: {
+      friendHurt: function (g, c) {
+        const hurt = c.hurt;
+        if (!hurt || hurt.hp <= 0) return;      // 已经阵亡的再给标记没意义
+        c.self._koala = (c.self._koala || 0) + 1;
+        if (c.self._koala > c.lvl) return;
+        g.givePerk(hurt, 'Eucalyptus');
       }
     }
   },
@@ -1438,6 +1455,22 @@ const PETS = {
   },
 
   /* ==================== 星包 Tier 5 ==================== */
+
+  /* 北山羊（Ibex）—— 注意不是龟包的「野山羊」。
+   * 官方 v0.36 改过：从「每回合 N 次」改成「每场战斗对 N 个【不同】敌人」，
+   * 所以同一个敌人只会被削一次 70%。
+   * 「移除 70% 生命」= 移除【剩余生命】的 70%（wiki.gg 原文 "remaining health"），
+   * 取整后数学上永远削不到 0，所以不会直接秒杀。 */
+  Ibex: {
+    name: 'Ibex', cn: '北山羊', tier: 5, atk: 6, hp: 7, pack: 'star',
+    texts: ['敌人受伤或被推时：移除它剩余生命的 70%。每场战斗对 1 个不同敌人生效',
+            '敌人受伤或被推时：移除它剩余生命的 70%。每场战斗对 2 个不同敌人生效',
+            '敌人受伤或被推时：移除它剩余生命的 70%。每场战斗对 3 个不同敌人生效'],
+    hooks: {
+      foeHurt: function (g, c) { ibexDrain(g, c, c.hurt); },
+      foePushed: function (g, c) { ibexDrain(g, c, c.target); }
+    }
+  },
 
   Blobfish: {
     name: 'Blobfish', cn: '水滴鱼', tier: 5, atk: 2, hp: 10, pack: 'star',
@@ -1980,6 +2013,22 @@ function setPerk(pet, id, uses) {
   pet.perks = [{ id: id, uses: uses == null ? 1 : uses }];
 }
 
+/* 北山羊：移除目标【剩余生命】的 70%。
+ * ⚠️ 这是「移除生命」不是「造成伤害」，所以不走 calcDamage（不吃西瓜/大蒜/椰子减伤，
+ *    也不吃虚弱 +3）。取整后数学上永远削不到 0：hp - floor(hp*0.7) >= 1，不会秒杀。
+ * 每场战斗只对 N 个【不同】敌人生效（官方 v0.36 之后改的）。 */
+function ibexDrain(g, c, target) {
+  if (!target || target.hp <= 0) return;
+  const seen = c.self._ibex || (c.self._ibex = []);
+  if (seen.indexOf(target.uid) >= 0) return;     // 这个敌人已经削过了
+  if (seen.length >= c.lvl) return;              // 名额用完了
+  seen.push(target.uid);
+  const cut = Math.floor(target.hp * 0.7);
+  if (!cut) return;
+  target.hp -= cut;
+  g.emit({ e: 'dmg', t: target.uid, n: cut });
+}
+
 /* ------------------------------------------------------------
  *  道具（食物）
  *  buff: [攻击, 生命]；perk: 挂在宠物身上的被动效果
@@ -2028,6 +2077,12 @@ const FOODS = {
                  text: '生命不会低于 1，受伤后消失' },
   Popcorn:     { name: 'Popcorn',     cn: '爆米花',   cost: 3, perk: 'Popcorn',  pack: 'star',
                  text: '阵亡后召唤 1 个同星级的随机宠物' },
+  /* 桉树叶（wiki.gg 原文："Takes 4 less enemy damage, once."）
+   * 官方它是 Tier 2 食物，但【商店里买不到】，只能靠考拉（或塑料锯玩具）给。
+   * 所以标 token:true 把它排除在商店池外。
+   * ⚠️ 只挡【敌方】伤害 —— 像水蛭那种友方伤害挡不了。 */
+  Eucalyptus:  { name: 'Eucalyptus',  cn: '桉树叶',   cost: 3, perk: 'Eucalyptus', pack: 'star', token: true,
+                 text: '受到敌方伤害减少 4（生效 1 次）' },
 
   /* 安眠药（官方 wiki："Make one pet faint. Always on sale!"）
    * 让一只宠物阵亡并永久移出队伍，但会触发它的遗言；只卖 1 金。
