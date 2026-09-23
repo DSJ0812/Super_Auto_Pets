@@ -51,6 +51,7 @@ function OnlineGame() {
   for (let i = 0; i < MELEE_CFG.COUNT; i++) this.seats.push(new Seat(i));
   this.turn = 1;
   this.phase = 'lobby';                      // lobby | shop | battle | over
+  this.seed = null;                          // 由服务器填（界面上显示、便于复现）
   this.seq = 0;
   this.events = [];
   this.lastBattleBySeat = {};                // 刷新/重连时能重放自己的那一场
@@ -171,7 +172,7 @@ OnlineGame.prototype.start = function () {
       const nm = MELEE_CFG.NAMES[s.idx] || ('电脑' + (s.idx + 1));
       s.name = uniqueName(this.seats, nm === '你' ? '电脑' : nm, s.idx);
       s.greed = MELEE_CFG.AI_GREED_RANGE[0] +
-                Math.random() * (MELEE_CFG.AI_GREED_RANGE[1] - MELEE_CFG.AI_GREED_RANGE[0]);
+                RNG.next() * (MELEE_CFG.AI_GREED_RANGE[1] - MELEE_CFG.AI_GREED_RANGE[0]);
     }
     s.game = new Game();
     s.game.gold = 0;
@@ -181,7 +182,7 @@ OnlineGame.prototype.start = function () {
   this.turn = 1;
   this.phase = 'shop';
   this.splitSeq = this.seq;         // 新加入的人从这一刻开始收事件
-  this.emitAll({ t: 'started', seats: MELEE_CFG.COUNT });
+  this.emitAll({ t: 'started', seats: MELEE_CFG.COUNT, seed: this.seed });
   this.startTurn();
   return { ok: true };
 };
@@ -202,7 +203,7 @@ OnlineGame.prototype.startTurn = function () {
     g.offerRelicChoice();
     if (s.kind === 'ai' && g.pendingRelicChoice && g.pendingRelicChoice.length) {
       const ids = g.pendingRelicChoice;
-      g.pickRelic(ids[Math.floor(Math.random() * ids.length)]);
+      g.pickRelic(RNG.pick(ids));
     }
     s.ready = (s.kind === 'ai');     // AI 视为已准备
     s.acked = (s.kind === 'ai');

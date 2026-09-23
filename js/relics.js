@@ -106,7 +106,7 @@ function rollRelics(owned, n) {
   const pool = RELIC_IDS.filter(function (id) { return owned.indexOf(id) < 0; });
   const out = [];
   for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = RNG.int(i + 1);
     const t = pool[i]; pool[i] = pool[j]; pool[j] = t;
   }
   for (let i = 0; i < n && i < pool.length; i++) out.push(pool[i]);

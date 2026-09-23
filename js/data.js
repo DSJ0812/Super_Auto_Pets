@@ -247,7 +247,7 @@ const PETS = {
           return PETS[k].tier === 3 && !PETS[k].token;
         });
         if (!pool.length) return;
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const pick = RNG.pick(pool);
         g.summon(c.self.side, g.indexOf(c.self), pick, { atk: c.lvl * 2, hp: c.lvl * 2, lvl: c.lvl });
       }
     }

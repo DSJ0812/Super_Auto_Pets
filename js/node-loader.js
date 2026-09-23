@@ -17,7 +17,7 @@ const fs = require('fs');
 const path = require('path');
 
 /* ⚠️ 顺序必须和浏览器里的依赖顺序一致（online.js 最后，它依赖前面全部） */
-const CORE_FILES = ['data.js', 'pack.js', 'relics.js', 'engine.js', 'game.js', 'melee.js', 'online.js'];
+const CORE_FILES = ['rng.js', 'data.js', 'pack.js', 'relics.js', 'engine.js', 'game.js', 'melee.js', 'online.js'];
 
 /* 服务端要用到的符号 */
 const EXPORTS = [
@@ -28,7 +28,7 @@ const EXPORTS = [
   'petCostOf', 'rollCostOf', 'buyablePool',
   'relicSum', 'rollRelics', 'applyRelicTurnStart', 'applyRelicBattleStart',
   'petToJSON', 'petFromJSON', 'packSelf', 'gameFromPack', 'rosterOf',
-  'OnlineGame', 'Seat'
+  'OnlineGame', 'Seat', 'RNG'
 ];
 
 let cached = null;

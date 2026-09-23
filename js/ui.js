@@ -359,6 +359,7 @@ function finishBattle(winner) {
   $('#btnSkip').style.display = 'none';
 
   if (g.phase === 'gameover') {
+    if (UI.seedInfo && UI.seedInfo.daily) recordDailyOnce(g);
     $('#btnNext').style.display = '';
     $('#btnNext').textContent = (g.wins >= CFG.WIN_TARGET)
       ? '🏆 ' + g.wins + ' 胜达成 —— 再来一局'
@@ -369,6 +370,16 @@ function finishBattle(winner) {
     $('#btnNext').textContent = '➡️ 进入第 ' + (g.turn + 1) + ' 回合';
     $('#btnNext').dataset.restart = '';
   }
+}
+
+/* 每日挑战：一局结束时记成绩（同一局只记一次） */
+function recordDailyOnce(g) {
+  if (UI.dailyRecorded) return true;
+  UI.dailyRecorded = true;
+  const rec = dailySave(UI.seedInfo.dateKey, g.wins, g.losses, g.wins >= CFG.WIN_TARGET);
+  const box = $('#seedNote');
+  if (box) box.textContent = dailyNoteText(rec);
+  return true;
 }
 
 /* ------------------------------------------------------------
@@ -613,15 +624,35 @@ function closeCodexPanel() { closeCodex('#codex'); }
  *  启动
  * ---------------------------------------------------------- */
 function boot() {
+  // ⚠️ 种子必须在 new Game() 之前设好 —— 否则第一次 rollShop 已经用掉真随机了
+  UI.seedInfo = initSeed();
+  UI.dailyRecorded = false;
+
   UI.game = new Game();
   bind();
+  renderSeed();
   // Esc 关闭图鉴（未打开时调用无副作用）
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeCodexPanel();
   });
   renderTop();
   renderShop();
-  say('欢迎！买几只宠物，然后结束回合开打。');
+
+  if (UI.seedInfo.daily) {
+    const rec = dailyRecord(UI.seedInfo.dateKey);
+    say('📅 每日挑战 ' + UI.seedInfo.dateKey.replace('daily-', '') + ' —— 大家玩的是同一局！');
+    if (rec.plays) say('今天第 ' + (rec.plays + 1) + ' 局 · ' + dailyNoteText(rec));
+  } else {
+    say('欢迎！买几只宠物，然后结束回合开打。');
+  }
+}
+
+/* 顶部种子栏 + 复制/换种子 */
+function renderSeed() {
+  const info = UI.seedInfo;
+  const note = info.daily ? dailyNoteText(dailyRecord(info.dateKey)) : '';
+  renderSeedBar($('#seedBar'), info, note);
+  bindSeedBar($('#seedBar'), info);
 }
 
 /* 兼容两种加载时机：脚本在 body 末尾时 DOMContentLoaded 通常还没触发，

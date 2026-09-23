@@ -48,7 +48,7 @@ function Fighter(idx, isHuman) {
   // AI 性格（人类玩家不需要）
   this.greed = isHuman ? 1
     : MELEE_CFG.AI_GREED_RANGE[0] +
-      Math.random() * (MELEE_CFG.AI_GREED_RANGE[1] - MELEE_CFG.AI_GREED_RANGE[0]);
+      RNG.next() * (MELEE_CFG.AI_GREED_RANGE[1] - MELEE_CFG.AI_GREED_RANGE[0]);
 }
 
 /* 该参战者的队伍（注意：不要叫 team，会和 game.team 混淆） */
@@ -96,7 +96,7 @@ Melee.prototype.startTurn = function () {
     // AI 不会挑，随机拿一个（保证和玩家规则对等）
     if (!f.isHuman && g.pendingRelicChoice && g.pendingRelicChoice.length) {
       const ids = g.pendingRelicChoice;
-      g.pickRelic(ids[Math.floor(Math.random() * ids.length)]);
+      g.pickRelic(RNG.pick(ids));
     }
   }
   this.phase = 'shop';
@@ -178,7 +178,7 @@ Melee.prototype.pairUp = function () {
   const list = this.alive().slice();
   // 洗牌
   for (let i = list.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = RNG.int(i + 1);
     const t = list[i]; list[i] = list[j]; list[j] = t;
   }
   const pairs = [];

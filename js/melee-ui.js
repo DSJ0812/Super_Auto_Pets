@@ -485,9 +485,13 @@ function mBind() {
  *  启动
  * ---------------------------------------------------------- */
 function mBoot() {
+  // ⚠️ 种子必须在 new Melee() 之前设好 —— 否则开局那批随机数已经用掉真随机了
+  MUI.seedInfo = initSeed();
   MUI.m = new Melee();
   mBind();
   mRenderAll();
+  renderSeedBar($('#seedBar'), MUI.seedInfo, '');
+  bindSeedBar($('#seedBar'), MUI.seedInfo);
   // Esc 关闭图鉴（未打开时调用无副作用）
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeCodex('#codex');

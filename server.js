@@ -20,18 +20,42 @@ const path = require('path');
 const { loadCore } = require('./js/node-loader.js');
 
 const ROOT = __dirname;
-const PORT = parseInt(process.argv[2] || process.env.PORT || '8000', 10);
+const ARGV = process.argv.slice(2);
+
+/* 参数：node server.js [端口] [--seed=XXXX] */
+let seedArg = null;
+let PORT = 8000;
+for (const a of ARGV) {
+  if (/^--seed=/.test(a)) seedArg = a.slice(7);
+  else if (/^--port=/.test(a)) PORT = parseInt(a.slice(7), 10);
+  else if (/^\d+$/.test(a)) PORT = parseInt(a, 10);
+}
+if (process.env.PORT) PORT = parseInt(process.env.PORT, 10);
 
 /* 装载浏览器全局那套核心（data/pack/relics/engine/game/melee/online）
  * 它们互相直接引用全局名，所以必须整体求值，不能单个 require */
 const CORE = loadCore(path.join(ROOT, 'js'));
-const { OnlineGame, MELEE_CFG, packSelf, rosterOf } = CORE;
+const { OnlineGame, MELEE_CFG, packSelf, rosterOf, RNG } = CORE;
 
 /* ------------------------------------------------------------
  *  房间：当前只有一个房间（局域网朋友局足够）
+ *
+ *  种子：服务器是权威，随机数全走 RNG。给房间定一个种子有两个用处：
+ *    · 界面上能显示"这一局的种子"，出问题了能复现
+ *    · 命令行传 --seed=xxx 时，整局完全可复现（测试/排查用）
  * ---------------------------------------------------------- */
-let game = new OnlineGame();
+let roomSeed = seedArg;                 // 有值 = 固定种子（命令行指定）
+let game = null;
 let generation = 1;
+
+function newRoom() {
+  const seed = roomSeed || RNG.randomSeed();
+  RNG.seed(seed);
+  const g = new OnlineGame();
+  g.seed = seed;
+  return g;
+}
+game = newRoom();
 
 /* ------------------------------------------------------------
  *  静态文件
@@ -170,7 +194,8 @@ const server = http.createServer(function (req, res) {
       ok: true, online: true,
       phase: game.phase,
       players: game.remoteSeats().length,
-      seats: MELEE_CFG.COUNT
+      seats: MELEE_CFG.COUNT,
+      seed: game.seed || null
     });
     return;
   }
@@ -229,10 +254,10 @@ const server = http.createServer(function (req, res) {
       if (err) { sendJSON(res, { ok: false, msg: '请求格式错误' }); return; }
       const seat = game.seatByToken(body.token);
       if (!seat) { sendJSON(res, { ok: false, msg: '你不在这个房间里' }); return; }
-      game = new OnlineGame();
+      game = newRoom();
       generation++;
-      log('新的一局开始，房间已重置');
-      sendJSON(res, { ok: true, msg: '房间已重置' });
+      log('新的一局开始，房间已重置（种子 ' + game.seed + '）');
+      sendJSON(res, { ok: true, msg: '房间已重置', seed: game.seed });
     });
     return;
   }

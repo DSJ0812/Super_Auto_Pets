@@ -101,7 +101,7 @@ ShopEnv.prototype.ahead = function (pet, n) {
 ShopEnv.prototype.random = function (arr, n) {
   const pool = arr.slice(), out = [];
   while (out.length < n && pool.length) {
-    out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    out.push(pool.splice(RNG.int(pool.length), 1)[0]);
   }
   return out;
 };
@@ -230,7 +230,7 @@ Game.prototype.rollShop = function (isInitial) {
   for (let i = 0; i < CFG.SHOP_PET_SLOTS; i++) {
     // ⚠️ 必须同时判断「格子有货」：否则买空后残留的冻结标记会让这格永久不再补货
     if (!isInitial && this.frozenPets[i] && this.shopPets[i]) continue;
-    this.shopPets[i] = this.makeShopPet(pool[Math.floor(Math.random() * pool.length)]);
+    this.shopPets[i] = this.makeShopPet(RNG.pick(pool));
     this.frozenPets[i] = false;
   }
   for (let i = 0; i < CFG.SHOP_FOOD_SLOTS; i++) {
@@ -255,7 +255,7 @@ Game.prototype.makeShopPet = function (defId) {
 
 Game.prototype.makeShopFood = function () {
   const keys = Object.keys(FOODS).filter(function (k) { return !FOODS[k].token; });
-  return { id: keys[Math.floor(Math.random() * keys.length)], cost: CFG.FOOD_COST };
+  return { id: RNG.pick(keys), cost: CFG.FOOD_COST };
 };
 
 /* 往商店里放一个道具（Worm / Pigeon 之类的技能用）
@@ -386,12 +386,12 @@ Game.prototype.tierUpReward = function () {
   const idxs = [];
   for (let i = 0; i < this.shopPets.length; i++) idxs.push(i);
   for (let i = idxs.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = RNG.int(i + 1);
     const tmp = idxs[i]; idxs[i] = idxs[j]; idxs[j] = tmp;
   }
   for (let k = 0; k < want && k < idxs.length; k++) {
     const slot = idxs[k];
-    this.shopPets[slot] = this.makeShopPet(pool[Math.floor(Math.random() * pool.length)]);
+    this.shopPets[slot] = this.makeShopPet(RNG.pick(pool));
     this.frozenPets[slot] = false;
   }
 };
@@ -601,12 +601,12 @@ Game.prototype.makeOpponent = function () {
     const tier1 = pool.filter(function (id) { return PETS[id].tier === 1; });
     const src = tier1.length ? tier1 : pool;
     for (let i = 0; i < Math.min(3, maxTeam); i++) {
-      team.push(makePet(src[Math.floor(Math.random() * src.length)], 1));
+      team.push(makePet(RNG.pick(src), 1));
     }
   } else {
     const n = Math.min(5, maxTeam);
     for (let i = 0; i < n; i++) {
-      team.push(makePet(pool[Math.floor(Math.random() * pool.length)], 1));
+      team.push(makePet(RNG.pick(pool), 1));
     }
   }
 
@@ -621,13 +621,13 @@ Game.prototype.makeOpponent = function () {
   });
 
   for (let k = 0; k < ap && team.length; k++) {
-    const target = team[Math.floor(Math.random() * team.length)];
-    const action = Math.floor(Math.random() * 3);
+    const target = RNG.pick(team);
+    const action = RNG.int(3);
 
     if (action === 0 && perkFoods.length) {
       // ① 给食物 Perk（同一只最多带一个，已有就跳过）
       if (!target.perks.length) {
-        const fid = perkFoods[Math.floor(Math.random() * perkFoods.length)];
+        const fid = RNG.pick(perkFoods);
         setPerk(target, FOODS[fid].perk, 1);
       }
     } else if (action === 1) {
@@ -639,7 +639,7 @@ Game.prototype.makeOpponent = function () {
     } else {
       // ③ 加属性，逐点随机分配到攻击或生命
       for (let s = 0; s < statGain; s++) {
-        if (Math.random() < 0.5) target.atk += 1;
+        if (RNG.next() < 0.5) target.atk += 1;
         else                     target.hp  += 1;
       }
     }

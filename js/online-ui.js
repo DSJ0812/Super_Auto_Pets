@@ -358,6 +358,16 @@ function oShowOver() {
   oShowLobby();
 }
 
+/* 房间种子由服务器决定，这里只显示（换不了，改了也没用） */
+function oRenderSeed(d) {
+  const seed = (d && d.seed) || OUI.roomSeed;
+  if (!seed) return;
+  OUI.roomSeed = seed;
+  const info = { seed: seed, daily: false };
+  renderSeedBar($('#seedBar'), info, '服务器决定，所有人同一局', { label: '房间种子', canEdit: false });
+  bindSeedBar($('#seedBar'), info, { copyValue: function () { return seed; } });
+}
+
 /* ------------------------------------------------------------
  *  服务器事件
  * ---------------------------------------------------------- */
@@ -371,6 +381,7 @@ function oOnEvent(d) {
 
     case 'started':
       oHideLobby();
+      if (d.seed) oRenderSeed(d);
       say('游戏开始！活到最后就是赢家。');
       break;
 

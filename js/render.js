@@ -111,6 +111,144 @@ function teamHintText() {
     : '点击购买 · 拖动或「点选→点目标」调整站位 · 点两次出售 · 可攒钱吃利息';
 }
 
+/* ============================================================
+ *  种子（每日挑战 / 分享同一局）
+ * ============================================================ */
+
+/* 初始化这一局的种子。
+ * ⚠️ 必须在 new Game() 之前调用 —— 种子要赶在第一次 rollShop 之前设好。
+ * 返回 { seed, daily, dateKey } */
+function initSeed() {
+  let p = null;
+  try {
+    p = new URLSearchParams((typeof location !== 'undefined' && location.search) || '');
+  } catch (e) { p = null; }
+
+  const daily = !!(p && p.get('daily') === '1');
+  let seed = p ? p.get('seed') : null;
+  let dateKey = null;
+
+  if (daily) {
+    dateKey = RNG.dailySeed();          // daily-2026-09-23，同一天所有人都一样
+    seed = dateKey;
+  } else if (!seed) {
+    seed = RNG.randomSeed();            // 每局都有种子，好玩的一局才能发给别人
+  }
+  RNG.seed(seed);
+  return { seed: seed, daily: daily, dateKey: dateKey };
+}
+
+/* 分享用的地址。file:// 打开的页面没有能分享的地址，就退回种子本身 */
+function seedLink(seed) {
+  try {
+    if (location.protocol === 'file:') return seed;
+    return location.origin + location.pathname + '?seed=' + encodeURIComponent(seed);
+  } catch (e) { return seed; }
+}
+
+/* 复制到剪贴板（没有 clipboard API 时退回 execCommand） */
+function copyText(text) {
+  return new Promise(function (resolve) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { resolve(true); },
+                                                 function () { resolve(fallbackCopy(text)); });
+        return;
+      }
+    } catch (e) { /* 往下走回退方案 */ }
+    resolve(fallbackCopy(text));
+  });
+}
+function fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    return !!ok;
+  } catch (e) { return false; }
+}
+
+/* 每日挑战的成绩记录（存在本机浏览器里） */
+function dailyRecordKey(dateKey) { return 'sap_daily_' + dateKey; }
+
+function dailyRecord(dateKey) {
+  try {
+    return JSON.parse(localStorage.getItem(dailyRecordKey(dateKey)) || '{}') || {};
+  } catch (e) { return {}; }
+}
+
+/* 记一局成绩。首次成绩和最好成绩分开存 ——
+ * 允许反复重玩，但「首次」才是每日挑战真正有意义的那个数 */
+function dailySave(dateKey, wins, losses, win) {
+  const rec = dailyRecord(dateKey);
+  rec.plays = (rec.plays || 0) + 1;
+  if (!rec.first) rec.first = { wins: wins, losses: losses, win: !!win };
+  if (!rec.best || wins > rec.best.wins) rec.best = { wins: wins, losses: losses, win: !!win };
+  try { localStorage.setItem(dailyRecordKey(dateKey), JSON.stringify(rec)); } catch (e) {}
+  return rec;
+}
+
+function dailyNoteText(rec) {
+  if (!rec || !rec.plays) return '今天还没玩过';
+  let s = '今天玩了 ' + rec.plays + ' 局';
+  if (rec.first) s += ' · 首次 ' + rec.first.wins + ' 胜' + (rec.first.win ? '（通关）' : '');
+  if (rec.best && rec.best.wins !== (rec.first ? rec.first.wins : -1)) s += ' · 最好 ' + rec.best.wins + ' 胜';
+  return s;
+}
+
+/* 渲染顶部那条种子栏
+ * opts.canEdit = false 时不给「换种子」（联机时种子归服务器管） */
+function renderSeedBar(box, info, noteText, opts) {
+  if (!box) return;
+  opts = opts || {};
+  const canEdit = opts.canEdit !== false;
+  box.innerHTML =
+    '<span class="seed-icon">' + (info.daily ? '📅' : '🎲') + '</span>' +
+    '<span class="seed-label">' + (opts.label || (info.daily ? '每日挑战' : '种子')) + '</span>' +
+    '<code class="seed-val">' + esc(info.daily ? info.dateKey : info.seed) + '</code>' +
+    '<button class="btn tiny" data-seed="copy">🔗 ' + (info.daily ? '复制链接' : '分享这局') + '</button>' +
+    (canEdit ? '<button class="btn tiny" data-seed="edit">✏️ 换种子</button>' : '') +
+    (noteText ? '<span class="seed-note">' + esc(noteText) + '</span>' : '');
+  box.classList.toggle('daily', !!info.daily);
+}
+
+/* 种子栏上的两个按钮（三个界面共用） */
+function bindSeedBar(box, info, opts) {
+  if (!box) return;
+  opts = opts || {};
+  box.onclick = function (e) {
+    const b = e.target.closest('[data-seed]');
+    if (!b) return;
+
+    if (b.dataset.seed === 'copy') {
+      const what = typeof opts.copyValue === 'function' ? opts.copyValue() : seedLink(info.seed);
+      copyText(what).then(function (ok) {
+        say(ok ? ('已复制：' + what) : ('复制失败，手动记下：' + what));
+      });
+      return;
+    }
+
+    if (b.dataset.seed === 'edit') {
+      const want = prompt('输入种子（同一个种子 = 同一局）：', info.seed);
+      if (want === null) return;
+      const s = String(want).trim();
+      if (!s) return;
+      // 换种子等于重开一局：带参数重新加载最省事，也最不容易出错
+      try {
+        const u = new URL(location.href);
+        u.searchParams.delete('daily');
+        u.searchParams.set('seed', s);
+        location.href = u.toString();
+      } catch (err) { say('换种子失败：' + err.message); }
+    }
+  };
+}
+
 /* 通用顶部提示条（两种模式共用） */
 let __msgTimer = null;
 function say(msg, ms) {

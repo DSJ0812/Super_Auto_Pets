@@ -214,7 +214,7 @@ Battle.prototype.random = function (arr, n) {
   const pool = arr.slice();
   const out = [];
   while (out.length < n && pool.length) {
-    out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    out.push(pool.splice(RNG.int(pool.length), 1)[0]);
   }
   return out;
 };

@@ -50,6 +50,17 @@
       <div class="mode-tag">局域网</div>
     </a>
 
+    <a class="mode-card daily" href="solo.html?daily=1">
+      <div class="mode-icon">📅</div>
+      <div class="mode-name">每日挑战</div>
+      <div class="mode-desc">
+        <b>同一天所有人同一局</b><br>
+        种子由日期决定，可以反复重玩<br>
+        <span id="dailyDate" class="daily-date"></span>
+      </div>
+      <div class="mode-tag" id="dailyTag">按日期</div>
+    </a>
+
   </div>
 
   <div class="home-foot" id="homeFoot">
@@ -58,6 +69,7 @@
 
 </div>
 
+<script src="js/rng.js"></script>
 <script>
 /* 联机入口只在「真的有服务器」时出现。
  *
@@ -76,6 +88,23 @@
   var offlineFoot = base + ' &nbsp;|&nbsp; 打开即玩，无需安装' +
     '<br><span style="font-size:11.5px;opacity:.75">' +
     '想和朋友联机？在主机上双击 <b>开服.bat</b>，用它显示的地址打开本页即可。</span>';
+
+  /* 每日挑战卡片：显示今天的日期和成绩 */
+  try {
+    var key = RNG.dailySeed();
+    var d = key.replace('daily-', '');
+    document.getElementById('dailyDate').textContent = d;
+    var rec = null;
+    try { rec = JSON.parse(localStorage.getItem('sap_daily_' + key) || 'null'); } catch (e) {}
+    var tag = document.getElementById('dailyTag');
+    if (rec && rec.plays) {
+      tag.textContent = '已玩 ' + rec.plays + ' 局';
+      if (rec.best) {
+        document.getElementById('dailyDate').textContent =
+          d + ' · 最好 ' + rec.best.wins + ' 胜' + (rec.best.win ? ' 🏆' : '');
+      }
+    }
+  } catch (e) { /* 种子算不出来就不显示日期，不影响别的 */ }
 
   fetch('api/ping', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
