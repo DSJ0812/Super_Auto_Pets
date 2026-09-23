@@ -30,7 +30,11 @@ const CFG = {
   TFT_INTEREST_PER: 10,    // 每存满 10 金吃 1 点利息
   TFT_INTEREST_MAX: 5,     // 利息上限
   TFT_STREAK_CAP: 3,       // 连胜/连败奖励上限
-  TFT_ROLL_COST: 2         // 刷新费用
+  TFT_ROLL_COST: 2,        // 刷新费用
+
+  /* ---- 宠物包（一局只用一包，见 PACKS / activePack）----
+   * turtle = 原有 61 只；star = 星包 76 只 */
+  PACK: 'turtle'
 };
 
 /* 宠物价格：SAP 统一价；TFT 按星级（T1=1 金 … T6=6 金）
@@ -51,11 +55,31 @@ function rollCostOf() {
   return CFG.ECONOMY === 'tft' ? CFG.TFT_ROLL_COST : CFG.ROLL_COST;
 }
 
-/* 可购买池：全部非代币宠物（Tier 1-6）
+/* ---- 宠物包 ----
+ * 官方每个包自成一套 6 个星级。两个包混进同一个池子会**稀释重复率**，
+ * 让合成升级变得几乎不可能，所以一局只用一个包（和官方一致）。
+ * 没写 pack 字段的宠物都算 turtle（原有 61 只），这样不用改老数据。 */
+const PACKS = {
+  turtle: { cn: '龟包', en: 'Turtle Pack', icon: '🐢' },
+  star:   { cn: '星包', en: 'Star Pack',   icon: '⭐' }
+};
+
+function packOf(defId) {
+  const d = PETS[defId];
+  return (d && d.pack) || 'turtle';
+}
+
+/* 本局用哪个包（由 URL 的 ?pack= 决定，默认龟包） */
+function activePack() {
+  return (CFG.PACK && PACKS[CFG.PACK]) ? CFG.PACK : 'turtle';
+}
+
+/* 可购买池：当前包里的全部非代币宠物（Tier 1-6）
  * 具体能买到几星由「商店等级」按回合决定，见 unlockedPool() */
 function buyablePool() {
+  const pack = activePack();
   return Object.keys(PETS).filter(function (k) {
-    return !PETS[k].token && PETS[k].tier >= 1;
+    return !PETS[k].token && PETS[k].tier >= 1 && packOf(k) === pack;
   });
 }
 

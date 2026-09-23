@@ -54,7 +54,14 @@ html, body {
 .tb-v .win  { color: var(--win); }
 .tb-v .lose { color: var(--lose); }
 .tb-v .sep  { color: var(--dim); font-size: 12px; margin: 0 3px; font-weight: 400; }
-.tb-goal { margin-left: auto; color: var(--dim); font-size: 13px; }
+.tb-goal {
+  margin-left: auto;
+  color: var(--dim);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 .tb-goal b { color: var(--text); }
 
 /* ===================== 提示条 ===================== */
