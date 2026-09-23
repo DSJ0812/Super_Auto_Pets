@@ -82,6 +82,7 @@ function cloneTeam(team) {
 function Battle(teamA, teamB, opts) {
   opts = opts || {};
   this.tier = opts.tier || 1;      // 当前商店等级（星包鹳要「上一星级」）
+  this.rolls = opts.rolls || 0;    // 本回合刷新次数（星包马岛长尾狸猫）
   this.sides = [cloneTeam(teamA), cloneTeam(teamB)];
   this.sides[0].forEach(function (p) { p.side = 0; });
   this.sides[1].forEach(function (p) { p.side = 1; });
@@ -135,6 +136,11 @@ Battle.prototype.calcDamage = function (pet, raw) {
     if (pk.id === 'Coconut') { dmg = 0; break; }        // 官方：Ignore damage once
   }
   if (dmg === null) dmg = Math.max(1, raw);
+  // 星包麻雀给的一次性减伤（和 Food Perk 无关，所以单独记一个字段）
+  if (pet.reduceOnce > 0) {
+    dmg = Math.max(0, dmg - pet.reduceOnce);
+    pet.reduceOnce = 0;
+  }
   // 异常状态「虚弱」：受到 +3 伤害（官方 Ailments 页原文 "Take +3 damage"）
   if (pet.weak) dmg += 3;
   return dmg;

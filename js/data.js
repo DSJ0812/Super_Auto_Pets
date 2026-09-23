@@ -1234,6 +1234,139 @@ const PETS = {
         if (t[0]) g.buff(t[0], n * c.lvl, n * c.lvl);
       }
     }
+  },
+
+  /* ==================== 星包 Tier 4 ==================== */
+
+  Clownfish: {
+    name: 'Clownfish', cn: '小丑鱼', tier: 4, atk: 3, hp: 4, pack: 'star',
+    texts: ['友方升级时：给它 +2/+2', '友方升级时：给它 +4/+4', '友方升级时：给它 +6/+6'],
+    hooks: {
+      friendLevelUp: function (g, c) {
+        if (c.target) g.buff(c.target, c.lvl * 2, c.lvl * 2);   // 加给升级的那只，不是自己
+      }
+    }
+  },
+
+  Crow: {
+    name: 'Crow', cn: '乌鸦', tier: 4, atk: 3, hp: 3, pack: 'star',
+    texts: ['出售：库存一个免费巧克力（+1 经验），并给食物降价 3 金',
+            '出售：库存一个免费巧克力（+2 经验），并给食物降价 3 金',
+            '出售：库存一个免费巧克力（+3 经验），并给食物降价 3 金'],
+    hooks: {
+      sell: function (g, c) {
+        const game = g.game;
+        // 官方是「清空食物位，然后放一个」
+        for (let i = 0; i < game.shopFoods.length; i++) {
+          game.shopFoods[i] = null;
+          game.frozenFoods[i] = false;
+        }
+        g.stock('Chocolate', 0);
+        game.foodDiscount = (game.foodDiscount || 0) + 3;
+      }
+    }
+  },
+
+  Donkey: {
+    name: 'Donkey', cn: '驴', tier: 4, atk: 4, hp: 6, pack: 'star',
+    texts: ['友方阵亡时：把最后一名敌人推到最前。每场战斗 1 次',
+            '友方阵亡时：把最后一名敌人推到最前。每场战斗 2 次',
+            '友方阵亡时：把最后一名敌人推到最前。每场战斗 3 次'],
+    hooks: {
+      friendFaints: function (g, c) {
+        c.self._donkey = (c.self._donkey || 0) + 1;
+        if (c.self._donkey > c.lvl) return;
+        const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
+        if (foes.length) g.push(foes[foes.length - 1], 99);   // 推到最前
+      }
+    }
+  },
+
+  Elk: {
+    name: 'Elk', cn: '麋鹿', tier: 4, atk: 2, hp: 6, pack: 'star',
+    texts: ['阵亡：把随机一个带出售技能友方的售价按其等级提高 1 金',
+            '阵亡：把随机一个带出售技能友方的售价按其等级提高 2 金',
+            '阵亡：把随机一个带出售技能友方的售价按其等级提高 3 金'],
+    hooks: {
+      // ⚠️ 阵亡可能在战斗里发生，也可能是商店里被出售 —— 两边都要处理
+      faint: function (g, c) { elkBonus(g, c, false); },
+      sell:  function (g, c) { elkBonus(g, c, true); }
+    }
+  },
+
+  Fossa: {
+    name: 'Fossa', cn: '马岛长尾狸猫', tier: 4, atk: 6, hp: 5, pack: 'star',
+    texts: ['开战时：本回合每刷新一次，前两个敌人 -1 生命',
+            '开战时：本回合每刷新一次，前两个敌人 -2 生命',
+            '开战时：本回合每刷新一次，前两个敌人 -3 生命'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const n = (g.rolls || 0) * c.lvl;
+        if (!n) return;
+        const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; }).slice(0, 2);
+        for (const p of foes) {
+          p.hp -= n;
+          g.emit({ e: 'dmg', t: p.uid, n: n });
+        }
+      }
+    }
+  },
+
+  Hawk: {
+    name: 'Hawk', cn: '鹰', tier: 4, atk: 4, hp: 3, pack: 'star',
+    texts: ['开战时：对正对面的敌人造成 7 伤害',
+            '开战时：对正对面的敌人造成 14 伤害',
+            '开战时：对正对面的敌人造成 21 伤害'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        // 「正对面」= 敌方同一位置的宠物（双方都从最前排数起）
+        const myTeam = g.sides[c.self.side];
+        const idx = myTeam.indexOf(c.self);
+        const foe = g.sides[1 - c.self.side][idx];
+        if (foe && foe.hp > 0) g.hit(foe, c.lvl * 7);
+      }
+    }
+  },
+
+  Platypus: {
+    name: 'Platypus', cn: '鸭嘴兽', tier: 4, atk: 2, hp: 2, pack: 'star',
+    texts: ['阵亡/出售：召唤 1 个 3/3 的 1 级鸭子和海狸',
+            '阵亡/出售：召唤 1 个 6/6 的 2 级鸭子和海狸',
+            '阵亡/出售：召唤 1 个 9/9 的 3 级鸭子和海狸'],
+    hooks: {
+      faint: function (g, c) { platypusSummon(g, c); },
+      sell:  function (g, c) { platypusSummon(g, c); }
+    }
+  },
+
+  SeaAnemone: {
+    name: 'Sea Anemone', cn: '海葵', tier: 4, atk: 3, hp: 4, pack: 'star',
+    texts: ['友方被出售时：若它有出售技能，给随机 1 个友方 +1/+1',
+            '友方被出售时：若它有出售技能，给随机 1 个友方 +2/+2',
+            '友方被出售时：若它有出售技能，给随机 1 个友方 +3/+3'],
+    hooks: {
+      friendSold: function (g, c) {
+        if (!c.hadSell) return;
+        const t = g.random(g.friends(c.self), 1);
+        if (t[0]) g.buff(t[0], c.lvl, c.lvl);
+      }
+    }
+  },
+
+  Sparrow: {
+    name: 'Sparrow', cn: '麻雀', tier: 4, atk: 3, hp: 2, pack: 'star',
+    texts: ['带草莓标记的友方受到伤害减少 10，一次',
+            '带草莓标记的友方受到伤害减少 20，一次',
+            '带草莓标记的友方受到伤害减少 30，一次'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const n = c.lvl * 10;
+        for (const p of g.friends(c.self)) {
+          if (g.hasPerk(p, 'Strawberry')) p.reduceOnce = Math.max(p.reduceOnce || 0, n);
+        }
+        if (g.hasPerk(c.self, 'Strawberry')) c.self.reduceOnce = Math.max(c.self.reduceOnce || 0, n);
+      }
+    }
   }
 };
 
@@ -1278,6 +1411,35 @@ function kiwiBuff(g, c) {
   if (t[0]) g.buff(t[0], c.lvl, 0);
 }
 
+/* 星包麋鹿：把随机一个「带出售技能」友方的售价按其等级提高。
+ * ⚠️ 阵亡发生在战斗里（那边没有 game），出售发生在商店里（那边有 game）。
+ *    _sellBonus 存在宠物身上，商店那边出售时读它 —— 所以战斗里加的那份
+ *    在战斗结束后不会保留到商店（战斗用的是副本），这一点与官方一致：
+ *    官方这条也只在商店阶段有意义。 */
+function elkBonus(g, c, inShop) {
+  const cand = g.friends(c.self).filter(function (p) {
+    return p.def && p.def.hooks && p.def.hooks.sell;
+  });
+  const t = g.random(cand, 1);
+  if (!t[0]) return;
+  const add = c.lvl * t[0].lvl;
+  if (inShop) {
+    t[0]._sellBonus = (t[0]._sellBonus || 0) + add;
+    g.emit({ e: 'sellBonus', t: t[0].uid, n: add });
+  } else {
+    t[0]._sellBonus = (t[0]._sellBonus || 0) + add;
+  }
+}
+
+/* 星包鸭嘴兽：召唤一只鸭子和一只海狸（战斗和商店两个上下文都能跑，
+ * 因为 ShopEnv.summon 特意做成了和 Battle 一样的签名） */
+function platypusSummon(g, c) {
+  const stats = c.lvl * 3;
+  const opts = { atk: stats, hp: stats, lvl: c.lvl };
+  g.summon(c.self.side, g.indexOf(c.self), 'Beaver', opts);
+  g.summon(c.self.side, g.indexOf(c.self), 'Duck', opts);
+}
+
 /* ------------------------------------------------------------
  *  Food Perk 规则（官方 wiki 原文）：
  *  "A pet can only have 1 Food Perk at a time; if they gain another
@@ -1318,7 +1480,11 @@ const FOODS = {
    * 它【自身没有任何效果】—— 只是一个标记，供星包特定宠物消费
    * （海鹦 / 鸽子 / 几维鸟）。它占掉唯一的食物槽，带上就没法再带别的 Perk。 */
   Strawberry:  { name: 'Strawberry',  cn: '草莓',     cost: 3, perk: 'Strawberry', pack: 'star',
-                 text: '给一只宠物草莓标记（供特定技能使用，本身无效果）' }
+                 text: '给一只宠物草莓标记（供特定技能使用，本身无效果）' },
+  /* 巧克力（官方 wiki："Give an animal +1 Experience."）
+   * 官方原文还有一条：因巧克力升级时，会在该食物位生成上一星级的宠物 —— 未实现。 */
+  Chocolate:   { name: 'Chocolate',   cn: '巧克力',   cost: 3, exp: 1, pack: 'star',
+                 text: '给一只宠物 +1 经验' }
 };
 
 if (typeof module !== 'undefined' && module.exports) {

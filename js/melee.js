@@ -90,6 +90,7 @@ Melee.prototype.startTurn = function () {
     g.phase = 'shop';
     g.pendingFood = null;
     g.foodDiscount = 0;
+    g.rollsThisTurn = 0;
     g.rollShop(false);        // 按当前商店等级刷新
     g.triggerTurnStart();
     if (up.upgraded) g.triggerShopTierUp(up.after);
@@ -215,7 +216,7 @@ Melee.prototype.endTurn = function () {
     const bTeam = b.game.team.map(clonePet);
     applyRelicBattleStart(a.game, aTeam, bTeam);
     applyRelicBattleStart(b.game, bTeam, aTeam);
-    const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier() });
+    const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0 });
 
     let winner = null, loser = null;
     if (res.winner === 0)      { winner = a; loser = b; }

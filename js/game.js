@@ -191,7 +191,14 @@ ShopEnv.prototype.freeRolls = function (n) {
 
 /* 往队伍里加一只宠物（豚鼠「购买时召唤一只豚鼠」）。
  * 队伍满了就什么都不做 —— 官方也是这么处理的。 */
-ShopEnv.prototype.summon = function (defId, opts) {
+ShopEnv.prototype.summon = function (a, b, c2, d2) {
+  // ⚠️ 兼容两种调用方式：
+  //   summon(defId, opts)                     —— 商店技能自己用（豚鼠）
+  //   summon(side, index, defId, opts)        —— 和 Battle 一样的签名，
+  //     这样同一段技能代码在战斗和商店两个上下文里都能直接跑（鸭嘴兽 / 食蚁兽）
+  let defId, opts;
+  if (typeof a === 'number') { defId = c2; opts = d2; }
+  else { defId = a; opts = b; }
   opts = opts || {};
   const g = this.game;
   if (g.team.length >= g.getTeamMax()) return null;
@@ -307,6 +314,12 @@ function describeShopNotes(game, events) {
       notes.push((who ? who + ' ' : '') + '自己受到 ' + ev.n + ' 伤害');
     } else if (ev.e === 'perkLost') {
       notes.push((who ? who + ' ' : '') + '失去了 ' + ev.id + ' 标记');
+    } else if (ev.e === 'sellBonus') {
+      notes.push((who ? who + ' ' : '') + '售价提高 ' + ev.n + ' 金');
+    } else if (ev.e === 'exp') {
+      notes.push((who ? who + ' ' : '') + '+' + ev.n + ' 经验');
+    } else if (ev.e === 'reduceOnce') {
+      notes.push((who ? who + ' ' : '') + '获得一次减伤 ' + ev.n);
     }
   }
   return notes;
@@ -594,8 +607,23 @@ Game.prototype.sellPet = function (teamIdx) {
   // ⚠️ 必须在移出队伍之前生成提示，否则查不到宠物名字
   const notes = describeShopNotes(this, env.events);
 
+  const petBonus = pet._sellBonus || 0;      // 星包麋鹿：临时提高某只宠物的售价
+  const hadSell = !!(def && def.hooks && def.hooks.sell);
   this.team.splice(teamIdx, 1);
-  const sellGain = CFG.SELL_GAIN + relicSum(this, 'sellBonus');   // 遗物「当铺」
+
+  // 友方被出售时（星包海葵）
+  const envS = new ShopEnv(this);
+  envS.lastBattleLost = this.lastBattleLost;
+  for (const q of this.team) {
+    const dq = q.def;
+    if (dq && dq.hooks && dq.hooks.friendSold) {
+      envS.actor = q;
+      dq.hooks.friendSold(envS, { self: q, lvl: q.lvl, sold: pet, hadSell: hadSell });
+    }
+  }
+  envS.actor = null;
+  for (const ev of envS.events) env.events.push(ev);
+  const sellGain = CFG.SELL_GAIN + relicSum(this, 'sellBonus') + petBonus;   // 遗物「当铺」
   this.gold += sellGain;
   return { ok: true, msg: '卖掉了 ' + petName(pet.def) + '，+' + sellGain + ' 金'
            + (notes.length ? ' · ' + notes.join(' · ') : '') };
@@ -644,6 +672,13 @@ Game.prototype.applyFood = function (teamIdx) {
     setPerk(pet, def.perk, 1);
     pet.weak = false;
   }
+  if (def.exp) {
+    // 巧克力：给经验（会正常触发升级）
+    const envX = new ShopEnv(this);
+    envX.lastBattleLost = this.lastBattleLost;
+    envX.emit({ e: 'exp', t: pet.uid, n: def.exp });
+    this.addExp(pet, def.exp);
+  }
   this.shopFoods[this.pendingFood] = null;
   this.frozenFoods[this.pendingFood] = false;   // 道具没了，冻结标记也要清掉
   this.pendingFood = null;
@@ -684,6 +719,7 @@ Game.prototype.roll = function () {
     this.gold -= rc;
   }
   this.pendingFood = null;
+  this.rollsThisTurn = (this.rollsThisTurn || 0) + 1;   // 星包马岛长尾狸猫按这个数结算
   this.rollShop(false);
   this.triggerRoll();                      // 刷新触发的技能（星包水豚 / 霍加狓）
   return {
@@ -856,7 +892,7 @@ Game.prototype.endTurn = function () {
   const foeTeam = opponent.map(clonePet);
   // 遗物的开战效果（战旗 / 獠牙 / 铁甲 / 猎杀标记）
   applyRelicBattleStart(this, myTeam, foeTeam);
-  const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier() });
+  const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier(), rolls: this.rollsThisTurn || 0 });
 
   this.phase = 'battle';
   this.lastResult = {
@@ -945,6 +981,7 @@ Game.prototype.nextTurn = function () {
   this.phase = 'shop';
   this.pendingFood = null;
   this.foodDiscount = 0;         // 每回合重置，Squirrel 会在开局重新打折
+  this.rollsThisTurn = 0;        // 本回合刷新次数（星包马岛长尾狸猫）
   this.rollShop(false);
   this.triggerTurnStart();
   if (up.upgraded) this.triggerShopTierUp(up.after);
