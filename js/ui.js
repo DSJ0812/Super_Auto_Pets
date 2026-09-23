@@ -70,6 +70,8 @@ function renderShop() {
   // ---- 我的队伍（槽位数跟随本回合上限 3/4/5）----
   const row = $('#myRow');
   row.innerHTML = '';
+  // 有选中时给整行加标记：CSS 会把空位和其他宠物标成「可放置目标」
+  row.classList.toggle('picking', UI.selectedTeam >= 0);
   const teamMax = g.getTeamMax();
   for (let i = 0; i < teamMax; i++) {
     const p = g.team[i];
@@ -82,7 +84,8 @@ function renderShop() {
       c.draggable = true;
       row.appendChild(c);
     } else {
-      const s = el('div', 'pet slot-empty', '<span>空位</span>');
+      const s = el('div', 'pet slot-empty',
+        '<span>' + (UI.selectedTeam >= 0 ? '放这里' : '空位') + '</span>');
       s.dataset.teamIdx = i;
       row.appendChild(s);
     }
@@ -153,7 +156,7 @@ function renderShop() {
     $('#hint').textContent = '👉 请点击一只宠物来使用「' + FOODS[g.shopFoods[UI.game.pendingFood].id].cn + '」';
     $('#hint').classList.add('active');
   } else {
-    $('#hint').textContent = '点击商店宠物购买 · 也可把商店宠物拖到队伍的指定位置 · 点两次出售 · 拖动调整顺序';
+    $('#hint').textContent = teamHintText();
     $('#hint').classList.remove('active');
   }
 
@@ -479,27 +482,33 @@ function bind() {
       return;
     }
 
-    // 点击队伍宠物
-    const tp = e.target.closest('#myRow .pet');
+    // 点击队伍格子（宠物或空位）—— 语义见 render.js 的 teamTapAction
+    const tp = e.target.closest('#myRow [data-team-idx]');
     if (tp) {
       const i = +tp.dataset.teamIdx;
+      const a = teamTapAction(
+        { sel: UI.selectedTeam, pendingFood: g.pendingFood != null },
+        i, g.team.length);
 
-      // 有待用食物 → 使用
-      if (g.pendingFood != null) {
+      if (a.act === 'food') {
         const r = g.applyFood(i);
         say(r.msg);
         renderTop(); renderShop();
-        return;
-      }
-
-      // 点同一只两次 → 出售
-      if (UI.selectedTeam === i) {
+      } else if (a.act === 'sell') {
         const r = g.sellPet(i);
         say(r.msg);
         UI.selectedTeam = -1;
         renderTop(); renderShop();
-      } else {
+      } else if (a.act === 'move') {
+        g.movePet(a.from, a.to);
+        say('调整了站位');
+        UI.selectedTeam = -1;
+        renderShop();
+      } else if (a.act === 'select') {
         UI.selectedTeam = i;
+        renderShop();
+      } else {
+        UI.selectedTeam = -1;      // 空位且没选中 → 取消选择
         renderShop();
       }
       return;

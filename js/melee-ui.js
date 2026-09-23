@@ -136,6 +136,7 @@ function mRenderTeam() {
   const row = $('#mMyRow');
   if (!row) return;
   row.innerHTML = '';
+  row.classList.toggle('picking', MUI.selTeam >= 0);
   const teamMax = g.getTeamMax();
   for (let i = 0; i < teamMax; i++) {
     const p = g.team[i];
@@ -145,7 +146,8 @@ function mRenderTeam() {
       c.draggable = true;
       row.appendChild(c);
     } else {
-      const s = el('div', 'pet slot-empty', '<span>空位</span>');
+      const s = el('div', 'pet slot-empty',
+        '<span>' + (MUI.selTeam >= 0 ? '放这里' : '空位') + '</span>');
       s.dataset.mTeamIdx = i;
       row.appendChild(s);
     }
@@ -208,7 +210,7 @@ function mRenderShop() {
 
   $('#mHint').textContent = (g.pendingFood != null)
     ? '👉 请点击一只宠物来使用这个道具'
-    : '点击购买 · 拖到队伍指定位置 · 点两次出售 · 可攒钱吃利息';
+    : teamHintText();
 }
 
 /* ------------------------------------------------------------
@@ -399,23 +401,32 @@ function mBind() {
       return;
     }
 
-    // 点队伍宠物：用道具 or 选中/出售
-    const tp = e.target.closest('#mMyRow .pet');
+    // 点队伍格子（宠物或空位）—— 语义见 render.js 的 teamTapAction
+    const tp = e.target.closest('#mMyRow [data-m-team-idx]');
     if (tp) {
       const i = +tp.dataset.mTeamIdx;
-      if (g.pendingFood != null) {
+      const a = teamTapAction(
+        { sel: MUI.selTeam, pendingFood: g.pendingFood != null },
+        i, g.team.length);
+
+      if (a.act === 'food') {
         const r = g.applyFood(i);
         say(r.msg);
         mRefreshShopUI();
-        return;
-      }
-      if (MUI.selTeam === i) {
+      } else if (a.act === 'sell') {
         const r = g.sellPet(i);
         say(r.msg);
         MUI.selTeam = -1;
         mRefreshShopUI();
-      } else {
+      } else if (a.act === 'move') {
+        g.movePet(a.from, a.to);
+        MUI.selTeam = -1;
+        mRefreshShopUI();
+      } else if (a.act === 'select') {
         MUI.selTeam = i;
+        mRenderTeam();
+      } else {
+        MUI.selTeam = -1;
         mRenderTeam();
       }
       return;

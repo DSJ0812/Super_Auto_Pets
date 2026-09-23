@@ -185,6 +185,21 @@ html, body {
   color: #4a515e; font-size: 12px;
 }
 
+/* ---- 点选式换站位：选中某只后，把其他格子标成「点这里就换过去」----
+ * 手机上没有拖动（HTML5 drag 在触屏不触发），所以必须让人一眼看出
+ * 「现在再点一下就换位」，否则这套操作没人会发现。 */
+.pet-row.picking .pet:not(.selected) { border-color: #5b6a80; cursor: pointer; }
+.pet-row.picking .pet.slot-empty {
+  border-color: var(--gold);
+  background: rgba(245,196,81,.07);
+  color: var(--gold);
+  animation: targetPulse 1.4s ease-in-out infinite;
+}
+@keyframes targetPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,196,81,0); }
+  50%      { box-shadow: 0 0 0 3px rgba(245,196,81,.18); }
+}
+
 /* 战斗高亮 */
 @keyframes acting {
   0%   { transform: scale(1); }

@@ -185,6 +185,7 @@ function oRenderTeam() {
   const row = $('#mMyRow');
   if (!row || !g) return;
   row.innerHTML = '';
+  row.classList.toggle('picking', OUI.selTeam >= 0);
   const teamMax = g.getTeamMax();
   for (let i = 0; i < teamMax; i++) {
     const p = g.team[i];
@@ -194,7 +195,8 @@ function oRenderTeam() {
       c.draggable = true;
       row.appendChild(c);
     } else {
-      const s = el('div', 'pet slot-empty', '<span>空位</span>');
+      const s = el('div', 'pet slot-empty',
+        '<span>' + (OUI.selTeam >= 0 ? '放这里' : '空位') + '</span>');
       s.dataset.oTeamIdx = i;
       row.appendChild(s);
     }
@@ -291,7 +293,7 @@ function oRenderReady() {
     } else if (waiting.length) {
       hint.textContent = '还在选：' + waiting.join('、');
     } else {
-      hint.textContent = '点击购买 · 拖到队伍指定位置 · 点两次出售 · 可攒钱吃利息';
+      hint.textContent = teamHintText();
     }
   }
 }
@@ -652,18 +654,19 @@ function oBind() {
     const sp = e.target.closest('[data-o-shop-pet]');
     if (sp) { oAct({ type: 'buyPet', slot: +sp.dataset.oShopPet }); return; }
 
-    // 点队伍宠物：用道具 / 选中出售
-    const tp = e.target.closest('#mMyRow .pet');
+    // 点队伍格子（宠物或空位）—— 语义见 render.js 的 teamTapAction
+    const tp = e.target.closest('#mMyRow [data-o-team-idx]');
     if (tp) {
       const i = +tp.dataset.oTeamIdx;
-      if (g.pendingFood != null) { oAct({ type: 'applyFood', idx: i }); return; }
-      if (OUI.selTeam === i) {
-        OUI.selTeam = -1;
-        oAct({ type: 'sellPet', idx: i });
-      } else {
-        OUI.selTeam = i;
-        oRenderTeam();
-      }
+      const a = teamTapAction(
+        { sel: OUI.selTeam, pendingFood: g.pendingFood != null },
+        i, g.team.length);
+
+      if (a.act === 'food')        oAct({ type: 'applyFood', idx: i });
+      else if (a.act === 'sell')   { OUI.selTeam = -1; oAct({ type: 'sellPet', idx: i }); }
+      else if (a.act === 'move')   { OUI.selTeam = -1; oAct({ type: 'movePet', from: a.from, to: a.to }); }
+      else if (a.act === 'select') { OUI.selTeam = i; oRenderTeam(); }
+      else                         { OUI.selTeam = -1; oRenderTeam(); }
       return;
     }
     if (OUI.selTeam >= 0 && !e.target.closest('#mMyRow')) {

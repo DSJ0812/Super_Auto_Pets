@@ -62,6 +62,55 @@ function esc(s) {
   });
 }
 
+/* ------------------------------------------------------------
+ *  队伍格子的点击语义（经典 / 混战 / 联机 三处共用）
+ *
+ *  为什么要「点选 → 点目标」这套：HTML5 的 dragstart/drop 在触屏上
+ *  根本不触发（iOS/Android 都忽略 draggable），手机上就没法调站位。
+ *  点击是所有设备都有的，所以再给一套点击式操作，拖动仍然保留给鼠标。
+ *
+ *  state = { sel: 当前选中的队伍索引（-1 = 没选）, pendingFood: 是否在等选道具目标 }
+ *  i     = 点到的格子索引（可能落在空位上）
+ *  teamLen = 当前队伍只数（i >= teamLen 说明点到空位）
+ *
+ *  返回 { act, from, to }，act ∈ food | sell | move | select | none
+ * ---------------------------------------------------------- */
+function teamTapAction(state, i, teamLen) {
+  const sel = (state && state.sel >= 0) ? state.sel : -1;
+
+  // 有道具待用 → 这一下是「选目标」，优先级最高
+  if (state && state.pendingFood) return { act: 'food', from: -1, to: i };
+
+  // 点到空位：把选中的挪过去；没选中就什么也不做
+  if (i >= teamLen) {
+    return (sel >= 0) ? { act: 'move', from: sel, to: i } : { act: 'none', from: -1, to: i };
+  }
+
+  // 点自己 → 出售
+  if (sel === i) return { act: 'sell', from: i, to: i };
+
+  // 选中了别的 → 挪过去（这是手机上换站位的唯一途径）
+  if (sel >= 0) return { act: 'move', from: sel, to: i };
+
+  // 什么都没选 → 选中它
+  return { act: 'select', from: -1, to: i };
+}
+
+/* 是不是触屏输入（触屏上拖拽不可用，提示文案要换一套） */
+function isTouchUI() {
+  try {
+    if (window.matchMedia && window.matchMedia('(hover: none)').matches) return true;
+  } catch (e) { /* 老浏览器没有 matchMedia，往下走 */ }
+  return ((typeof navigator !== 'undefined' && navigator.maxTouchPoints) || 0) > 0;
+}
+
+/* 队伍操作提示（两种输入方式给出各自真正能做到的说明） */
+function teamHintText() {
+  return isTouchUI()
+    ? '点商店宠物购买 · 点队伍里的宠物选中，再点另一只/空位就能换站位 · 再点自己出售'
+    : '点击购买 · 拖动或「点选→点目标」调整站位 · 点两次出售 · 可攒钱吃利息';
+}
+
 /* 通用顶部提示条（两种模式共用） */
 let __msgTimer = null;
 function say(msg, ms) {
