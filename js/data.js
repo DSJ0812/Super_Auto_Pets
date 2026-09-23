@@ -1079,8 +1079,22 @@ const PETS = {
     }
   },
 
-  /* ==================== 星包 Tier 3 ==================== */
+  Roadrunner: {
+    name: 'Roadrunner', cn: '走鹃', tier: 2, atk: 4, hp: 1, pack: 'star',
+    texts: ['开战时：给前方最近的 1 个友方草莓标记和 +2 攻击',
+            '开战时：给前方最近的 2 个友方草莓标记和 +2 攻击',
+            '开战时：给前方最近的 3 个友方草莓标记和 +2 攻击'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        for (const p of g.ahead(c.self, c.lvl)) {
+          g.givePerk(p, 'Strawberry');
+          g.buff(p, 2, 0);
+        }
+      }
+    }
+  },
 
+  /* ==================== 星包 Tier 3 ==================== */
   Anteater: {
     name: 'Anteater', cn: '食蚁兽', tier: 3, atk: 3, hp: 2, pack: 'star',
     texts: ['阵亡：召唤 1 个 1/1 的 3 级蚂蚁',
@@ -1402,6 +1416,23 @@ const PETS = {
         if (!sides.length) return;
         for (const p of sides) g.kill(p);
         g.buff(c.self, c.lvl * 2, c.lvl * 2);
+      }
+    }
+  },
+
+  RacketTail: {
+    name: 'Racket Tail', cn: '盘尾蜂鸟', tier: 4, atk: 2, hp: 5, pack: 'star',
+    texts: ['友方攻击前：给它草莓标记和 +5 攻击。每场战斗 1 次',
+            '友方攻击前：给它草莓标记和 +5 攻击。每场战斗 2 次',
+            '友方攻击前：给它草莓标记和 +5 攻击。每场战斗 3 次'],
+    hooks: {
+      friendAttack: function (g, c) {
+        c.self._racket = (c.self._racket || 0) + 1;
+        if (c.self._racket > c.lvl) return;
+        const atk = c.attacker;
+        if (!atk || atk === c.self || atk.hp <= 0) return;
+        g.givePerk(atk, 'Strawberry');
+        g.buff(atk, 5, 0);
       }
     }
   },
@@ -1824,6 +1855,39 @@ const PETS = {
         if (!src) return;
         g.removePerk(src, 'Strawberry');
         for (const p of g.friends(c.self)) g.buff(p, c.lvl * 2, c.lvl * 3);
+      }
+    }
+  },
+
+  /* 恐鸟 / 镰刀龙：把「最前面 N 个带草莓的友方」的草莓换成花生 / 椰子。
+   * ⚠️ 一只宠物同时只能带 1 个食物 Perk（见 engine.js 的 givePerk），
+   *    所以这里其实是「草莓换花生/椰子」，不是叠加 —— 和官方一致。 */
+  TerrorBird: {
+    name: 'Terror Bird', cn: '恐鸟', tier: 6, atk: 8, hp: 3, pack: 'star',
+    texts: ['开战时：给最前面 1 个带草莓标记的友方花生',
+            '开战时：给最前面 2 个带草莓标记的友方花生',
+            '开战时：给最前面 3 个带草莓标记的友方花生'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const cand = g.friends(c.self).filter(function (p) {
+          return p.hp > 0 && g.hasPerk(p, 'Strawberry');
+        });
+        for (let i = 0; i < c.lvl && i < cand.length; i++) g.givePerk(cand[i], 'Peanut');
+      }
+    }
+  },
+
+  Therizinosaurus: {
+    name: 'Therizinosaurus', cn: '镰刀龙', tier: 6, atk: 3, hp: 8, pack: 'star',
+    texts: ['开战时：给最前面 1 个带草莓标记的友方椰子',
+            '开战时：给最前面 2 个带草莓标记的友方椰子',
+            '开战时：给最前面 3 个带草莓标记的友方椰子'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const cand = g.friends(c.self).filter(function (p) {
+          return p.hp > 0 && g.hasPerk(p, 'Strawberry');
+        });
+        for (let i = 0; i < c.lvl && i < cand.length; i++) g.givePerk(cand[i], 'Coconut');
       }
     }
   }

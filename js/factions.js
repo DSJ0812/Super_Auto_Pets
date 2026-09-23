@@ -54,7 +54,7 @@ const FACTION_MEMBERS = {
   bird: ['Duck', 'Pigeon', 'Flamingo', 'Peacock', 'Swan', 'Dodo', 'Parrot', 'Rooster', 'Turkey',
          'Duckling', 'Hummingbird', 'Kiwi', 'AtlanticPuffin', 'Dove', 'Stork', 'Cardinal',
          'Cassowary', 'Crow', 'Hawk', 'Sparrow', 'Shoebill', 'Vulture', 'Woodpecker',
-         'HarpyEagle', 'Ostrich'],
+         'HarpyEagle', 'Ostrich', 'Roadrunner', 'RacketTail', 'TerrorBird'],
   beast: ['Horse', 'Pig', 'Elephant', 'Giraffe', 'Ox', 'Bison', 'Deer', 'Hippo', 'Rhino', 'Boar',
           'Gorilla', 'Leopard', 'Mammoth', 'Tiger', 'Wolverine', 'Lion', 'PolarBear', 'Zebra',
           'Elk', 'Yak', 'Camel', 'Kangaroo', 'Panda', 'Anteater', 'Cow', 'Donkey', 'Alpaca',
@@ -68,7 +68,7 @@ const FACTION_MEMBERS = {
   // 爬行只有 T6 的蛇和龙，等于永远激活不了）。
   reptile: ['Snake', 'Iguana', 'Salamander', 'Toad', 'Frog', 'Komodo', 'Triceratops',
             'Stegosaurus', 'Spinosaurus', 'Velociraptor', 'RealVelociraptor', 'Dragon',
-            'Turtle', 'Crocodile']
+            'Turtle', 'Crocodile', 'Therizinosaurus']
 };
 
 /* 反查表（宠物 → 阵营 id） */
