@@ -71,6 +71,11 @@
   var card = document.getElementById('onlineCard');
   var foot = document.getElementById('homeFoot');
   var base = '61 只宠物 · 7 种召唤物 · 11 种道具';
+  // 同一份 index.html 会用在两种场景：file:// 双击打开、以及网页链接打开，
+  // 所以文案用「打开即玩」而不是「双击即玩」
+  var offlineFoot = base + ' &nbsp;|&nbsp; 打开即玩，无需安装' +
+    '<br><span style="font-size:11.5px;opacity:.75">' +
+    '想和朋友联机？在主机上双击 <b>开服.bat</b>，用它显示的地址打开本页即可。</span>';
 
   fetch('api/ping', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -79,16 +84,10 @@
         card.style.display = '';
         foot.innerHTML = base + ' &nbsp;|&nbsp; 🌐 已连接联机服务器，可以和朋友一起玩';
       } else {
-        foot.innerHTML = base + ' &nbsp;|&nbsp; 双击即玩，无需安装' +
-          '<br><span style="font-size:11.5px;opacity:.75">' +
-          '想和朋友联机？在主机上双击 <b>开服.bat</b>，用它显示的地址打开本页即可。</span>';
+        foot.innerHTML = offlineFoot;
       }
     })
-    .catch(function () {
-      foot.innerHTML = base + ' &nbsp;|&nbsp; 双击即玩，无需安装' +
-        '<br><span style="font-size:11.5px;opacity:.75">' +
-        '想和朋友联机？在主机上双击 <b>开服.bat</b>，用它显示的地址打开本页即可。</span>';
-    });
+    .catch(function () { foot.innerHTML = offlineFoot; });
 })();
 </script>
 </body>
