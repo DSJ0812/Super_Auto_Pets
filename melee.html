@@ -30,6 +30,7 @@
     <div class="tb-goal">
       <a class="back-link" href="index.html">← 返回模式选择</a>
     </div>
+    <button id="mBtnCodex" class="btn tiny">📖 图鉴</button>
   </header>
 
   <div id="message"></div>
@@ -107,6 +108,18 @@
     </section>
 
   </main>
+
+  <!-- ===================== 图鉴（宠物 / 召唤物 / 道具 / 遗物） ===================== -->
+  <div id="codex" class="codex-overlay" style="display:none">
+    <div class="codex-panel">
+      <div class="codex-head">
+        <h2>📖 图鉴</h2>
+        <span class="codex-sub" id="codexSub"></span>
+        <button id="mBtnCodexClose" class="btn">✕ 关闭</button>
+      </div>
+      <div id="codexBody" class="codex-body"></div>
+    </div>
+  </div>
 
   <!-- ===================== 遗物三选一 ===================== -->
   <div id="relicPick" class="codex-overlay" style="display:none">

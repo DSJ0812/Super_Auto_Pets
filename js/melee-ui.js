@@ -201,6 +201,13 @@ function mRenderAll() {
   mRenderShop();
 }
 
+/* 商店阶段任何操作后的刷新：⚠️ 必须带上队伍，否则买完宠物看不到它进队 */
+function mRefreshShopUI() {
+  mRenderTop();
+  mRenderTeam();
+  mRenderShop();
+}
+
 /* ------------------------------------------------------------
  *  战斗播放（只播玩家参战的那一场）
  * ---------------------------------------------------------- */
@@ -216,9 +223,9 @@ function mCloneView(p, side) {
 function mFindView(uid) {
   const v = MUI.view;
   if (!v) return null;
-  for (const s of [0, 1]) {
-    for (const p of v[s]) if (p.uid === uid) return { pet: p, side: s };
-  }
+  // ⚠️ v 的结构是 { mine, foe }，不是数组，不能写成 v[0]/v[1]
+  for (const p of v.mine) if (p.uid === uid) return { pet: p, side: 0 };
+  for (const p of v.foe)  if (p.uid === uid) return { pet: p, side: 1 };
   return null;
 }
 
@@ -379,9 +386,6 @@ function mEndTurn() {
   const m = MUI.m;
   if (m.phase !== 'shop') return;
 
-  // 记录玩家这一场的对手，用于播放
-  const humanTeamBefore = m.human.game.team.map(function (p) { return p; });
-
   const r = m.endTurn();
   if (!r.ok) { say(r.msg); return; }
 
@@ -393,14 +397,8 @@ function mEndTurn() {
   // 播放玩家参战的那一场
   const rp = r.report;
   if (rp.humanLog) {
-    const meIsA = rp.humanIsA;
-    const oppIdx = meIsA
-      ? rp.matches.find(function (x) { return x.a === 0; })
-      : rp.matches.find(function (x) { return x.b === 0; });
-    // 对手队伍：从战斗结果里取
-    const res = rp.humanRes;
-    const foeFinal = meIsA ? res.final[1] : res.final[0];
-    mStartBattle(res, foeFinal, '', meIsA);
+    // ⚠️ 用「开战前」的对手队伍，不能用 res.final（那是打完后的残局）
+    mStartBattle(rp.humanRes, rp.humanFoe || [], rp.humanFoeName || '', rp.humanIsA);
   } else {
     // 轮空
     say(m.human.name + ' 本回合轮空，不掉血');
@@ -432,16 +430,31 @@ function mBind() {
     const m = MUI.m;
     const g = m.human.game;
 
+    // 图鉴：关闭按钮 / 点遮罩空白处关闭（面板内点击不关）
+    if (e.target.closest('#mBtnCodexClose') ||
+        (e.target.closest('#codex') && !e.target.closest('.codex-panel'))) {
+      closeCodex('#codex');
+      return;
+    }
+    // 图鉴打开时，屏蔽其他点击
+    if (codexOpen('#codex')) return;
+
     // 选遗物（三选一弹窗）
     const ro = e.target.closest('[data-relic]');
     if (ro) {
       const r = g.pickRelic(ro.dataset.relic);
       say(r.msg);
-      mRenderTop(); mRenderShop();
+      mRefreshShopUI();
       return;
     }
     // 弹窗打开时，屏蔽其他点击
     if ($('#relicPick') && $('#relicPick').style.display === 'flex') return;
+
+    // 打开图鉴
+    if (e.target.closest('#mBtnCodex')) {
+      openCodex('#codex', '#codexBody');
+      return;
+    }
 
     // 速度
     const spd = e.target.closest('.spd');
@@ -493,7 +506,7 @@ function mBind() {
     if (e.target.closest('#mBtnRoll')) {
       const r = g.roll();
       say(r.msg);
-      mRenderTop(); mRenderShop();
+      mRefreshShopUI();
       return;
     }
 
@@ -508,7 +521,7 @@ function mBind() {
     if (sf) {
       const r = g.buyFood(+sf.dataset.mShopFood);
       say(r.msg);
-      mRenderTop(); mRenderShop();
+      mRefreshShopUI();
       return;
     }
 
@@ -517,7 +530,7 @@ function mBind() {
     if (sp) {
       const r = g.buyPet(+sp.dataset.mShopPet);
       say(r.msg);
-      mRenderTop(); mRenderShop();
+      mRefreshShopUI();
       return;
     }
 
@@ -528,14 +541,14 @@ function mBind() {
       if (g.pendingFood != null) {
         const r = g.applyFood(i);
         say(r.msg);
-        mRenderTop(); mRenderShop();
+        mRefreshShopUI();
         return;
       }
       if (MUI.selTeam === i) {
         const r = g.sellPet(i);
         say(r.msg);
         MUI.selTeam = -1;
-        mRenderTop(); mRenderShop();
+        mRefreshShopUI();
       } else {
         MUI.selTeam = i;
         mRenderTeam();
@@ -588,7 +601,7 @@ function mBind() {
       g.movePet(dragTeam, to);
     } else return;
     dragTeam = -1; dragShop = -1; MUI.selTeam = -1;
-    mRenderTop(); mRenderShop();
+    mRefreshShopUI();
   });
 }
 
@@ -599,6 +612,10 @@ function mBoot() {
   MUI.m = new Melee();
   mBind();
   mRenderAll();
+  // Esc 关闭图鉴（未打开时调用无副作用）
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeCodex('#codex');
+  });
   say('8 人混战开始！活到最后就是赢家。');
 }
 

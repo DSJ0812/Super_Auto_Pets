@@ -400,9 +400,9 @@ function bind() {
     }
 
     // 图鉴：打开 / 关闭 / 点遮罩关闭（面板内点击不关）
-    if (e.target.closest('#btnCodex')) { openCodex(); return; }
-    if (e.target.closest('#btnCodexClose')) { closeCodex(); return; }
-    if (e.target.closest('#codex') && !e.target.closest('.codex-panel')) { closeCodex(); return; }
+    if (e.target.closest('#btnCodex')) { openCodexPanel(); return; }
+    if (e.target.closest('#btnCodexClose')) { closeCodexPanel(); return; }
+    if (e.target.closest('#codex') && !e.target.closest('.codex-panel')) { closeCodexPanel(); return; }
 
     // 刷新
     if (e.target.closest('#btnRoll')) {
@@ -589,128 +589,16 @@ function applyEventSilent(ev) {
 }
 
 /* ------------------------------------------------------------
- *  宠物图鉴
- *  （TIER_NAME / FOOD_EMOJI 已移到 render.js）
+ *  图鉴（宠物 / 召唤物 / 道具 / 遗物）
+ *  实际渲染在 render.js 的 renderCodexInto()，两种模式共用
  * ---------------------------------------------------------- */
 
-/* 列出可购买的宠物（排除召唤物），按 tier → 名字排序 */
-function codexEntries() {
-  const ids = Object.keys(PETS).filter(function (k) {
-    const d = PETS[k];
-    return !d.token && d.tier >= 1;
-  });
-  ids.sort(function (a, b) {
-    const A = PETS[a], B = PETS[b];
-    if (A.tier !== B.tier) return A.tier - B.tier;
-    return (A.cn || A.name).localeCompare(B.cn || B.name, 'zh-CN');
-  });
-  return ids;
-}
-
-/* ---- 图鉴：宠物卡片 ---- */
-function codexPetCard(id) {
-  const d = PETS[id];
-  let rows = '';
-  if (d.texts && d.texts.length) {
-    for (let i = 0; i < 3; i++) {
-      const txt = d.texts[i] || d.texts[0] || '';
-      rows += '<div class="codex-row"><span class="codex-lv">' + (i + 1) + '级</span>' +
-              '<span>' + esc(txt) + '</span></div>';
-    }
-  } else {
-    rows = '<div class="codex-row"><span>—</span></div>';
-  }
-  return '<div class="codex-card" data-tier="' + (d.tier || 0) + '">' +
-      '<div class="codex-top">' +
-        '<span class="codex-emoji">' + (PET_EMOJI[id] || '🐾') + '</span>' +
-        '<span class="codex-name">' + esc(petName(d)) + '</span>' +
-        '<span class="codex-en">' + esc(d.name) + '</span>' +
-        '<span class="codex-base">' +
-          '<span class="atk">' + d.atk + '</span>' +
-          '<span class="slash">/</span>' +
-          '<span class="hp">' + d.hp + '</span>' +
-        '</span>' +
-      '</div>' +
-      '<div class="codex-ability">' + rows + '</div>' +
-    '</div>';
-}
-
-/* ---- 图鉴：道具卡片（FOOD_EMOJI 来自 render.js）---- */
-function codexFoodCard(id) {
-  const f = FOODS[id];
-  return '<div class="codex-card food" data-tier="0">' +
-      '<div class="codex-top">' +
-        '<span class="codex-emoji">' + (FOOD_EMOJI[id] || '🎁') + '</span>' +
-        '<span class="codex-name">' + esc(f.cn || f.name) + '</span>' +
-        '<span class="codex-en">' + esc(f.name) + '</span>' +
-        '<span class="codex-base">' + f.cost + ' 金</span>' +
-      '</div>' +
-      '<div class="codex-ability">' +
-        '<div class="codex-row"><span>' + esc(f.text) + '</span></div>' +
-      '</div>' +
-    '</div>';
-}
-
 function renderCodex() {
-  const body = $('#codexBody');
-  if (!body) return;
-
-  let html = '';
-  let nPet = 0, nToken = 0, nFood = 0;
-
-  // ---- 可购买宠物：按星级分组 ----
-  const ids = codexEntries();
-  const byTier = {};
-  for (const id of ids) {
-    const t = PETS[id].tier;
-    (byTier[t] = byTier[t] || []).push(id);
-  }
-  for (const t of Object.keys(byTier).sort(function (a, b) { return a - b; })) {
-    html += '<div class="codex-tier">' + (TIER_NAME[t] || 'Tier ' + t) +
-            ' · ' + byTier[t].length + ' 只</div><div class="codex-grid">';
-    for (const id of byTier[t]) html += codexPetCard(id);
-    html += '</div>';
-    nPet += byTier[t].length;
-  }
-
-  // ---- 召唤物 ----
-  const tokens = Object.keys(PETS).filter(function (k) { return PETS[k].token; })
-    .sort(function (a, b) {
-      return (PETS[a].cn || a).localeCompare(PETS[b].cn || b, 'zh-CN');
-    });
-  if (tokens.length) {
-    html += '<div class="codex-tier">召唤物 · ' + tokens.length +
-            ' 只（只能由技能召唤，不会出现在商店）</div><div class="codex-grid">';
-    for (const id of tokens) html += codexPetCard(id);
-    html += '</div>';
-    nToken = tokens.length;
-  }
-
-  // ---- 道具 ----
-  const foods = Object.keys(FOODS).sort(function (a, b) {
-    const ta = FOODS[a].token ? 1 : 0, tb = FOODS[b].token ? 1 : 0;
-    if (ta !== tb) return ta - tb;
-    return (FOODS[a].cn || a).localeCompare(FOODS[b].cn || b, 'zh-CN');
-  });
-  if (foods.length) {
-    html += '<div class="codex-tier">道具 · ' + foods.length + ' 种</div><div class="codex-grid">';
-    for (const id of foods) html += codexFoodCard(id);
-    html += '</div>';
-    nFood = foods.length;
-  }
-
-  body.innerHTML = html;
-  $('#codexSub').textContent =
-    '宠物 ' + nPet + ' 只 · 召唤物 ' + nToken + ' 只 · 道具 ' + nFood + ' 种 · 点空白处或按 Esc 关闭';
+  renderCodexInto($('#codexBody'), $('#codexSub'));
 }
 
-function openCodex() {
-  renderCodex();
-  $('#codex').style.display = 'flex';
-}
-function closeCodex() {
-  $('#codex').style.display = 'none';
-}
+function openCodexPanel() { openCodex('#codex', '#codexBody'); }
+function closeCodexPanel() { closeCodex('#codex'); }
 
 /* ------------------------------------------------------------
  *  启动
@@ -720,7 +608,7 @@ function boot() {
   bind();
   // Esc 关闭图鉴（未打开时调用无副作用）
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeCodex();
+    if (e.key === 'Escape') closeCodexPanel();
   });
   renderTop();
   renderShop();

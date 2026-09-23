@@ -199,3 +199,171 @@ function renderRelicChoices(box, ids) {
   }
   box.innerHTML = html;
 }
+
+/* ============================================================
+ *  图鉴（两种模式共用）
+ *
+ *  内容：可购买宠物（按星级）/ 召唤物 / 道具 / 遗物（按类别）
+ *  两种模式调同一个 renderCodexInto()，保证内容永远一致。
+ * ============================================================ */
+
+/* 遗物类别的展示顺序 */
+const RELIC_TAG_ORDER = ['经济', '成长', '战斗'];
+
+/* ---- 图鉴：宠物卡片 ---- */
+function codexPetCard(id) {
+  const d = PETS[id];
+  if (!d) return '';
+  let rows = '';
+  if (d.texts && d.texts.length) {
+    for (let i = 0; i < 3; i++) {
+      const txt = d.texts[i] || d.texts[0] || '';
+      rows += '<div class="codex-row"><span class="codex-lv">' + (i + 1) + '级</span>' +
+              '<span>' + esc(txt) + '</span></div>';
+    }
+  } else {
+    rows = '<div class="codex-row"><span>—</span></div>';
+  }
+  return '<div class="codex-card" data-tier="' + (d.tier || 0) + '">' +
+      '<div class="codex-top">' +
+        '<span class="codex-emoji">' + (PET_EMOJI[id] || '🐾') + '</span>' +
+        '<span class="codex-name">' + esc(petName(d)) + '</span>' +
+        '<span class="codex-en">' + esc(d.name) + '</span>' +
+        '<span class="codex-base">' +
+          '<span class="atk">' + d.atk + '</span>' +
+          '<span class="slash">/</span>' +
+          '<span class="hp">' + d.hp + '</span>' +
+        '</span>' +
+      '</div>' +
+      '<div class="codex-ability">' + rows + '</div>' +
+    '</div>';
+}
+
+/* ---- 图鉴：道具卡片（FOOD_EMOJI 见本文件顶部）---- */
+function codexFoodCard(id) {
+  const f = FOODS[id];
+  if (!f) return '';
+  return '<div class="codex-card food" data-tier="0">' +
+      '<div class="codex-top">' +
+        '<span class="codex-emoji">' + (FOOD_EMOJI[id] || '🎁') + '</span>' +
+        '<span class="codex-name">' + esc(f.cn || f.name) + '</span>' +
+        '<span class="codex-en">' + esc(f.name) + '</span>' +
+        '<span class="codex-base">' + f.cost + ' 金</span>' +
+      '</div>' +
+      '<div class="codex-ability">' +
+        '<div class="codex-row"><span>' + esc(f.text) + '</span></div>' +
+      '</div>' +
+    '</div>';
+}
+
+/* ---- 图鉴：遗物卡片 ---- */
+function codexRelicCard(id) {
+  const r = RELICS[id];
+  if (!r) return '';
+  return '<div class="codex-card relic" data-tag="' + esc(r.tag) + '">' +
+      '<div class="codex-top">' +
+        '<span class="codex-emoji">' + r.icon + '</span>' +
+        '<span class="codex-name">' + esc(r.cn) + '</span>' +
+        '<span class="codex-en">' + esc(r.name) + '</span>' +
+        '<span class="codex-tag">' + esc(r.tag) + '</span>' +
+      '</div>' +
+      '<div class="codex-ability">' +
+        '<div class="codex-row"><span>' + esc(r.desc) + '</span></div>' +
+      '</div>' +
+    '</div>';
+}
+
+/* 把整个图鉴渲染进 bodyEl，并回填计数到 subEl */
+function renderCodexInto(bodyEl, subEl) {
+  if (!bodyEl) return;
+  let html = '';
+  let nPet = 0, nToken = 0, nFood = 0, nRelic = 0;
+
+  /* ---- 可购买宠物：按星级分组 ---- */
+  const ids = Object.keys(PETS).filter(function (k) {
+    const d = PETS[k];
+    return !d.token && d.tier >= 1;
+  }).sort(function (a, b) {
+    const A = PETS[a], B = PETS[b];
+    if (A.tier !== B.tier) return A.tier - B.tier;
+    return (A.cn || A.name).localeCompare(B.cn || B.name, 'zh-CN');
+  });
+  const byTier = {};
+  for (const id of ids) (byTier[PETS[id].tier] = byTier[PETS[id].tier] || []).push(id);
+  for (const t of Object.keys(byTier).sort(function (a, b) { return a - b; })) {
+    html += '<div class="codex-tier">' + (TIER_NAME[t] || 'Tier ' + t) +
+            ' · ' + byTier[t].length + ' 只</div><div class="codex-grid">';
+    for (const id of byTier[t]) html += codexPetCard(id);
+    html += '</div>';
+    nPet += byTier[t].length;
+  }
+
+  /* ---- 召唤物 ---- */
+  const tokens = Object.keys(PETS).filter(function (k) { return PETS[k].token; })
+    .sort(function (a, b) {
+      return (PETS[a].cn || a).localeCompare(PETS[b].cn || b, 'zh-CN');
+    });
+  if (tokens.length) {
+    html += '<div class="codex-tier">召唤物 · ' + tokens.length +
+            ' 只（只能由技能召唤，不会出现在商店）</div><div class="codex-grid">';
+    for (const id of tokens) html += codexPetCard(id);
+    html += '</div>';
+    nToken = tokens.length;
+  }
+
+  /* ---- 道具 ---- */
+  const foods = Object.keys(FOODS).sort(function (a, b) {
+    const ta = FOODS[a].token ? 1 : 0, tb = FOODS[b].token ? 1 : 0;
+    if (ta !== tb) return ta - tb;
+    return (FOODS[a].cn || a).localeCompare(FOODS[b].cn || b, 'zh-CN');
+  });
+  if (foods.length) {
+    html += '<div class="codex-tier">道具 · ' + foods.length +
+            ' 种（每只宠物同时只能带 1 个）</div><div class="codex-grid">';
+    for (const id of foods) html += codexFoodCard(id);
+    html += '</div>';
+    nFood = foods.length;
+  }
+
+  /* ---- 遗物：按类别分组（保持 relics.js 里的声明顺序）---- */
+  const relicIds = (typeof RELIC_IDS !== 'undefined' ? RELIC_IDS : Object.keys(RELICS));
+  const tags = RELIC_TAG_ORDER.concat(
+    Object.keys(RELICS).map(function (k) { return RELICS[k].tag; })
+      .filter(function (t, i, arr) { return RELIC_TAG_ORDER.indexOf(t) < 0 && arr.indexOf(t) === i; })
+  );
+  let relicFirst = true;
+  for (const tag of tags) {
+    const arr = relicIds.filter(function (id) { return RELICS[id] && RELICS[id].tag === tag; });
+    if (!arr.length) continue;
+    html += '<div class="codex-tier">遗物 · ' + esc(tag) + ' · ' + arr.length + ' 件' +
+            (relicFirst ? '（回合 3/6/9… 三选一，永久生效）' : '') +
+            '</div><div class="codex-grid">';
+    for (const id of arr) html += codexRelicCard(id);
+    html += '</div>';
+    nRelic += arr.length;
+    relicFirst = false;
+  }
+
+  bodyEl.innerHTML = html;
+  if (subEl) {
+    subEl.textContent = '宠物 ' + nPet + ' 只 · 召唤物 ' + nToken + ' 只 · 道具 ' +
+      nFood + ' 种 · 遗物 ' + nRelic + ' 件 · 点空白处或按 Esc 关闭';
+  }
+}
+
+/* 打开 / 关闭图鉴（两种模式各有一套遮罩，但行为一致） */
+function openCodex(overlaySel, bodySel) {
+  const ov = $(overlaySel);
+  if (!ov) return;
+  renderCodexInto($(bodySel), $('#codexSub'));
+  ov.style.display = 'flex';
+}
+function closeCodex(overlaySel) {
+  const ov = $(overlaySel);
+  if (ov) ov.style.display = 'none';
+}
+/* 遮罩关了没（给点击处理器用） */
+function codexOpen(overlaySel) {
+  const ov = $(overlaySel);
+  return !!ov && ov.style.display === 'flex';
+}

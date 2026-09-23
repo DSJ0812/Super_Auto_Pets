@@ -239,11 +239,14 @@ Melee.prototype.endTurn = function () {
       winner.streak = winner.streak < 0 ? 1 : winner.streak + 1;
     }
 
-    // 玩家参战的那一场保留完整日志给界面播放
+    // 玩家参战的那一场：保留完整日志 + 开战前的双方队伍（供界面回放）
     if (a.isHuman || b.isHuman) {
       report.humanLog = res.log;
       report.humanIsA = a.isHuman;
       report.humanRes = res;
+      report.humanMine = a.isHuman ? aTeam : bTeam;
+      report.humanFoe  = a.isHuman ? bTeam : aTeam;
+      report.humanFoeName = a.isHuman ? b.name : a.name;
     }
     report.matches.push(m);
   }

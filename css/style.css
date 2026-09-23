@@ -426,11 +426,27 @@ html, body {
 /* 召唤物 / 道具：用中性色，把「颜色」这个维度完整让给星级 */
 .codex-card[data-tier="0"] { border-left-color: #5c6473; }
 .codex-card.food { border-left-color: #5c6473; }
+/* 遗物：按类别上色（经济金 / 成长绿 / 战斗红） */
+.codex-card.relic[data-tag="经济"] { border-left-color: #e8ad3a; }
+.codex-card.relic[data-tag="成长"] { border-left-color: #3fb268; }
+.codex-card.relic[data-tag="战斗"] { border-left-color: #e85c5c; }
+.codex-card.relic { border-left-color: #5c6473; }
 
 .codex-top { display: flex; align-items: center; gap: 7px; }
 .codex-emoji { font-size: 20px; line-height: 1; }
 .codex-name { font-size: 13px; font-weight: 700; }
 .codex-en { font-size: 10px; color: #6b7280; margin-left: 2px; }
+.codex-tag {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9aa6b8;
+  background: #262b35;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
 .codex-base {
   margin-left: auto;
   font-size: 13px;
