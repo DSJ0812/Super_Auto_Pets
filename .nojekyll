@@ -1,2 +1,2 @@
-这是一个纯静态站点（没有构建步骤、没有依赖），可以直接丢到任何静态托管上。
-放这个空文件是为了让 GitHub Pages 跳过 Jekyll 处理，避免它忽略某些文件。
+This empty marker tells GitHub Pages to skip Jekyll processing.
+It must stay ASCII-only: the file's content is ignored, only its existence matters.
