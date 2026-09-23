@@ -98,6 +98,7 @@ function oRenderTop() {
 
   if (g) {
     renderRelicBar($('#relicBar'), g.relics);
+    renderSynergyBar($('#synergyBar'), g.team);
     const box = $('#relicPick');
     if (box) {
       if (g.pendingRelicChoice && g.pendingRelicChoice.length) {

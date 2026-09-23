@@ -94,6 +94,8 @@ Melee.prototype.startTurn = function () {
     g.rollShop(false);        // 按当前商店等级刷新
     g.triggerTurnStart();
     if (up.upgraded) g.triggerShopTierUp(up.after);
+    const syn = applySynergyTurnStart(g);     // 阵营羁绊（飞禽）
+    if (syn.length) g.shopNotes = (g.shopNotes || []).concat(syn);
     g.offerRelicChoice();     // 到点给遗物三选一
     // AI 不会挑，随机拿一个（保证和玩家规则对等）
     if (!f.isHuman && g.pendingRelicChoice && g.pendingRelicChoice.length) {
@@ -215,7 +217,9 @@ Melee.prototype.endTurn = function () {
     const aTeam = a.game.team.map(clonePet);
     const bTeam = b.game.team.map(clonePet);
     applyRelicBattleStart(a.game, aTeam, bTeam);
+    applySynergyBattleStart(a.game, aTeam);
     applyRelicBattleStart(b.game, bTeam, aTeam);
+    applySynergyBattleStart(b.game, bTeam);
     const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0, turn: a.game.turn });
 
     let winner = null, loser = null;

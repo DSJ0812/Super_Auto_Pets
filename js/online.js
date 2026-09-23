@@ -202,6 +202,8 @@ OnlineGame.prototype.startTurn = function () {
     g.rollShop(false);
     g.triggerTurnStart();
     if (up.upgraded) g.triggerShopTierUp(up.after);
+    const syn = applySynergyTurnStart(g);     // 阵营羁绊（飞禽）
+    if (syn.length) g.shopNotes = (g.shopNotes || []).concat(syn);
     g.offerRelicChoice();
     if (s.kind === 'ai' && g.pendingRelicChoice && g.pendingRelicChoice.length) {
       const ids = g.pendingRelicChoice;
@@ -346,7 +348,9 @@ OnlineGame.prototype.resolveTurn = function () {
     const aTeam = a.game.team.map(clonePet);
     const bTeam = b.game.team.map(clonePet);
     applyRelicBattleStart(a.game, aTeam, bTeam);
+    applySynergyBattleStart(a.game, aTeam);
     applyRelicBattleStart(b.game, bTeam, aTeam);
+    applySynergyBattleStart(b.game, bTeam);
     const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0, turn: a.game.turn });
 
     let win = null, lose = null;

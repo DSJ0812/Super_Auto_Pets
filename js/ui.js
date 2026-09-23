@@ -45,6 +45,7 @@ function renderRelics() {
   const g = UI.game;
   if (!g) return;
   renderRelicBar($('#relicBar'), g.relics);
+  renderSynergyBar($('#synergyBar'), g.team);
   const pend = g.pendingRelicChoice;
   const box = $('#relicPick');
   if (!box) return;

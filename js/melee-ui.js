@@ -47,6 +47,7 @@ function mRenderTop() {
   $('#mAlive').textContent = m.alive().length;
   // 遗物：已获得的图标条 + 到点的三选一
   renderRelicBar($('#relicBar'), g.relics);
+  renderSynergyBar($('#synergyBar'), g.team);
   const box = $('#relicPick');
   if (box) {
     if (g.pendingRelicChoice && g.pendingRelicChoice.length) {

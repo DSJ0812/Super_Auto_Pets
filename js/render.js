@@ -112,6 +112,39 @@ function teamHintText() {
 }
 
 /* ============================================================
+ *  阵营羁绊条（三种界面共用）
+ *  显示当前队伍里每个阵营的人数和档位；已激活的排在前面并高亮。
+ * ============================================================ */
+function renderSynergyBar(box, team) {
+  if (!box) return;
+  if (typeof activeFactions !== 'function') { box.innerHTML = ''; return; }
+  const list = activeFactions(team || []);
+  if (!list.length) {
+    box.innerHTML = '<span class="sy-empty">还没有阵营羁绊' +
+      '（同一个阵营的【不同】宠物凑够 2 只就激活）</span>';
+    return;
+  }
+  let html = '';
+  for (const f of list) {
+    const info = FACTIONS[f.id];
+    const on = f.lvl > 0;
+    html += '<span class="sy-chip' + (on ? ' on' : '') + '" title="' +
+              esc(info.cn + '：' + info.desc.join(' → ')) + '">' +
+              info.icon + ' ' + esc(info.cn) + ' <b>' + f.n + '</b>' +
+              (on ? '<span class="sy-lv">' + f.lvl + '档</span>'
+                  : '<span class="sy-next">还差' + f.next + '</span>') +
+            '</span>';
+  }
+  const on2 = list.filter(function (f) { return f.lvl > 0; });
+  if (on2.length) {
+    html += '<span class="sy-effect">' + on2.map(function (f) {
+      return FACTIONS[f.id].icon + ' ' + esc(factionDesc(f));
+    }).join(' ・ ') + '</span>';
+  }
+  box.innerHTML = html;
+}
+
+/* ============================================================
  *  种子（每日挑战 / 分享同一局）
  * ============================================================ */
 

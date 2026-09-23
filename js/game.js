@@ -841,6 +841,10 @@ Game.prototype.triggerTurnStart = function () {
   applyRelicTurnStart(this, env);
   const relicNotes = describeShopNotes(this, env.events.slice(mark));
   if (relicNotes.length) this.shopNotes = this.shopNotes.concat(relicNotes);
+
+  // 阵营羁绊里唯一在商店阶段生效的是飞禽（每回合开始）
+  const synNotes = applySynergyTurnStart(this);
+  if (synNotes.length) this.shopNotes = this.shopNotes.concat(synNotes);
 };
 
 /* ---- 回合结束技能 ---- */
@@ -957,6 +961,7 @@ Game.prototype.endTurn = function () {
   const foeTeam = opponent.map(clonePet);
   // 遗物的开战效果（战旗 / 獠牙 / 铁甲 / 猎杀标记）
   applyRelicBattleStart(this, myTeam, foeTeam);
+  applySynergyBattleStart(this, myTeam);   // 阵营羁绊（自创机制）
   const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier(), rolls: this.rollsThisTurn || 0, turn: this.turn });
 
   this.phase = 'battle';
