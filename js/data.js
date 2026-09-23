@@ -1059,6 +1059,181 @@ const PETS = {
         g.buff(c.self, c.lvl, 0);
       }
     }
+  },
+
+  /* ==================== 星包 Tier 3 ==================== */
+
+  Anteater: {
+    name: 'Anteater', cn: '食蚁兽', tier: 3, atk: 3, hp: 2, pack: 'star',
+    texts: ['阵亡：召唤 1 个 1/1 的 3 级蚂蚁',
+            '阵亡：召唤 2 个 1/1 的 3 级蚂蚁',
+            '阵亡：召唤 3 个 1/1 的 3 级蚂蚁'],
+    hooks: {
+      faint: function (g, c) {
+        for (let i = 0; i < c.lvl; i++) {
+          g.summon(c.self.side, g.indexOf(c.self), 'Ant', { atk: 1, hp: 1, lvl: 3 });
+        }
+      }
+    }
+  },
+
+  Capybara: {
+    name: 'Capybara', cn: '水豚', tier: 3, atk: 2, hp: 5, pack: 'star',
+    texts: ['刷新/出售：给刚刷出来的商店宠物 +1/+1',
+            '刷新/出售：给刚刷出来的商店宠物 +2/+2',
+            '刷新/出售：给刚刷出来的商店宠物 +3/+3'],
+    hooks: {
+      // 只加「刚刷出来的」——被冻结保留下来的那格不算
+      roll: function (g, c) {
+        for (let i = 0; i < g.game.shopPets.length; i++) {
+          if (g.game.frozenPets[i]) continue;
+          g.buffShopAt(i, c.lvl, c.lvl);
+        }
+      },
+      sell: function (g, c) {
+        for (let i = 0; i < g.game.shopPets.length; i++) {
+          g.buffShopAt(i, c.lvl, c.lvl);
+        }
+      }
+    }
+  },
+
+  Cardinal: {
+    name: 'Cardinal', cn: '红雀', tier: 3, atk: 4, hp: 3, pack: 'star',
+    texts: ['回合开始：库存 1 个前方最近友方 Perk 的副本，并便宜 1 金',
+            '回合开始：库存 1 个前方最近友方 Perk 的副本，并便宜 2 金',
+            '回合开始：库存 1 个前方最近友方 Perk 的副本，并便宜 3 金'],
+    hooks: {
+      startTurn: function (g, c) {
+        // 找前方最近的、带 Perk 的友方
+        let src = null;
+        for (const p of g.ahead(c.self, 99)) {
+          if (p.perks && p.perks.length) { src = p; break; }
+        }
+        if (!src) return;
+        const foodId = foodForPerk(src.perks[0].id);
+        if (!foodId) return;
+        const base = FOODS[foodId].cost == null ? 3 : FOODS[foodId].cost;
+        g.stock(foodId, Math.max(0, base - c.lvl));
+      }
+    }
+  },
+
+  Cassowary: {
+    name: 'Cassowary', cn: '鹤鸵', tier: 3, atk: 4, hp: 2, pack: 'star',
+    texts: ['友方获得草莓时：自己 +1 生命，且本场战斗内 +1 攻击',
+            '友方获得草莓时：自己 +2 生命，且本场战斗内 +2 攻击',
+            '友方获得草莓时：自己 +3 生命，且本场战斗内 +3 攻击'],
+    hooks: {
+      friendGainedPerk: function (g, c) {
+        if (c.perk !== 'Strawberry') return;
+        g.buff(c.self, 0, c.lvl);                       // 生命是永久的
+        if (g.buffTemp) g.buffTemp(c.self, c.lvl, 0);   // 攻击只到战斗结束
+        else g.buff(c.self, c.lvl, 0);                  // 战斗里的就直接加
+      }
+    }
+  },
+
+  Eel: {
+    name: 'Eel', cn: '鳗鱼', tier: 3, atk: 4, hp: 3, pack: 'star',
+    texts: ['开战时：获得 50% 生命', '开战时：获得 100% 生命', '开战时：获得 150% 生命'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const add = Math.floor(c.self.hp * c.lvl * 0.5);
+        if (add) g.buff(c.self, 0, add);
+      }
+    }
+  },
+
+  Leech: {
+    name: 'Leech', cn: '水蛭', tier: 3, atk: 2, hp: 4, pack: 'star',
+    texts: ['回合结束：对前方最近的友方造成 1 伤害，并把这伤害变成自己的生命',
+            '回合结束：对前方最近的友方造成 2 伤害，并把这伤害变成自己的生命',
+            '回合结束：对前方最近的友方造成 3 伤害，并把这伤害变成自己的生命'],
+    hooks: {
+      endTurn: function (g, c) {
+        const ahead = g.ahead(c.self, 1)[0];
+        if (!ahead) return;
+        const real = g.hit(ahead, c.lvl);
+        if (real) g.buff(c.self, 0, real);
+      }
+    }
+  },
+
+  Okapi: {
+    name: 'Okapi', cn: '霍加狓', tier: 3, atk: 2, hp: 3, pack: 'star',
+    texts: ['刷新：本场战斗内 +1/+1，每回合最多 5 次',
+            '刷新：本场战斗内 +2/+2，每回合最多 5 次',
+            '刷新：本场战斗内 +3/+3，每回合最多 5 次'],
+    hooks: {
+      roll: function (g, c) {
+        c.self._okapi = (c.self._okapi || 0) + 1;
+        if (c.self._okapi > 5) return;
+        g.buffTemp(c.self, c.lvl, c.lvl);
+      },
+      startTurn: function (g, c) { c.self._okapi = 0; }
+    }
+  },
+
+  Orangutan: {
+    name: 'Orangutan', cn: '猩猩', tier: 3, atk: 1, hp: 4, pack: 'star',
+    texts: ['回合结束：给生命最低的友方 +3 生命',
+            '回合结束：给生命最低的友方 +4 生命',
+            '回合结束：给生命最低的友方 +9 生命'],
+    hooks: {
+      endTurn: function (g, c) {
+        const mates = g.friends(c.self);
+        if (!mates.length) return;
+        let low = mates[0];
+        for (const p of mates) if (p.hp < low.hp) low = p;
+        g.buff(low, 0, [3, 4, 9][c.lvl - 1] || 3);
+      }
+    }
+  },
+
+  Pug: {
+    name: 'Pug', cn: '巴哥犬', tier: 3, atk: 5, hp: 2, pack: 'star',
+    texts: ['开战时：给前方最近的友方 +1 经验',
+            '开战时：给前方最近的友方 +2 经验',
+            '开战时：给前方最近的友方 +3 经验'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const ahead = g.ahead(c.self, 1)[0];
+        if (ahead) g.grantExp(ahead, c.lvl);
+      }
+    }
+  },
+
+  Toad: {
+    name: 'Toad', cn: '蟾蜍', tier: 3, atk: 3, hp: 3, pack: 'star',
+    texts: ['敌人受伤时：使它虚弱（受伤 +3）。每场战斗 2 次',
+            '敌人受伤时：使它虚弱（受伤 +3）。每场战斗 4 次',
+            '敌人受伤时：使它虚弱（受伤 +3）。每场战斗 6 次'],
+    hooks: {
+      foeHurt: function (g, c) {
+        // 被打死的敌人再施加虚弱没有意义，也就不该消耗次数
+        if (!c.hurt || c.hurt.hp <= 0) return;
+        c.self._toad = (c.self._toad || 0) + 1;
+        if (c.self._toad > c.lvl * 2) return;
+        g.inflictWeak(c.hurt);
+      }
+    }
+  },
+
+  Tuna: {
+    name: 'Tuna', cn: '金枪鱼', tier: 3, atk: 1, hp: 5, pack: 'star',
+    texts: ['阵亡：每受过一次伤害，就给随机 1 个友方 +1/+1',
+            '阵亡：每受过一次伤害，就给随机 1 个友方 +2/+2',
+            '阵亡：每受过一次伤害，就给随机 1 个友方 +3/+3'],
+    hooks: {
+      hurt: function (g, c) { c.self._hurt = (c.self._hurt || 0) + 1; },
+      faint: function (g, c) {
+        const n = c.self._hurt || 0;
+        if (!n) return;
+        const t = g.random(g.friends(c.self), 1);
+        if (t[0]) g.buff(t[0], n * c.lvl, n * c.lvl);
+      }
+    }
   }
 };
 

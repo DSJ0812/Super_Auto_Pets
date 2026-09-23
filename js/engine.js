@@ -126,14 +126,27 @@ Battle.prototype.hit = function (pet, amount) {
 // 注意：Perk 只能带一个，但这里仍用「只吃第一个」的写法做双保险，
 //       避免任何情况下出现减伤叠加（red += 会变成减 40）
 Battle.prototype.calcDamage = function (pet, raw) {
+  let dmg = null;
   for (let i = 0; i < pet.perks.length; i++) {
     const pk = pet.perks[i];
     if (pk.uses === 0) continue;
-    if (pk.id === 'Melon')   return Math.max(0, raw - 20);
-    if (pk.id === 'Garlic')  return Math.max(0, raw - 2);
-    if (pk.id === 'Coconut') return 0;          // 官方：Ignore damage once
+    if (pk.id === 'Melon')   { dmg = Math.max(0, raw - 20); break; }
+    if (pk.id === 'Garlic')  { dmg = Math.max(0, raw - 2); break; }
+    if (pk.id === 'Coconut') { dmg = 0; break; }        // 官方：Ignore damage once
   }
-  return Math.max(1, raw);
+  if (dmg === null) dmg = Math.max(1, raw);
+  // 异常状态「虚弱」：受到 +3 伤害（官方 Ailments 页原文 "Take +3 damage"）
+  if (pet.weak) dmg += 3;
+  return dmg;
+};
+
+/* 施加异常状态「虚弱」。官方规则：宠物同时只能有 1 个异常状态，
+ * 而获得新的异常状态或 Food Perk 都会覆盖旧的 —— 所以两边互相清除。 */
+Battle.prototype.inflictWeak = function (pet) {
+  if (!pet || pet.hp <= 0) return;
+  pet.perks = [];              // 异常状态顶掉 Food Perk
+  pet.weak = true;
+  this.emit({ e: 'weak', t: pet.uid });
 };
 
 // 消耗一次性防御道具（Melon / Garlic / Coconut）
@@ -160,7 +173,19 @@ Battle.prototype.givePerk = function (pet, id, uses) {
   if (!pet || pet.hp <= 0) return;
   // 官方规则：一只宠物同时只能带 1 个 Food Perk，新的覆盖旧的
   pet.perks = [{ id: id, uses: uses == null ? 1 : uses }];
+  pet.weak = false;                       // Food Perk 会顶掉异常状态
   this.emit({ e: 'perk', t: pet.uid, id: id });
+  this.notifyPerkGained(pet, id);
+};
+
+/* 友方获得 Perk 时（星包鹤鸵） */
+Battle.prototype.notifyPerkGained = function (pet, perkId) {
+  const mates = this.sides[pet.side];
+  for (let i = 0; i < mates.length; i++) {
+    if (mates[i] !== pet && mates[i].hp > 0) {
+      this.triggerOn('friendGainedPerk', mates[i], { target: pet, perk: perkId });
+    }
+  }
 };
 
 /* 移除某个 Perk（星包海鹦 / 鸽子要把草莓标记「花掉」）。返回是否真的移除了 */
@@ -314,8 +339,12 @@ Battle.prototype.grantExp = function (pet, n) {
  * ---------------------------------------------------------- */
 Battle.prototype.triggerOn = function (hook, pet, ctx) {
   if (!pet) return;
-  // 注意：faint（遗言）必须在宠物血量归零后依然能触发，所以这里放行
-  if (hook !== 'faint' && pet.hp <= 0) return;
+  // 有些钩子必须在血量归零后仍然触发：
+  //  · faint（遗言）—— 这是它的定义
+  //  · hurt（受伤）—— 受伤发生在伤害那一刻，死亡是之后单独结算的。
+  //    挡住的话「致命一击不算受伤」，像星包金枪鱼这种按受伤次数结算的就会少数一次
+  //    （被秒杀时甚至数为 0）。实测 turtle 包原有宠物不受影响。
+  if (hook !== 'faint' && hook !== 'hurt' && pet.hp <= 0) return;
   const def = pet.def;
   if (!def || !def.hooks || !def.hooks[hook]) return;
   ctx = Object.assign({ self: pet, lvl: pet.lvl }, ctx || {});
@@ -427,11 +456,19 @@ Battle.prototype.exchange = function (a, b) {
     for (const fp of this.sides[a.side].slice()) {
       if (fp !== a && fp.hp > 0) this.triggerOn('friendHurt', fp, { hurt: a });
     }
+    // 敌方受伤时（星包蟾蜍）
+    for (const fp of this.sides[1 - a.side].slice()) {
+      if (fp.hp > 0) this.triggerOn('foeHurt', fp, { hurt: a });
+    }
   }
   if (dmgToB > 0) {
     this.triggerOn('hurt', b, { dmg: dmgToB });
     for (const fp of this.sides[b.side].slice()) {
       if (fp !== b && fp.hp > 0) this.triggerOn('friendHurt', fp, { hurt: b });
+    }
+    // 敌方受伤时（星包蟾蜍「敌人受伤 → 使它虚弱」）
+    for (const fp of this.sides[1 - b.side].slice()) {
+      if (fp.hp > 0) this.triggerOn('foeHurt', fp, { hurt: b });
     }
   }
 

@@ -25,7 +25,7 @@ const EXPORTS = [
   'petName', 'setPerk',
   'makePet', 'clonePet', 'cloneTeam', 'runBattle', 'Battle',
   'Game', 'ShopEnv', 'Fighter', 'Melee',
-  'petCostOf', 'rollCostOf', 'buyablePool', 'PACKS', 'packOf', 'activePack',
+  'petCostOf', 'rollCostOf', 'buyablePool', 'PACKS', 'packOf', 'activePack', 'foodForPerk',
   'relicSum', 'rollRelics', 'applyRelicTurnStart', 'applyRelicBattleStart',
   'petToJSON', 'petFromJSON', 'packSelf', 'gameFromPack', 'rosterOf',
   'OnlineGame', 'Seat', 'RNG'

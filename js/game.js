@@ -228,6 +228,36 @@ ShopEnv.prototype.hasPerk = function (pet, id) {
   return pet.perks.some(function (p) { return p.id === id; });
 };
 
+/* 「直到战斗结束」的临时属性（星包霍加狓：刷新时 +1/+1 直到战斗结束）。
+ * 商店阶段照常加在宠物身上，打完这一场后由 Game.endTurn 还原。 */
+ShopEnv.prototype.buffTemp = function (pet, atk, hp) {
+  if (!pet) return;
+  if (atk) { pet.atk += atk; pet._tempAtk = (pet._tempAtk || 0) + atk; }
+  if (hp)  { pet.hp += hp;   pet._tempHp  = (pet._tempHp  || 0) + hp; }
+  this.emit({ e: 'buff', t: pet.uid, atk: atk || 0, hp: hp || 0 });
+};
+
+/* 商店里获得 Perk 时通知友方（星包鹤鸵） */
+ShopEnv.prototype.notifyPerkGained = function (pet, perkId) {
+  for (const q of this.game.team) {
+    if (q === pet) continue;
+    const dq = q.def;
+    if (dq && dq.hooks && dq.hooks.friendGainedPerk) {
+      this.actor = q;
+      dq.hooks.friendGainedPerk(this, { self: q, lvl: q.lvl, target: pet, perk: perkId });
+    }
+  }
+  this.actor = null;
+};
+
+/* 反向查：某个 Perk 对应哪种食物（星包红雀要「库存前方友方的 Perk」） */
+function foodForPerk(perkId) {
+  for (const k of Object.keys(FOODS)) {
+    if (FOODS[k].perk === perkId && !FOODS[k].token) return k;
+  }
+  return null;
+}
+
 /* ------------------------------------------------------------
  *  把商店阶段的事件汇总成一句人话（方案 B：汇总成一条）
  *  返回形如 ["虫子 库存 苹果", "天鹅 +2 金"] 的字符串数组
@@ -609,8 +639,10 @@ Game.prototype.applyFood = function (teamIdx) {
     pet.hp  += def.buff[1] * mul;
   }
   if (def.perk) {
-    // 官方规则：新 Perk 覆盖旧 Perk（一只宠物同时只能带 1 个）
+    // 官方规则：新 Perk 覆盖旧 Perk（一只宠物同时只能带 1 个），
+    // 而且 Food Perk 会顶掉异常状态
     setPerk(pet, def.perk, 1);
+    pet.weak = false;
   }
   this.shopFoods[this.pendingFood] = null;
   this.frozenFoods[this.pendingFood] = false;   // 道具没了，冻结标记也要清掉
@@ -619,6 +651,13 @@ Game.prototype.applyFood = function (teamIdx) {
   // 「友方吃食物」触发（Rabbit）
   const env = new ShopEnv(this);
   env.lastBattleLost = this.lastBattleLost;
+  // 「友方获得 Perk」触发（星包鹤鸵）
+  if (def.perk) {
+    const envP = new ShopEnv(this);
+    envP.lastBattleLost = this.lastBattleLost;
+    envP.notifyPerkGained(pet, def.perk);
+    for (const ev of envP.events) env.events.push(ev);   // 并进同一个事件流，提示才显示得出来
+  }
   for (const p of this.team) {
     if (p === pet) continue;
     const d = p.def;
@@ -646,10 +685,27 @@ Game.prototype.roll = function () {
   }
   this.pendingFood = null;
   this.rollShop(false);
+  this.triggerRoll();                      // 刷新触发的技能（星包水豚 / 霍加狓）
   return {
     ok: true,
     msg: free ? ('免费刷新（还剩 ' + this.freeRolls + ' 次）') : '刷新了商店'
   };
+};
+
+/* 刷新商店时触发（水豚给新刷出的商店宠物加属性、霍加狓自己 +1/+1） */
+Game.prototype.triggerRoll = function () {
+  const env = new ShopEnv(this);
+  env.lastBattleLost = this.lastBattleLost;
+  for (const p of this.team) {
+    const d = p.def;
+    if (d && d.hooks && d.hooks.roll) {
+      env.actor = p;
+      d.hooks.roll(env, { self: p, lvl: p.lvl });
+    }
+  }
+  env.actor = null;
+  const notes = describeShopNotes(this, env.events);
+  if (notes.length) this.shopNotes = (this.shopNotes || []).concat(notes);
 };
 
 /* ---- 冻结 ---- */
@@ -815,6 +871,12 @@ Game.prototype.endTurn = function () {
   if (result.winner === 0)      { this.wins++;   this.lastBattleLost = false; }
   else if (result.winner === 1) { this.losses++; this.lastBattleLost = true; }
   else                          { this.lastBattleLost = false; }   // 平局不算输
+
+  // 还原「直到战斗结束」的临时属性（霍加狓）
+  for (const p of this.team) {
+    if (p._tempAtk) { p.atk = Math.max(0, p.atk - p._tempAtk); p._tempAtk = 0; }
+    if (p._tempHp)  { p.hp  = Math.max(1, p.hp  - p._tempHp);  p._tempHp  = 0; }
+  }
 
   this.history.push({ turn: this.turn, winner: result.winner, wins: this.wins, losses: this.losses });
 
