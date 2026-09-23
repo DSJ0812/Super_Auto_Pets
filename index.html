@@ -38,12 +38,58 @@
       <div class="mode-tag">大逃杀</div>
     </a>
 
+    <!-- 只有检测到联机服务器时才显示（见页面底部脚本） -->
+    <a class="mode-card online" href="online.html" id="onlineCard" style="display:none">
+      <div class="mode-icon">🌐</div>
+      <div class="mode-name">联机混战</div>
+      <div class="mode-desc">
+        和 <b>朋友同场</b>，最多 8 人<br>
+        人不够由电脑补位<br>
+        同一个 WiFi 就能玩
+      </div>
+      <div class="mode-tag">局域网</div>
+    </a>
+
   </div>
 
-  <div class="home-foot">
+  <div class="home-foot" id="homeFoot">
     61 只宠物 · 7 种召唤物 · 11 种道具 &nbsp;|&nbsp; 双击即玩，无需安装
   </div>
 
 </div>
+
+<script>
+/* 联机入口只在「真的有服务器」时出现。
+ *
+ * 这样同一份 index.html 能同时服务两种场景：
+ *   · 从局域网服务器打开（主持人开了 开服.bat）→ 探测到 /api/ping → 显示联机
+ *   · 从公网静态托管打开（发链接给别人自己玩）  → 探测失败      → 只有单机
+ * 静态托管上 /api/ping 通常返回 404 或一份 HTML，
+ * 所以必须校验返回内容里确实有 online:true，不能只看状态码。
+ */
+(function () {
+  var card = document.getElementById('onlineCard');
+  var foot = document.getElementById('homeFoot');
+  var base = '61 只宠物 · 7 种召唤物 · 11 种道具';
+
+  fetch('api/ping', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (j && j.online === true) {
+        card.style.display = '';
+        foot.innerHTML = base + ' &nbsp;|&nbsp; 🌐 已连接联机服务器，可以和朋友一起玩';
+      } else {
+        foot.innerHTML = base + ' &nbsp;|&nbsp; 双击即玩，无需安装' +
+          '<br><span style="font-size:11.5px;opacity:.75">' +
+          '想和朋友联机？在主机上双击 <b>开服.bat</b>，用它显示的地址打开本页即可。</span>';
+      }
+    })
+    .catch(function () {
+      foot.innerHTML = base + ' &nbsp;|&nbsp; 双击即玩，无需安装' +
+        '<br><span style="font-size:11.5px;opacity:.75">' +
+        '想和朋友联机？在主机上双击 <b>开服.bat</b>，用它显示的地址打开本页即可。</span>';
+    });
+})();
+</script>
 </body>
 </html>

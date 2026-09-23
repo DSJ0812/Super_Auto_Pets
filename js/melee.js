@@ -122,7 +122,7 @@ Melee.prototype.aiShop = function (f) {
     for (let i = 0; i < g.shopPets.length; i++) {
       const sp = g.shopPets[i];
       if (!sp) continue;
-      if (!affordable() || g.gold < petCostOf(sp.defId)) continue;
+      if (!affordable() || g.gold < petCostOf(sp.defId, g)) continue;
       if (g.team.some(function (p) { return p.defId === sp.defId && p.lvl < 3; })) {
         if (g.buyPet(i).ok) { acted = true; break; }
       }
@@ -135,7 +135,7 @@ Melee.prototype.aiShop = function (f) {
       for (let i = 0; i < g.shopPets.length; i++) {
         const sp = g.shopPets[i];
         if (!sp) continue;
-        if (!affordable() || g.gold < petCostOf(sp.defId)) continue;
+        if (!affordable() || g.gold < petCostOf(sp.defId, g)) continue;
         const t = (PETS[sp.defId] || {}).tier || 0;
         if (t > bestTier) { bestTier = t; best = i; }
       }
@@ -148,7 +148,7 @@ Melee.prototype.aiShop = function (f) {
       for (let i = 0; i < g.shopPets.length; i++) {
         const sp = g.shopPets[i];
         if (!sp) continue;
-        if (g.gold < petCostOf(sp.defId)) continue;
+        if (g.gold < petCostOf(sp.defId, g)) continue;
         const t = (PETS[sp.defId] || {}).tier || 0;
         if (t > bestTier) { bestTier = t; best = i; }
       }
@@ -164,7 +164,7 @@ Melee.prototype.aiShop = function (f) {
     }
 
     // 4) 花点钱刷新找更好的
-    if (rolls < 2 && affordable() && g.gold >= rollCostOf() + petCostOf('Ant') + budgetFloor) {
+    if (rolls < 2 && affordable() && g.gold >= rollCostOf() + petCostOf('Ant', g) + budgetFloor) {
       if (g.roll().ok) { rolls++; continue; }
     }
     break;

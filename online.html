@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>8 人混战 · Super Auto Pets</title>
+<title>8 人混战联机 · Super Auto Pets</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -61,10 +61,10 @@
         <div id="mBattleLabel" class="battle-label"></div>
         <div class="battle-btns">
           <div class="speed-ctl" id="mSpeedCtl">
-            <button class="spd" data-mspeed="0.5">0.5×</button>
-            <button class="spd active" data-mspeed="1">1×</button>
-            <button class="spd" data-mspeed="2">2×</button>
-            <button class="spd" data-mspeed="4">4×</button>
+            <button class="spd" data-ospeed="0.5">0.5×</button>
+            <button class="spd active" data-ospeed="1">1×</button>
+            <button class="spd" data-ospeed="2">2×</button>
+            <button class="spd" data-ospeed="4">4×</button>
           </div>
           <button id="mBtnSkip" class="btn">⏩ 跳过动画</button>
           <button id="mBtnNext" class="btn primary" style="display:none"></button>
@@ -95,19 +95,64 @@
             <div id="mShopPets" class="slot-row"></div>
           </div>
           <div class="shop-col narrow">
-            <div class="col-label">道具（3 金）</div>
+            <div class="col-label">道具</div>
             <div id="mShopFoods" class="slot-row"></div>
           </div>
         </div>
 
         <div class="actions">
-          <button id="mBtnRoll" class="btn">🎲 刷新（2 金）</button>
+          <button id="mBtnRoll" class="btn">🎲 刷新</button>
+          <button id="mBtnForce" class="btn" style="display:none">⏭ 强制开打（有人没准备）</button>
           <button id="mBtnEnd" class="btn primary">⚔️ 结束回合，开打！</button>
         </div>
       </section>
     </section>
 
   </main>
+
+  <!-- ===================== 大厅 ===================== -->
+  <div id="lobby" class="codex-overlay">
+    <div class="codex-panel lobby-panel">
+      <div class="codex-head">
+        <h2>🏠 联机大厅</h2>
+        <span class="codex-sub" id="lobbySub">正在连接服务器…</span>
+      </div>
+      <div class="lobby-body">
+
+        <div id="lobbyJoin" class="lobby-join" style="display:none">
+          <label for="nickInput">你的昵称</label>
+          <input id="nickInput" maxlength="12" placeholder="随便起个名字" autocomplete="off">
+          <button id="btnJoin" class="btn primary">加入房间</button>
+        </div>
+        <div id="lobbyErr" class="lobby-err" style="display:none"></div>
+
+        <div id="lobbyOffline" class="lobby-offline" style="display:none">
+          <h3>😕 连不上联机服务器</h3>
+          <p id="lobbyOfflineWhy"></p>
+          <p class="dim">
+            联机需要有人开服务器：在主机上双击 <b>开服.bat</b>，
+            然后把那里显示的局域网地址发给大家。
+          </p>
+          <p><a class="btn" href="index.html">← 回模式选择（单人也能玩）</a></p>
+        </div>
+
+        <div id="lobbyMain" style="display:none">
+          <div class="lobby-share">
+            <div class="ls-label">把下面这个地址发给大家（同一个 WiFi 下）</div>
+            <div class="ls-url" id="lobbyUrl"></div>
+          </div>
+          <div class="ls-label" style="margin-top:14px">房间成员 <span id="lobbyCount"></span></div>
+          <div id="lobbyPlayers" class="lobby-players"></div>
+          <div id="lobbyHint" class="lobby-hint"></div>
+          <div class="lobby-actions">
+            <button id="btnStart" class="btn primary" style="display:none">▶️ 开始游戏（不够的人由电脑补位）</button>
+            <button id="btnRestart" class="btn" style="display:none">🔄 再开一局</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
 
   <!-- ===================== 图鉴（宠物 / 召唤物 / 道具 / 遗物） ===================== -->
   <div id="codex" class="codex-overlay" style="display:none">
@@ -138,7 +183,8 @@
 <script src="js/relics.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/game.js"></script>
-<script src="js/melee.js"></script>
-<script src="js/melee-ui.js"></script>
+<script src="js/pack.js"></script>
+<script src="js/net.js"></script>
+<script src="js/online-ui.js"></script>
 </body>
 </html>

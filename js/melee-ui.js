@@ -16,6 +16,26 @@ const MUI = {
   selTeam: -1         // 选中的队伍位置（点两次出售）
 };
 
+/* 战斗回放器（playback.js）。状态托管在 MUI 上，所以 MUI.view/log/idx 依然可查 */
+const MPLAY = new BattlePlayer({
+  foe: '#mFoeRow', mine: '#mMyBattleRow', label: '#mBattleLabel',
+  skip: '#mBtnSkip', next: '#mBtnNext',
+  shopView: '#mShopView', battleView: '#mbattle',
+  speedMul: function () { return MUI.speedMul; },
+  onFinish: function () {
+    const m = MUI.m;
+    const btn = $('#mBtnNext');
+    if (!btn) return;
+    if (m.phase === 'over') {
+      btn.textContent = '📊 查看最终结果';
+      btn.dataset.mrestart = '1';
+    } else {
+      btn.textContent = '➡️ 进入第 ' + (m.turn + 1) + ' 回合';
+      btn.dataset.mrestart = '';
+    }
+  }
+});
+
 /* ------------------------------------------------------------
  *  顶栏
  * ---------------------------------------------------------- */
@@ -148,7 +168,7 @@ function mRenderShop() {
   for (let i = 0; i < CFG.SHOP_PET_SLOTS; i++) {
     const p = g.shopPets[i];
     if (!p) { sr.appendChild(el('div', 'shop-slot empty')); continue; }
-    const cost = petCostOf(p.defId);
+    const cost = petCostOf(p.defId, g);   // ⚠️ 必须传 game，否则「批发商」遗物的折扣不会显示
     sr.appendChild(shopPetSlot(p, {
       frozen: g.frozenPets[i],
       slotAttr: 'mShopPet', slotIndex: i,
@@ -211,172 +231,27 @@ function mRefreshShopUI() {
 /* ------------------------------------------------------------
  *  战斗播放（只播玩家参战的那一场）
  * ---------------------------------------------------------- */
-function mCloneView(p, side) {
-  return {
-    uid: p.uid, defId: p.defId, def: p.def, lvl: p.lvl,
-    atk: p.atk, hp: p.hp,
-    perks: (p.perks || []).map(function (x) { return { id: x.id, uses: x.uses }; }),
-    side: side
-  };
-}
+/* 展示用镜像 / 查找 / 回放：实现在 playback.js，三种模式共用 */
+function mCloneView(p, side) { return battleCloneView(p, side); }
+function mFindView(uid) { return battleFind(MUI.view, uid); }
 
-function mFindView(uid) {
-  const v = MUI.view;
-  if (!v) return null;
-  // ⚠️ v 的结构是 { mine, foe }，不是数组，不能写成 v[0]/v[1]
-  for (const p of v.mine) if (p.uid === uid) return { pet: p, side: 0 };
-  for (const p of v.foe)  if (p.uid === uid) return { pet: p, side: 1 };
-  return null;
-}
-
-function mRenderBattleBoard(highlight, label) {
-  const v = MUI.view;
-  if (!v) return;
-  const foe = $('#mFoeRow');
-  foe.innerHTML = '';
-  for (const p of v.foe) {
-    const c = petCard(p);
-    if (highlight && highlight.indexOf(p.uid) >= 0) c.classList.add('acting');
-    foe.appendChild(c);
-  }
-  const mine = $('#mMyBattleRow');
-  mine.innerHTML = '';
-  for (const p of v.mine) {
-    const c = petCard(p);
-    if (highlight && highlight.indexOf(p.uid) >= 0) c.classList.add('acting');
-    mine.appendChild(c);
-  }
-  if (label != null) $('#mBattleLabel').textContent = label;
-}
+function mRenderBattleBoard(highlight, label) { MPLAY.render(highlight, label); }
 
 function mStartBattle(res, foeTeam, foeName, iAmA) {
-  MUI.log = res.log;
-  MUI.idx = 0;
-  MUI.view = {
-    mine: MUI.m.human.game.team.map(function (p) { return mCloneView(p, 0); }),
-    foe: foeTeam.map(function (p) { return mCloneView(p, 1); })
-  };
   MUI.foeName = foeName;
-  $('#mShopView').style.display = 'none';
-  $('#mbattle').style.display = '';
-  $('#mBtnSkip').style.display = '';
-  $('#mBtnNext').style.display = 'none';
-  mRenderBattleBoard(null, '准备开战…');
-  mStepBattle();
+  // ⚠️ 用「开战前」的对手队伍，不能用 res.final（那是打完后的残局）
+  MPLAY.start(MUI, res.log, MUI.m.human.game.team, foeTeam, '准备开战…');
 }
 
-function mApplyEvent(ev) {
-  const v = MUI.view;
-  if (!v) return;
-  switch (ev.e) {
-    case 'attack': {
-      const A = mFindView(ev.a), B = mFindView(ev.b);
-      if (A) A.pet.hp -= ev.dmgA;
-      if (B) B.pet.hp -= ev.dmgB;
-      return [ev.a, ev.b];
-    }
-    case 'dmg':    { const t = mFindView(ev.t); if (t) t.pet.hp -= ev.n; return [ev.t]; }
-    case 'buff':   { const t = mFindView(ev.t); if (t) { t.pet.atk += ev.atk; t.pet.hp += ev.hp; } return [ev.t]; }
-    case 'perk':   { const t = mFindView(ev.t); if (t) t.pet.perks = [{ id: ev.id, uses: 1 }]; return [ev.t]; }
-    case 'perkUsed': {
-      const t = mFindView(ev.t);
-      if (t) { const pk = t.pet.perks.find(function (x) { return x.id === ev.id; }); if (pk) pk.uses--; }
-      return [ev.t];
-    }
-    case 'faint':  { const t = mFindView(ev.t); if (t) { t.pet.hp = 0; t.pet._dead = true; } return [ev.t]; }
-    case 'summon': {
-      // 玩家始终是 side 0（runBattle 的第一个参数），对手是 side 1
-      const key = ev.side === 0 ? 'mine' : 'foe';
-      v[key].splice(ev.pos, 0, {
-        uid: ev.t, defId: ev.defId, def: PETS[ev.defId], lvl: ev.lvl || 1,
-        atk: ev.atk, hp: ev.hp, perks: [], side: ev.side
-      });
-      return [ev.t];
-    }
-  }
-  return null;
-}
-
-function mStepBattle() {
-  const v = MUI.view;
-  if (!v) return;
-
-  // 上一帧标记阵亡的移出视图（保证 summon 的 pos 与引擎一致）
-  v.mine = v.mine.filter(function (p) { return !p._dead; });
-  v.foe  = v.foe.filter(function (p) { return !p._dead; });
-
-  if (MUI.idx >= MUI.log.length) { mFinishBattle(); return; }
-  const ev = MUI.log[MUI.idx++];
-  let label = null;
-
-  switch (ev.e) {
-    case 'battleStart': label = '开战！'; break;
-    case 'phase':       label = '第 ' + ev.n + ' 回合'; break;
-    case 'attack': {
-      const A = mFindView(ev.a), B = mFindView(ev.b);
-      if (A) A.pet.hp -= ev.dmgA;
-      if (B) B.pet.hp -= ev.dmgB;
-      label = (A ? petName(A.pet.def) : '?') + ' ⚔ ' + (B ? petName(B.pet.def) : '?');
-      MUI._hi = [ev.a, ev.b];
-      break;
-    }
-    case 'dmg':  { const t = mFindView(ev.t); if (t) { t.pet.hp -= ev.n; label = petName(t.pet.def) + ' 受到 ' + ev.n + ' 伤害'; } MUI._hi = [ev.t]; break; }
-    case 'buff': { const t = mFindView(ev.t); if (t) { t.pet.atk += ev.atk; t.pet.hp += ev.hp; label = petName(t.pet.def) + ' +' + ev.atk + '/+' + ev.hp; } MUI._hi = [ev.t]; break; }
-    case 'perk': { const t = mFindView(ev.t); if (t) t.pet.perks = [{ id: ev.id, uses: 1 }]; label = '获得 ' + ev.id; MUI._hi = [ev.t]; break; }
-    case 'faint':{ const t = mFindView(ev.t); if (t) { t.pet.hp = 0; t.pet._dead = true; label = petName(t.pet.def) + ' 阵亡'; } MUI._hi = [ev.t]; break; }
-    case 'summon': {
-      const key = ev.side === 0 ? 'mine' : 'foe';
-      v[key].splice(ev.pos, 0, {
-        uid: ev.t, defId: ev.defId, def: PETS[ev.defId], lvl: ev.lvl || 1,
-        atk: ev.atk, hp: ev.hp, perks: [], side: ev.side
-      });
-      label = '召唤了 ' + petName(PETS[ev.defId]);
-      MUI._hi = [ev.t];
-      break;
-    }
-    case 'ability': { MUI._hi = [ev.t]; break; }
-    case 'battleEnd':
-      MUI.idx = MUI.log.length;
-      mFinishBattle(ev.winner);
-      return;
-  }
-
-  mRenderBattleBoard(MUI._hi || null, label);
-  const base = 420 / (MUI.speedMul || 1);
-  MUI.timer = setTimeout(mStepBattle, ev.e === 'phase' ? base * 1.6 : base);
-}
+function mApplyEvent(ev) { MPLAY.apply(ev); }
+function mStepBattle() { MPLAY.step(); }
 
 function mFinishBattle(winner) {
-  const m = MUI.m;
-  if (winner === undefined) winner = m.lastReport && m.lastReport.humanRes
-    ? m.lastReport.humanRes.winner : 'draw';
-
-  // 清掉残留尸体
-  if (MUI.view) {
-    MUI.view.mine = MUI.view.mine.filter(function (p) { return !p._dead; });
-    MUI.view.foe  = MUI.view.foe.filter(function (p) { return !p._dead; });
-    mRenderBattleBoard(null, '战斗结束');
+  if (winner === undefined) {
+    const rp = MUI.m && MUI.m.lastReport;
+    winner = (rp && rp.humanRes) ? rp.humanRes.winner : 'draw';
   }
-
-  let txt, cls;
-  if (winner === 0) txt = '🎉 这一场赢了！';
-  else if (winner === 1) txt = '💀 这一场输了';
-  else txt = '🤝 平局';
-
-  $('#mBattleLabel').textContent = txt;
-  $('#mBattleLabel').className = 'battle-label ' + (winner === 0 ? 'win' : winner === 1 ? 'lose' : 'draw');
-  $('#mBtnSkip').style.display = 'none';
-
-  const over = m.phase === 'over';
-  const btn = $('#mBtnNext');
-  btn.style.display = '';
-  if (over) {
-    btn.textContent = '📊 查看最终结果';
-    btn.dataset.mrestart = '1';
-  } else {
-    btn.textContent = '➡️ 进入第 ' + (m.turn + 1) + ' 回合';
-    btn.dataset.mrestart = '';
-  }
+  MPLAY.finish(winner);
 }
 
 /* ------------------------------------------------------------
@@ -467,17 +342,7 @@ function mBind() {
 
     // 跳过动画
     if (e.target.closest('#mBtnSkip')) {
-      clearTimeout(MUI.timer);
-      while (MUI.idx < MUI.log.length) {
-        const ev = MUI.log[MUI.idx++];
-        if (ev.e === 'battleEnd') break;
-        const v = MUI.view;
-        if (!v) break;
-        v.mine = v.mine.filter(function (p) { return !p._dead; });
-        v.foe  = v.foe.filter(function (p) { return !p._dead; });
-        mApplyEvent(ev);
-      }
-      mFinishBattle();
+      MPLAY.skip();
       return;
     }
 
