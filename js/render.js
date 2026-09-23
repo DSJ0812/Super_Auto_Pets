@@ -141,8 +141,7 @@ function shopPetSlot(p, opts) {
 }
 
 /* 道具槽 */
-function foodSlot(f, g, opts) {
-  opts = opts || {};
+function foodSlot(f, g, opts) {  opts = opts || {};
   if (!f) return el('div', 'shop-slot empty');
   const d = FOODS[f.id];
   const wrap = el('div', 'shop-slot food');
@@ -161,4 +160,42 @@ function foodSlot(f, g, opts) {
   if (opts.freezeAttr != null) fz.dataset[opts.freezeAttr] = opts.slotIndex;
   wrap.appendChild(fz);
   return wrap;
+}
+
+/* ------------------------------------------------------------
+ *  遗物（两种模式共用）
+ * ---------------------------------------------------------- */
+
+/* 已获得遗物的小图标条 */
+function renderRelicBar(box, relics) {
+  if (!box) return;
+  if (!relics || !relics.length) {
+    box.innerHTML = '<span class="relic-empty">还没有遗物（回合 3/6/9… 会给你三选一）</span>';
+    return;
+  }
+  let html = '';
+  for (const id of relics) {
+    const r = RELICS[id];
+    if (!r) continue;
+    html += '<span class="relic-chip" title="' + esc(r.cn + '：' + r.desc) + '">' +
+            r.icon + ' ' + esc(r.cn) + '</span>';
+  }
+  box.innerHTML = html;
+}
+
+/* 三选一面板的内容 */
+function renderRelicChoices(box, ids) {
+  if (!box) return;
+  let html = '';
+  for (const id of ids) {
+    const r = RELICS[id];
+    if (!r) continue;
+    html += '<button class="relic-option" data-relic="' + esc(id) + '">' +
+              '<div class="ro-icon">' + r.icon + '</div>' +
+              '<div class="ro-name">' + esc(r.cn) + '</div>' +
+              '<div class="ro-tag">' + esc(r.tag) + '</div>' +
+              '<div class="ro-desc">' + esc(r.desc) + '</div>' +
+            '</button>';
+  }
+  box.innerHTML = html;
 }

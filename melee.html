@@ -34,6 +34,9 @@
 
   <div id="message"></div>
 
+  <!-- 已获得的遗物 -->
+  <div id="relicBar" class="relic-bar"></div>
+
   <!-- ===================== 8 人血量面板 ===================== -->
   <section id="roster" class="roster"></section>
 
@@ -105,10 +108,20 @@
 
   </main>
 
+  <!-- ===================== 遗物三选一 ===================== -->
+  <div id="relicPick" class="codex-overlay" style="display:none">
+    <div class="relic-panel">
+      <h2>✨ 选择一件遗物</h2>
+      <p class="relic-hint">三选一，永久生效</p>
+      <div id="relicChoices" class="relic-grid"></div>
+    </div>
+  </div>
+
 </div>
 
 <script src="js/data.js"></script>
 <script src="js/render.js"></script>
+<script src="js/relics.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/game.js"></script>
 <script src="js/melee.js"></script>

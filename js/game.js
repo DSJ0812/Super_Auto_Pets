@@ -33,11 +33,17 @@ const CFG = {
   TFT_ROLL_COST: 2         // 刷新费用
 };
 
-/* 宠物价格：SAP 统一价；TFT 按星级（T1=1 金 … T6=6 金） */
-function petCostOf(defId) {
-  if (CFG.ECONOMY !== 'tft') return CFG.PET_COST;
-  const d = PETS[defId];
-  return (d && d.tier >= 1) ? d.tier : CFG.PET_COST;
+/* 宠物价格：SAP 统一价；TFT 按星级（T1=1 金 … T6=6 金）
+ * 可选传入 game，会应用遗物的「批发商」折扣（最低 1 金） */
+function petCostOf(defId, game) {
+  let c;
+  if (CFG.ECONOMY !== 'tft') c = CFG.PET_COST;
+  else {
+    const d = PETS[defId];
+    c = (d && d.tier >= 1) ? d.tier : CFG.PET_COST;
+  }
+  if (game) c = Math.max(1, c - relicSum(game, 'petDiscount'));
+  return c;
 }
 
 /* 刷新费用 */
@@ -190,6 +196,9 @@ Game.prototype.reset = function () {
   this.history = [];
   this.shopNotes = [];           // 商店阶段技能触发的汇总提示（方案 B）
   this.foodDiscount = 0;         // 本回合的食物折扣（Squirrel）
+  this.relics = [];              // 已获得的遗物
+  this.pendingRelicChoice = null;// 待选择的遗物（三选一）
+  this.relicChoiceDone = {};     // 已给过选择的回合
   this.rollShop(true);
   // 第一回合：触发开局技能（此时队伍为空，无效果）
   this.triggerTurnStart();
@@ -199,7 +208,8 @@ Game.prototype.reset = function () {
  *  回合1→T1 · 回合3→T2 · 回合5→T3 · 回合7→T4 · 回合9→T5 · 回合11+→T6
  *  作用：商店只会刷出「已解锁」的宠物，玩家和幽灵共用同一套解锁进度 */
 Game.prototype.getShopTier = function () {
-  const t = this.turn;
+  const early = relicSum(this, 'tierEarly');       // 遗物「星探」：提前解锁
+  const t = this.turn + early;
   if (t >= 11) return 6;
   if (t >= 9)  return 5;
   if (t >= 7)  return 4;
@@ -269,11 +279,12 @@ Game.prototype.stockFood = function (foodId, cost) {
   this.frozenFoods[0] = false;
 };
 
-/* 取某个道具槽的实际价格（0 表示免费；Squirrel 的折扣在这里生效） */
+/* 取某个道具槽的实际价格（0 表示免费；Squirrel 折扣与遗物「营养师」在这里生效） */
 Game.prototype.foodCost = function (f) {
   if (!f) return CFG.FOOD_COST;
   const base = f.cost == null ? CFG.FOOD_COST : f.cost;
-  return Math.max(0, base - (this.foodDiscount || 0));
+  const disc = (this.foodDiscount || 0) + relicSum(this, 'foodDiscount');
+  return Math.max(0, base - disc);
 };
 
 /* ---- 购买宠物 ----
@@ -281,7 +292,7 @@ Game.prototype.foodCost = function (f) {
 Game.prototype.buyPet = function (slotIdx, teamIdx) {
   const pet = this.shopPets[slotIdx];
   if (!pet) return { ok: false, msg: '这个位置没有宠物' };
-  const cost = petCostOf(pet.defId);                 // SAP 固定价 / TFT 按星级
+  const cost = petCostOf(pet.defId, this);        // SAP 固定价 / TFT 按星级 / 遗物折扣
   if (this.gold < cost) return { ok: false, msg: '金币不够（需要 ' + cost + ' 金）' };
 
   // 1) 先看能否合并（队伍里有同名且未满级）—— 合并时位置无意义
@@ -370,14 +381,15 @@ Game.prototype.tierUpReward = function () {
   });
   if (!pool.length) return;
 
-  // 随机挑 2 个格子替换（洗牌取前 2）
+  // 随机挑 N 个格子替换（洗牌取前 N；遗物「孵化器」会让 N 变大）
+  const want = 2 + relicSum(this, 'tierRewardCount');
   const idxs = [];
   for (let i = 0; i < this.shopPets.length; i++) idxs.push(i);
   for (let i = idxs.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const tmp = idxs[i]; idxs[i] = idxs[j]; idxs[j] = tmp;
   }
-  for (let k = 0; k < 2 && k < idxs.length; k++) {
+  for (let k = 0; k < want && k < idxs.length; k++) {
     const slot = idxs[k];
     this.shopPets[slot] = this.makeShopPet(pool[Math.floor(Math.random() * pool.length)]);
     this.frozenPets[slot] = false;
@@ -426,8 +438,9 @@ Game.prototype.sellPet = function (teamIdx) {
   const notes = describeShopNotes(this, env.events);
 
   this.team.splice(teamIdx, 1);
-  this.gold += CFG.SELL_GAIN;
-  return { ok: true, msg: '卖掉了 ' + petName(pet.def) + '，+' + CFG.SELL_GAIN + ' 金'
+  const sellGain = CFG.SELL_GAIN + relicSum(this, 'sellBonus');   // 遗物「当铺」
+  this.gold += sellGain;
+  return { ok: true, msg: '卖掉了 ' + petName(pet.def) + '，+' + sellGain + ' 金'
            + (notes.length ? ' · ' + notes.join(' · ') : '') };
 };
 
@@ -535,6 +548,12 @@ Game.prototype.triggerTurnStart = function () {
   }
   env.actor = null;
   this.shopNotes = describeShopNotes(this, env.events);
+
+  // 遗物的回合开始效果（训练场等）——只统计新增的事件
+  const mark = env.events.length;
+  applyRelicTurnStart(this, env);
+  const relicNotes = describeShopNotes(this, env.events.slice(mark));
+  if (relicNotes.length) this.shopNotes = this.shopNotes.concat(relicNotes);
 };
 
 /* ---- 回合结束技能 ---- */
@@ -641,7 +660,11 @@ Game.prototype.endTurn = function () {
   const opponent = this.makeOpponent();
 
   // ⚠️ 战斗在队伍副本上进行，战斗内的属性变化不会带回商店
-  const result = runBattle(this.team, opponent);
+  const myTeam  = this.team.map(clonePet);
+  const foeTeam = opponent.map(clonePet);
+  // 遗物的开战效果（战旗 / 獠牙 / 铁甲 / 猎杀标记）
+  applyRelicBattleStart(this, myTeam, foeTeam);
+  const result = runBattle(myTeam, foeTeam);
 
   this.phase = 'battle';
   this.lastResult = {
@@ -670,24 +693,50 @@ Game.prototype.endTurn = function () {
  * SAP：固定 10 金，回合结束清零（不累积）
  * TFT：基础金 + 利息（每存满 N 金吃 1 点）+ 连胜/连败奖励，金币累积 */
 Game.prototype.grantIncome = function () {
+  const relicGold = relicSum(this, 'income');
   if (CFG.ECONOMY !== 'tft') {
-    this.gold = CFG.GOLD_PER_TURN;
-    this.lastIncome = { base: CFG.GOLD_PER_TURN, interest: 0, streak: 0 };
+    const gain = CFG.GOLD_PER_TURN + relicGold;
+    this.gold = gain;                      // SAP：每回合重置（遗物加成叠加上去）
+    this.lastIncome = { base: CFG.GOLD_PER_TURN, interest: 0, streak: 0, relic: relicGold, gain: gain };
     return this.lastIncome;
   }
   const base = CFG.TFT_BASE_GOLD;
-  const interest = Math.min(CFG.TFT_INTEREST_MAX,
-                            Math.floor(this.gold / CFG.TFT_INTEREST_PER));
+  const iMax = CFG.TFT_INTEREST_MAX + relicSum(this, 'interestMax');
+  const interest = Math.min(iMax, Math.floor(this.gold / CFG.TFT_INTEREST_PER));
   // 连胜/连败奖励（金铲铲式分档）：2-3 场 +1，4-5 场 +2，6+ 场 +3
   const s = Math.abs(this.streak || 0);
   let streakGold = 0;
   if (s >= 6)      streakGold = 3;
   else if (s >= 4) streakGold = 2;
   else if (s >= 2) streakGold = 1;
-  const gain = base + interest + streakGold;
+  const gain = base + interest + streakGold + relicGold;
   this.gold += gain;
-  this.lastIncome = { base: base, interest: interest, streak: streakGold, gain: gain };
+  this.lastIncome = { base: base, interest: interest, streak: streakGold, relic: relicGold, gain: gain };
   return this.lastIncome;
+};
+
+/* ---- 遗物（每 3 回合给一次三选一，从回合 3 开始）---- */
+Game.prototype.shouldOfferRelic = function () {
+  return this.turn >= 3
+      && (this.turn - 3) % 3 === 0
+      && !this.relicChoiceDone[this.turn];
+};
+
+Game.prototype.offerRelicChoice = function () {
+  if (!this.shouldOfferRelic()) return null;
+  const ids = rollRelics(this.relics, 3);
+  if (!ids.length) return null;
+  this.relicChoiceDone[this.turn] = true;
+  this.pendingRelicChoice = ids;
+  return ids;
+};
+
+Game.prototype.pickRelic = function (id) {
+  if (!this.pendingRelicChoice) return { ok: false, msg: '现在没有遗物可选' };
+  if (this.pendingRelicChoice.indexOf(id) < 0) return { ok: false, msg: '这个遗物不在候选里' };
+  this.relics.push(id);
+  this.pendingRelicChoice = null;
+  return { ok: true, msg: '获得遗物：' + (RELICS[id] ? RELICS[id].cn : id) };
 };
 
 /* ---- 进入下一回合 ---- */
@@ -700,6 +749,7 @@ Game.prototype.nextTurn = function () {
   this.foodDiscount = 0;         // 每回合重置，Squirrel 会在开局重新打折
   this.rollShop(false);
   this.triggerTurnStart();
+  this.offerRelicChoice();       // 到点就给三选一
 };
 
 if (typeof module !== 'undefined' && module.exports) {

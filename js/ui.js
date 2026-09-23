@@ -37,6 +37,23 @@ function renderTop() {
   $('#loseNum').textContent = g.losses;
   $('#goalWins').textContent = CFG.WIN_TARGET;
   $('#goalLoses').textContent = CFG.LOSE_MAX;
+  renderRelics();
+}
+
+/* ---- 遗物：已获得的图标条 + 到点的三选一弹窗 ---- */
+function renderRelics() {
+  const g = UI.game;
+  if (!g) return;
+  renderRelicBar($('#relicBar'), g.relics);
+  const pend = g.pendingRelicChoice;
+  const box = $('#relicPick');
+  if (!box) return;
+  if (pend && pend.length) {
+    renderRelicChoices($('#relicChoices'), pend);
+    box.style.display = 'flex';
+  } else {
+    box.style.display = 'none';
+  }
 }
 
 /* ------------------------------------------------------------
@@ -360,6 +377,17 @@ function bind() {
   root.addEventListener('click', function (e) {
     const g = UI.game;
 
+    // 选遗物（三选一弹窗）
+    const ro = e.target.closest('[data-relic]');
+    if (ro) {
+      const r = g.pickRelic(ro.dataset.relic);
+      say(r.msg);
+      renderTop(); renderShop();
+      return;
+    }
+    // 弹窗打开时，屏蔽其他点击
+    if ($('#relicPick') && $('#relicPick').style.display === 'flex') return;
+
     // 战斗播放速度
     const spd = e.target.closest('.spd');
     if (spd) {
@@ -387,6 +415,7 @@ function bind() {
     // 结束回合
     if (e.target.closest('#btnEnd')) {
       if (g.pendingFood != null) { say('先选一只宠物用掉道具'); return; }
+      if (g.pendingRelicChoice && g.pendingRelicChoice.length) { say('先选一件遗物'); return; }
       const r = g.endTurn();
       if (!r.ok) { say(r.msg); return; }
       renderTop();

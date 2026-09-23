@@ -25,6 +25,17 @@ function mRenderTop() {
   $('#mGold').textContent = g.gold;
   $('#mHp').textContent = m.human.hp;
   $('#mAlive').textContent = m.alive().length;
+  // 遗物：已获得的图标条 + 到点的三选一
+  renderRelicBar($('#relicBar'), g.relics);
+  const box = $('#relicPick');
+  if (box) {
+    if (g.pendingRelicChoice && g.pendingRelicChoice.length) {
+      renderRelicChoices($('#relicChoices'), g.pendingRelicChoice);
+      box.style.display = 'flex';
+    } else {
+      box.style.display = 'none';
+    }
+  }
 }
 
 /* ------------------------------------------------------------
@@ -421,6 +432,17 @@ function mBind() {
     const m = MUI.m;
     const g = m.human.game;
 
+    // 选遗物（三选一弹窗）
+    const ro = e.target.closest('[data-relic]');
+    if (ro) {
+      const r = g.pickRelic(ro.dataset.relic);
+      say(r.msg);
+      mRenderTop(); mRenderShop();
+      return;
+    }
+    // 弹窗打开时，屏蔽其他点击
+    if ($('#relicPick') && $('#relicPick').style.display === 'flex') return;
+
     // 速度
     const spd = e.target.closest('.spd');
     if (spd) {
@@ -462,6 +484,7 @@ function mBind() {
     // 结束回合
     if (e.target.closest('#mBtnEnd')) {
       if (g.pendingFood != null) { say('先选一只宠物用掉道具'); return; }
+      if (g.pendingRelicChoice && g.pendingRelicChoice.length) { say('先选一件遗物'); return; }
       mEndTurn();
       return;
     }

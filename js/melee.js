@@ -92,6 +92,12 @@ Melee.prototype.startTurn = function () {
     g.foodDiscount = 0;
     g.rollShop(false);        // 按当前商店等级刷新
     g.triggerTurnStart();
+    g.offerRelicChoice();     // 到点给遗物三选一
+    // AI 不会挑，随机拿一个（保证和玩家规则对等）
+    if (!f.isHuman && g.pendingRelicChoice && g.pendingRelicChoice.length) {
+      const ids = g.pendingRelicChoice;
+      g.pickRelic(ids[Math.floor(Math.random() * ids.length)]);
+    }
   }
   this.phase = 'shop';
 };
@@ -203,7 +209,12 @@ Melee.prototype.endTurn = function () {
 
   // 3) 打
   for (const [a, b] of pairing.pairs) {
-    const res = runBattle(a.game.team, b.game.team);
+    // 各自应用自己的遗物开战效果（在副本上，不影响商店里的队伍）
+    const aTeam = a.game.team.map(clonePet);
+    const bTeam = b.game.team.map(clonePet);
+    applyRelicBattleStart(a.game, aTeam, bTeam);
+    applyRelicBattleStart(b.game, bTeam, aTeam);
+    const res = runBattle(aTeam, bTeam);
 
     let winner = null, loser = null;
     if (res.winner === 0)      { winner = a; loser = b; }
