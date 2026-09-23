@@ -1367,6 +1367,211 @@ const PETS = {
         if (g.hasPerk(c.self, 'Strawberry')) c.self.reduceOnce = Math.max(c.self.reduceOnce || 0, n);
       }
     }
+  },
+
+  /* ==================== 星包 Tier 5 ==================== */
+
+  Blobfish: {
+    name: 'Blobfish', cn: '水滴鱼', tier: 5, atk: 2, hp: 10, pack: 'star',
+    texts: ['阵亡：给后方最近的友方 +1 经验（战斗中多给一只）',
+            '阵亡：给后方最近的友方 +2 经验（战斗中多给一只）',
+            '阵亡：给后方最近的友方 +3 经验（战斗中多给一只）'],
+    hooks: {
+      faint: function (g, c) {
+        // 战斗里给 2 只，商店里（安眠药之类）给 1 只 —— 官方说明里就写了 "in battle"
+        const n = g.sides ? 2 : 1;
+        const mates = g.behind(c.self, n);
+        for (const p of mates) {
+          if (g.grantExp) g.grantExp(p, c.lvl);
+          else g.game.addExp(p, c.lvl);
+        }
+      }
+    }
+  },
+
+  Fox: {
+    name: 'Fox', cn: '狐狸', tier: 5, atk: 6, hp: 4, pack: 'star',
+    texts: ['回合结束：偷走最右边的一个商店食物',
+            '回合结束：偷走最右边的一个商店食物，效果翻倍',
+            '回合结束：偷走最右边的一个商店食物，效果三倍'],
+    hooks: {
+      endTurn: function (g, c) {
+        const game = g.game;
+        let slot = -1;
+        for (let i = game.shopFoods.length - 1; i >= 0; i--) {
+          if (game.shopFoods[i]) { slot = i; break; }
+        }
+        if (slot < 0) return;
+        const food = game.shopFoods[slot];
+        const def = FOODS[food.id];
+        if (!def) return;
+        if (def.buff) g.buff(c.self, def.buff[0] * c.lvl, def.buff[1] * c.lvl);
+        else if (def.perk) g.buff(c.self, 0, 0);      // Perk 类食物只偷走，不加属性
+        game.shopFoods[slot] = null;
+        game.frozenFoods[slot] = false;
+        g.emit({ e: 'stole', t: c.self.uid, id: food.id });
+      }
+    }
+  },
+
+  Hamster: {
+    name: 'Hamster', cn: '仓鼠', tier: 5, atk: 2, hp: 4, pack: 'star',
+    texts: ['刷新：获得 1 次免费刷新。每回合 2 次',
+            '刷新：获得 1 次免费刷新。每回合 4 次',
+            '刷新：获得 1 次免费刷新。每回合 6 次'],
+    hooks: {
+      roll: function (g, c) {
+        c.self._hamster = (c.self._hamster || 0) + 1;
+        if (c.self._hamster > c.lvl * 2) return;
+        g.freeRolls(1);
+      },
+      startTurn: function (g, c) { c.self._hamster = 0; }
+    }
+  },
+
+  Lion: {
+    name: 'Lion', cn: '狮子', tier: 5, atk: 6, hp: 6, pack: 'star',
+    texts: ['开战时：若它是你星级最高的宠物，+50% 攻防',
+            '开战时：若它是你星级最高的宠物，+100% 攻防',
+            '开战时：若它是你星级最高的宠物，+150% 攻防'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const mates = [c.self].concat(g.friends(c.self));
+        let top = 0;
+        for (const p of mates) top = Math.max(top, (p.def || {}).tier || 0);
+        const mine = (c.self.def || {}).tier || 0;
+        if (mine < top || !top) return;
+        // 平级也算「最高星级」
+        const mul = c.lvl * 0.5;
+        const atk = Math.floor(c.self.atk * mul);
+        const hp  = Math.floor(c.self.hp  * mul);
+        if (atk || hp) g.buff(c.self, atk, hp);
+      }
+    }
+  },
+
+  PolarBear: {
+    name: 'Polar Bear', cn: '北极熊', tier: 5, atk: 4, hp: 8, pack: 'star',
+    texts: ['回合开始：给随机 1 个冻结的商店宠物 +4/+4',
+            '回合开始：给随机 1 个冻结的商店宠物 +8/+8',
+            '回合开始：给随机 1 个冻结的商店宠物 +12/+12'],
+    hooks: {
+      startTurn: function (g, c) {
+        const game = g.game;
+        const idx = [];
+        for (let i = 0; i < game.shopPets.length; i++) {
+          if (game.shopPets[i] && game.frozenPets[i]) idx.push(i);
+        }
+        if (!idx.length) return;
+        g.buffShopAt(RNG.pick(idx), c.lvl * 4, c.lvl * 4);
+      }
+    }
+  },
+
+  Shoebill: {
+    name: 'Shoebill', cn: '鲸头鹳', tier: 5, atk: 3, hp: 6, pack: 'star',
+    texts: ['回合开始：把前方最近的草莓标记换成 +4/+4',
+            '回合开始：把前方最近的草莓标记换成 +8/+8',
+            '回合开始：把前方最近的草莓标记换成 +12/+12'],
+    hooks: {
+      startTurn: function (g, c) {
+        for (const p of g.ahead(c.self, 99)) {
+          if (g.hasPerk(p, 'Strawberry')) {
+            g.removePerk(p, 'Strawberry');
+            g.buff(p, c.lvl * 4, c.lvl * 4);
+            return;
+          }
+        }
+      }
+    }
+  },
+
+  SiberianHusky: {
+    name: 'Siberian Husky', cn: '哈士奇', tier: 5, atk: 4, hp: 3, pack: 'star',
+    texts: ['回合结束：给没有食物标记的友方 +1/+1',
+            '回合结束：给没有食物标记的友方 +2/+2',
+            '回合结束：给没有食物标记的友方 +3/+3'],
+    hooks: {
+      endTurn: function (g, c) {
+        for (const p of g.friends(c.self)) {
+          if (!p.perks || !p.perks.length) g.buff(p, c.lvl, c.lvl);
+        }
+      }
+    }
+  },
+
+  Starfish: {
+    name: 'Starfish', cn: '海星', tier: 5, atk: 3, hp: 7, pack: 'star',
+    texts: ['3 级友方被出售时：给友方 +1/+1（若被卖的攻击 ≥10 则三倍）',
+            '3 级友方被出售时：给友方 +2/+2（若被卖的攻击 ≥10 则三倍）',
+            '3 级友方被出售时：给友方 +3/+3（若被卖的攻击 ≥10 则三倍）'],
+    hooks: {
+      friendSold: function (g, c) {
+        if (!c.sold || c.sold.lvl !== 3) return;
+        const mul = (c.sold.atk >= 10) ? 3 : 1;
+        for (const p of g.friends(c.self)) g.buff(p, c.lvl * mul, c.lvl * mul);
+      }
+    }
+  },
+
+  Triceratops: {
+    name: 'Triceratops', cn: '三角龙', tier: 5, atk: 5, hp: 6, pack: 'star',
+    texts: ['受伤时：给随机 1 个友方 +3/+3', '受伤时：给随机 1 个友方 +6/+6', '受伤时：给随机 1 个友方 +9/+9'],
+    hooks: {
+      hurt: function (g, c) {
+        const t = g.random(g.friends(c.self), 1);
+        if (t[0]) g.buff(t[0], c.lvl * 3, c.lvl * 3);
+      }
+    }
+  },
+
+  Vulture: {
+    name: 'Vulture', cn: '秃鹫', tier: 5, atk: 4, hp: 3, pack: 'star',
+    texts: ['每有 2 个友方阵亡：对随机 1 个敌人造成 4 伤害',
+            '每有 2 个友方阵亡：对随机 1 个敌人造成 8 伤害',
+            '每有 2 个友方阵亡：对随机 1 个敌人造成 12 伤害'],
+    hooks: {
+      friendFaints: function (g, c) {
+        c.self._vult = (c.self._vult || 0) + 1;
+        if (c.self._vult % 2 !== 0) return;
+        const t = g.random(g.foes(c.self).filter(function (p) { return p.hp > 0; }), 1);
+        if (t[0]) g.hit(t[0], c.lvl * 4);
+      }
+    }
+  },
+
+  Woodpecker: {
+    name: 'Woodpecker', cn: '啄木鸟', tier: 5, atk: 4, hp: 3, pack: 'star',
+    texts: ['开战时：对前方最近的 2 只宠物造成 2 伤害。触发 2 次',
+            '开战时：对前方最近的 2 只宠物造成 2 伤害。触发 4 次',
+            '开战时：对前方最近的 2 只宠物造成 2 伤害。触发 6 次'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        // 「前方最近的 2 只」可能是友方，也可能是敌方（前排接壤）
+        const targets = [];
+        for (const p of g.ahead(c.self, 2)) targets.push(p);
+        if (targets.length < 2) {
+          for (const p of g.foes(c.self)) {
+            if (targets.length >= 2) break;
+            if (p.hp > 0) targets.push(p);
+          }
+        }
+        for (let i = 0; i < c.lvl * 2; i++) {
+          for (const p of targets) g.hit(p, 2);
+        }
+      }
+    }
+  },
+
+  Zebra: {
+    name: 'Zebra', cn: '斑马', tier: 5, atk: 3, hp: 5, pack: 'star',
+    texts: ['购买/出售：给随机 1 个友方 +2/+2',
+            '购买/出售：给随机 1 个友方 +4/+4',
+            '购买/出售：给随机 1 个友方 +6/+6'],
+    hooks: {
+      buy:  function (g, c) { zebraBuff(g, c); },
+      sell: function (g, c) { zebraBuff(g, c); }
+    }
   }
 };
 
@@ -1429,6 +1634,12 @@ function elkBonus(g, c, inShop) {
   } else {
     t[0]._sellBonus = (t[0]._sellBonus || 0) + add;
   }
+}
+
+/* 星包斑马：购买/出售时给随机一个友方加成 */
+function zebraBuff(g, c) {
+  const t = g.random(g.friends(c.self), 1);
+  if (t[0]) g.buff(t[0], c.lvl * 2, c.lvl * 2);
 }
 
 /* 星包鸭嘴兽：召唤一只鸭子和一只海狸（战斗和商店两个上下文都能跑，
