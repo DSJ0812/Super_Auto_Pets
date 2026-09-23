@@ -151,6 +151,21 @@ const PETS = {
             '无技能。「树懒没有特殊能力。战斗力有点可怜。但它真的相信你！」']
   },
 
+  /* 鼠妇 —— 龟包宠物。1/2 的旧版是星包、技能是「商店升级给身后 2 只加血」，
+   * 官方后来把那个技能移给了新宠 Gibbon，鼠妇重做成现在这样。 */
+  Pillbug: {
+    name: 'Pillbug', cn: '鼠妇', tier: 1, atk: 2, hp: 3,
+    texts: ['出售：库存 1 个免费安眠药',
+            '出售：库存 2 个免费安眠药',
+            '出售：库存 3 个免费安眠药'],
+    hooks: {
+      sell: function (g, c) {
+        // ⚠️ 商店只有 2 个食物位（CFG.SHOP_FOOD_SLOTS），所以 3 级实际只留得下 2 个
+        for (let i = 0; i < c.lvl; i++) g.stock('SleepingPill', 0);
+      }
+    }
+  },
+
   /* ==================== Tier 2 ==================== */
 
   Crab: {
@@ -750,9 +765,12 @@ const PETS = {
    *  星包 Star Pack
    *
    *  数据来源：官方 wiki 的宠物页（本仓库 sap_ref/wiki_pet.html）。
-   *  ⚠️ sap_ref 里的 Rust 参考实现【不能按宠物名信】—— 它的名字↔技能映射
-   *     是错位的（PetName::Pillbug 挂的其实是长臂猿的技能，而 Gibbon 根本
-   *     不存在）。所以技能一律照 wiki 描述实现，Rust 只用来按内容查机制语义。
+   *  ⚠️ sap_ref 里的 Rust 参考实现是【旧版本】，不能按宠物名信：
+   *     它里面 PetName::Pillbug 挂的是「商店升级 → 身后 2 只 +1 生命」。
+   *     官方后来把鼠妇重做了 —— 那个技能【移给了新宠 Gibbon（长臂猿）】，
+   *     鼠妇改成龟包宠物「出售 → 库存免费安眠药」（安眠药本来就是龟包食物）。
+   *     所以：技能一律照【当前】官方数据实现，Rust 只用来按内容查机制语义。
+   *     fandom wiki 的鼠妇页至今仍是旧版（Star 词条里没有 Gibbon），别照抄。
    *
    *  没写 pack 字段的宠物都算龟包（见 game.js 的 packOf），所以这里每只都要写。
    * ============================================================ */
@@ -828,7 +846,7 @@ const PETS = {
   },
 
   Gibbon: {
-    name: 'Gibbon', cn: '长臂猿', tier: 1, atk: 2, hp: 2, pack: 'star',
+    name: 'Gibbon', cn: '长臂猿', tier: 1, atk: 1, hp: 2, pack: 'star',
     texts: ['商店升级时：给身后最近的 2 只友方 +1 生命',
             '商店升级时：给身后最近的 2 只友方 +2 生命',
             '商店升级时：给身后最近的 2 只友方 +3 生命'],
@@ -1365,6 +1383,25 @@ const PETS = {
           if (g.hasPerk(p, 'Strawberry')) p.reduceOnce = Math.max(p.reduceOnce || 0, n);
         }
         if (g.hasPerk(c.self, 'Strawberry')) c.self.reduceOnce = Math.max(c.self.reduceOnce || 0, n);
+      }
+    }
+  },
+
+  PrayingMantis: {
+    name: 'Praying Mantis', cn: '螳螂', tier: 4, atk: 7, hp: 2, pack: 'star',
+    texts: ['回合开始：击倒两侧相邻友方，自己 +2/+2（两侧都没有友方时不触发）',
+            '回合开始：击倒两侧相邻友方，自己 +4/+4（两侧都没有友方时不触发）',
+            '回合开始：击倒两侧相邻友方，自己 +6/+6（两侧都没有友方时不触发）'],
+    hooks: {
+      startTurn: function (g, c) {
+        // 两侧相邻的友方会被直接击杀（会触发它们的遗言）—— 这是螳螂的代价
+        const team = g.game.team;
+        const i = team.indexOf(c.self);
+        const sides = [team[i - 1], team[i + 1]].filter(Boolean);
+        // ⚠️ 官方：没有友方可以击倒时【不会】获得属性（加成多少与倒了几只无关）
+        if (!sides.length) return;
+        for (const p of sides) g.kill(p);
+        g.buff(c.self, c.lvl * 2, c.lvl * 2);
       }
     }
   },
@@ -1926,15 +1963,13 @@ const FOODS = {
   Pepper:      { name: 'Pepper',      cn: '胡椒',     cost: 3, perk: 'Pepper',   pack: 'star',
                  text: '生命不会低于 1，受伤后消失' },
   Popcorn:     { name: 'Popcorn',     cn: '爆米花',   cost: 3, perk: 'Popcorn',  pack: 'star',
-                 text: '阵亡后召唤 1 个同星级的随机宠物' }
+                 text: '阵亡后召唤 1 个同星级的随机宠物' },
 
-  /* ⚠️ 安眠药（Sleeping Pill）尚未加入：
-   * 官方它属于龟包/小狗包（不是星包），效果是「让一只宠物阵亡、永久移出队伍，
-   * 但会触发它的遗言」，只卖 1 金。
-   * 难点是「在商店阶段触发遗言」—— 现有的遗言钩子是按战斗上下文写的
-   * （萤火虫要用 hitWithin、蟑螂要用 grantExp，商店侧的 ShopEnv 都没有），
-   * 所以需要一个能模拟整套战斗 API 的商店环境。在那之前不做，
-   * 免得出现一个「买了没反应」的道具。鼠妇也因此还没做。 */
+  /* 安眠药（官方 wiki："Make one pet faint. Always on sale!"）
+   * 让一只宠物阵亡并永久移出队伍，但会触发它的遗言；只卖 1 金。
+   * 官方它属于龟包 / 小狗包，所以这里挂在龟包（星包的鼠妇会用自己的技能库存它）。 */
+  SleepingPill: { name: 'Sleeping Pill', cn: '安眠药', cost: 1, faint: true, pack: 'turtle',
+                  text: '让一只宠物阵亡（永久移出队伍，但会触发它的遗言）' }
 };
 
 if (typeof module !== 'undefined' && module.exports) {

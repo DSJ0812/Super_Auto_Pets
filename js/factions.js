@@ -47,7 +47,7 @@ const FACTIONS = {
  *    factions.js 的测试会核对覆盖率（漏一只就报错）。 */
 const FACTION_MEMBERS = {
   bug: ['Ant', 'Cricket', 'Mosquito', 'Spider', 'Worm', 'Snail', 'Scorpion', 'Fly',
-        'Cockroach', 'Firefly', 'Termite', 'Leech'],
+        'Cockroach', 'Firefly', 'Termite', 'Leech', 'Pillbug', 'PrayingMantis'],
   aqua: ['Fish', 'Crab', 'Dolphin', 'Blowfish', 'Whale', 'Seal', 'Shark',
          'Bass', 'Jellyfish', 'Seahorse', 'Eel', 'Tuna', 'Clownfish', 'SeaAnemone', 'Blobfish',
          'HammerheadShark', 'Orca', 'Piranha', 'Platypus', 'Penguin', 'Starfish'],

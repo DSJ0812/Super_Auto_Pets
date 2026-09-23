@@ -19,7 +19,7 @@ const CFG = {
   SHOP_PET_SLOTS: 5,
   SHOP_FOOD_SLOTS: 2,
   AP_SCALE: 0.4,        // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
-                        // 本作只有 Turtle Pack 61 只、对手全是幽灵，按原版会碾压玩家。
+                        // 本作只有 Turtle Pack 62 只、对手全是幽灵，按原版会碾压玩家。
                         // 实测：0.40→约 46%，0.35→53%（测试 AI 是下限，真人会更高）
 
   /* ---- 经济模式（8 人混战会切成 'tft'）----
@@ -33,7 +33,7 @@ const CFG = {
   TFT_ROLL_COST: 2,        // 刷新费用
 
   /* ---- 宠物包（一局只用一包，见 PACKS / activePack）----
-   * turtle = 原有 61 只；star = 星包 76 只 */
+   * turtle = 原有 62 只；star = 星包 76 只 */
   PACK: 'turtle'
 };
 
@@ -58,7 +58,7 @@ function rollCostOf() {
 /* ---- 宠物包 ----
  * 官方每个包自成一套 6 个星级。两个包混进同一个池子会**稀释重复率**，
  * 让合成升级变得几乎不可能，所以一局只用一个包（和官方一致）。
- * 没写 pack 字段的宠物都算 turtle（原有 61 只），这样不用改老数据。 */
+ * 没写 pack 字段的宠物都算 turtle（原有 62 只），这样不用改老数据。 */
 const PACKS = {
   turtle: { cn: '龟包', en: 'Turtle Pack', icon: '🐢' },
   star:   { cn: '星包', en: 'Star Pack',   icon: '⭐' }
@@ -91,6 +91,10 @@ function ShopEnv(game) {
   this.lastBattleLost = game.lastBattleLost;
   this.events = [];
   this.actor = null;     // 当前正在触发技能的宠物（用于给事件标记来源）
+  // 当前商店等级。⚠️ 必须是【属性】不是方法 —— 鹳的遗言用的是 `g.tier || 1`，
+  // 给个函数的话是真值，会算出 NaN
+  this.tier = game.getShopTier();
+  // ⚠️ 刻意不设 sides：水滴鱼用 `g.sides ? 2 : 1` 区分自己是不是在战斗里
 }
 ShopEnv.prototype.emit = function (ev) {
   if (this.actor && ev.by == null) ev.by = this.actor.uid;
@@ -230,14 +234,81 @@ ShopEnv.prototype.hit = function (pet, n) {
   return real;
 };
 
-/* 移除 Perk（海鹦 / 鸽子要把草莓标记「花掉」） */
+/* 移除 Perk（海鹦 / 鸽子要把草莓标记「花掉」）。
+ * 同时通知「友方失去标记」（星包真迅猛龙）。 */
 ShopEnv.prototype.removePerk = function (pet, id) {
   if (!pet) return false;
   const before = pet.perks.length;
   pet.perks = pet.perks.filter(function (p) { return p.id !== id; });
   if (pet.perks.length === before) return false;
+  pet._lostPerk = id;
   this.emit({ e: 'perkLost', t: pet.uid, id: id });
+  for (const q of this.game.team) {
+    if (q === pet) continue;
+    const dq = q.def;
+    if (dq && dq.hooks && dq.hooks.friendLostPerk) {
+      this.actor = q;
+      dq.hooks.friendLostPerk(this, { self: q, lvl: q.lvl, target: pet, perk: id });
+    }
+  }
+  this.actor = null;
   return true;
+};
+/* 兼容旧名字 */
+ShopEnv.prototype.removePerkNotify = ShopEnv.prototype.removePerk;
+
+/* ============================================================
+ *  让 ShopEnv 也能跑「战斗语境」的遗言钩子
+ *
+ *  为什么需要：安眠药（让一只宠物阵亡）和星包螳螂（回合开始对相邻友方造成 50 伤害）
+ *  都要在【商店阶段】触发遗言，而遗言钩子全是按战斗上下文写的
+ *  （萤火虫要用 hitWithin、蟑螂要用 grantExp、鹳要看 tier）。
+ *  所以这里把缺的那几个补齐 —— 商店里只有一条战线，没有敌人。
+ *
+ *  ⚠️ 刻意【不】提供 sides 字段：星包水滴鱼用 `g.sides ? 2 : 1` 判断自己是不是
+ *     在战斗里（战斗中多给一只经验）。加了 sides 会让它在商店里也按战斗算。
+ * ============================================================ */
+ShopEnv.prototype.grantExp = function (pet, n) {
+  this.game.addExp(pet, n);
+};
+
+/* 商店里没有敌人，所以「对面的宠物」永远是空 */
+ShopEnv.prototype.foes = function () { return []; };
+
+/* N 格内（商店只有一条战线，按队内下标算距离） */
+ShopEnv.prototype.within = function (pet, spaces) {
+  const team = this.game.team;
+  const i = team.indexOf(pet);
+  if (i < 0) return [];
+  const out = [];
+  team.forEach(function (p, k) { if (Math.abs(k - i) <= spaces) out.push(p); });
+  return out;
+};
+ShopEnv.prototype.hitWithin = function (pet, spaces, dmg) {
+  const targets = this.within(pet, spaces);
+  for (const t of targets) this.hit(t, dmg);
+  return targets;
+};
+
+/* 商店里「击杀」一只宠物：触发它的遗言，然后永久移出队伍。
+ * 安眠药和螳螂都用它（注意和 hit 的区别：hit 最低留 1 点生命，不会真的死） */
+ShopEnv.prototype.kill = function (pet) {
+  if (!pet) return;
+  const d = pet.def;
+  let notes = [];
+  if (d && d.hooks && d.hooks.faint) {
+    const envF = new ShopEnv(this.game);
+    envF.lastBattleLost = this.lastBattleLost;
+    envF.actor = pet;
+    d.hooks.faint(envF, { self: pet, lvl: pet.lvl });
+    envF.actor = null;
+    for (const ev of envF.events) this.events.push(ev);
+    notes = describeShopNotes(this.game, envF.events);
+  }
+  const i = this.game.team.indexOf(pet);
+  if (i >= 0) this.game.team.splice(i, 1);
+  this.emit({ e: 'faintShop', t: pet.uid, defId: pet.defId });
+  return notes;
 };
 
 ShopEnv.prototype.hasPerk = function (pet, id) {
@@ -282,25 +353,6 @@ ShopEnv.prototype.shuffleAhead = function (pet) {
   this.emit({ e: 'shuffle', n: head.length });
 };
 
-/* 移除 Perk（商店侧）也要通知友方（星包真迅猛龙） */
-ShopEnv.prototype.removePerkNotify = function (pet, id) {
-  if (!pet) return false;
-  const before = pet.perks.length;
-  pet.perks = pet.perks.filter(function (p) { return p.id !== id; });
-  if (pet.perks.length === before) return false;
-  pet._lostPerk = id;
-  this.emit({ e: 'perkLost', t: pet.uid, id: id });
-  for (const q of this.game.team) {
-    if (q === pet) continue;
-    const dq = q.def;
-    if (dq && dq.hooks && dq.hooks.friendLostPerk) {
-      this.actor = q;
-      dq.hooks.friendLostPerk(this, { self: q, lvl: q.lvl, target: pet, perk: id });
-    }
-  }
-  this.actor = null;
-  return true;
-};
 
 /* 宠物身上有没有某个 Perk（商店阶段用，和 Battle.hasPerk 同义） */
 function petHasPerk(pet, id) {
@@ -703,6 +755,24 @@ Game.prototype.applyFood = function (teamIdx) {
   const cost = this.foodCost(f);
   this.gold -= cost;
 
+  /* ---- 安眠药：让这只宠物阵亡（永久移出队伍，但会触发它的遗言）----
+   * 官方原文："Make one pet faint. Always on sale!"，而且
+   * "Sleeping Pill does not trigger Eats food abilities" —— 所以这里提前 return，
+   * 不走下面的 buff / perk / friendlyAteFood 流程。 */
+  if (def.faint) {
+    const envK = new ShopEnv(this);
+    envK.lastBattleLost = this.lastBattleLost;
+    const notes = envK.kill(pet);
+    this.shopFoods[this.pendingFood] = null;
+    this.frozenFoods[this.pendingFood] = false;
+    this.pendingFood = null;
+    return {
+      ok: true,
+      msg: '安眠药让 ' + petName(def ? pet.def : null) + ' 阵亡了'
+           + (notes && notes.length ? ' · ' + notes.join(' · ') : '')
+    };
+  }
+
   if (def.buff) {
     // Cat：食物效果翻倍，每回合最多 2 次
     let mul = 1;
@@ -909,7 +979,7 @@ Game.prototype.makeOpponent = function () {
 
   // ---- 2) 花掉行动点 ----
   // 官方 AP 曲线是给「完整 6 tier 宠物池 + 真实玩家快照」设计的，
-  // 对本作（61 只宠物、纯幽灵对手）偏强。实测折扣 0.7 时通关率约 45%。
+  // 对本作（62 只宠物、纯幽灵对手）偏强。实测折扣 0.7 时通关率约 45%。
   const rawAp = (t === 1) ? 0 : (t === 2 ? 1 : t * 2 - 4);
   const ap = Math.max(0, Math.round(rawAp * CFG.AP_SCALE));
   const statGain = Math.floor(t / 4) + 2;
