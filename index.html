@@ -46,6 +46,12 @@
       <div class="battle-ctrl">
         <div id="battleLabel" class="battle-label"></div>
         <div class="battle-btns">
+          <div class="speed-ctl" id="speedCtl">
+            <button class="spd" data-speed="0.5">0.5×</button>
+            <button class="spd active" data-speed="1">1×</button>
+            <button class="spd" data-speed="2">2×</button>
+            <button class="spd" data-speed="4">4×</button>
+          </div>
           <button id="btnSkip" class="btn">⏩ 跳过动画</button>
           <button id="btnNext" class="btn primary" style="display:none"></button>
         </div>
@@ -66,9 +72,11 @@
   <!-- ===================== 商店 ===================== -->
   <section id="shop">
     <div class="shop-head">
-      <h3>商店</h3>
+      <h3>商店 <span id="shopTierBadge" class="shop-tier-badge">等级 1</span></h3>
       <div id="hint" class="hint"></div>
     </div>
+    <!-- 商店阶段技能触发的汇总提示（回合开始 / 结束 / 买卖带出的效果） -->
+    <div id="shopNotes" class="shop-notes" style="display:none"></div>
 
     <div class="shop-cols">
       <div class="shop-col">

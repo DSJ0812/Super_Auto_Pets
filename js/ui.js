@@ -14,9 +14,23 @@ const PET_EMOJI = {
   Rat: '🐀', Snail: '🐌', Spider: '🕷️', Swan: '🦢', Worm: '🪱',
   Badger: '🦡', Camel: '🐫', Dodo: '🦤', Dog: '🐕', Dolphin: '🐬',
   Elephant: '🐘', Giraffe: '🦒', Ox: '🐂', Rabbit: '🐰', Sheep: '🐑',
-  ZombieCricket: '🧟', DirtyRat: '🐭', Ram: '🐏', Bee: '🐝'
+  /* Tier 4 */
+  Bison: '🦬', Blowfish: '🐡', Deer: '🦌', Hippo: '🦛', Parrot: '🦜',
+  Penguin: '🐧', Skunk: '🦨', Squirrel: '🐿️', Turtle: '🐢', Whale: '🐋',
+  /* Tier 5 */
+  Armadillo: '🦔', Cow: '🐄', Crocodile: '🐊', Monkey: '🐒', Rhino: '🦏',
+  Rooster: '🐓', Scorpion: '🦂', Seal: '🦭', Shark: '🦈', Turkey: '🦃',
+  /* Tier 6 */
+  Boar: '🐗', Cat: '🐈', Dragon: '🐉', Fly: '🪰', Gorilla: '🦍',
+  Leopard: '🐆', Mammoth: '🦣', Snake: '🐍', Tiger: '🐅', Wolverine: '🐺',
+  /* 召唤物 */
+  ZombieCricket: '🧟', DirtyRat: '🐭', Ram: '🐏', Bee: '🐝',
+  Bus: '🚌', Chick: '🐤', ZombieFly: '🪳'
 };
-const PERK_EMOJI = { Melon: '🍉', Honey: '🍯', Garlic: '🧄' };
+const PERK_EMOJI = {
+  Melon: '🍉', Honey: '🍯', Garlic: '🧄',
+  Chili: '🌶️', Peanut: '🥜', Coconut: '🥥'
+};
 
 const UI = {
   game: null,
@@ -24,7 +38,7 @@ const UI = {
   log: [],
   idx: 0,
   timer: null,
-  speed: 420,
+  speedMul: 1,        // 播放倍率：0.5 / 1 / 2 / 4（基础每帧 420ms）
   selectedTeam: -1,
   message: '',
   msgTimer: null
@@ -87,6 +101,7 @@ function petCard(p, opts) {
   const skill = skillTextOf(def, p.lvl);
 
   card.innerHTML =
+    // 星级只用边框颜色表达（data-tier 驱动 CSS），不再显示文字徽章
     '<div class="pet-top">' +
       '<span class="pet-emoji">' + (PET_EMOJI[p.defId] || '🐾') + '</span>' +
       '<span class="pet-lvl">' + p.lvl + '级</span>' +
@@ -121,10 +136,16 @@ function renderTop() {
 function renderShop() {
   const g = UI.game;
 
-  // ---- 我的队伍 ----
+  // 商店等级（官方规则：按回合解锁，每 2 回合一级）
+  const st = g.getShopTier();
+  const badge = $('#shopTierBadge');
+  if (badge) badge.textContent = '等级 ' + st + '（T1–T' + st + '）';
+
+  // ---- 我的队伍（槽位数跟随本回合上限 3/4/5）----
   const row = $('#myRow');
   row.innerHTML = '';
-  for (let i = 0; i < CFG.TEAM_MAX; i++) {
+  const teamMax = g.getTeamMax();
+  for (let i = 0; i < teamMax; i++) {
     const p = g.team[i];
     if (p) {
       const c = petCard(p, {
@@ -151,6 +172,7 @@ function renderShop() {
     if (g.frozenPets[i]) wrap.classList.add('frozen');
     const c = petCard(p);
     c.dataset.shopPet = i;
+    c.draggable = true;          // 可拖到队伍指定位置购买
     wrap.appendChild(c);
     wrap.appendChild(el('div', 'price', g.gold >= CFG.PET_COST ? '3 金' : '<span class="no">3 金</span>'));
     const fz = el('button', 'freeze', g.frozenPets[i] ? '❄ 已冻结' : '❄ 冻结');
@@ -174,7 +196,11 @@ function renderShop() {
       '<div class="food-name">' + d.cn + '</div>' +
       '<div class="food-text">' + d.text + '</div>';
     wrap.dataset.shopFood = i;
-    wrap.appendChild(el('div', 'price', f.free ? '<span class="free">免费</span>' : '3 金'));
+    // 价格读实际值（虫子的「2 金苹果」、鸽子的免费苹果都在这里体现）
+    const fc = g.foodCost(f);
+    wrap.appendChild(el('div', 'price', fc === 0
+      ? '<span class="free">免费</span>'
+      : (g.gold >= fc ? fc + ' 金' : '<span class="no">' + fc + ' 金</span>')));
     const fz = el('button', 'freeze', g.frozenFoods[i] ? '❄ 已冻结' : '❄ 冻结');
     fz.dataset.freezeFood = i;
     wrap.appendChild(fz);
@@ -187,12 +213,21 @@ function renderShop() {
   $('#btnEnd').textContent = '⚔️ 结束回合，开打！';
   $('#btnEnd').disabled = g.team.length === 0;
 
+  // ---- 本回合技能汇总（方案 B：汇总成一条）----
+  const notesBox = $('#shopNotes');  const notes = g.shopNotes || [];
+  if (notes.length) {
+    notesBox.style.display = '';
+    notesBox.innerHTML = '<span class="notes-label">⚡ 技能</span>' + esc(notes.join(' · '));
+  } else {
+    notesBox.style.display = 'none';
+  }
+
   // 提示
   if (UI.game.pendingFood != null) {
     $('#hint').textContent = '👉 请点击一只宠物来使用「' + FOODS[g.shopFoods[UI.game.pendingFood].id].cn + '」';
     $('#hint').classList.add('active');
   } else {
-    $('#hint').textContent = '点击商店宠物购买 · 点两次同一只队伍宠物可出售 · 拖动可调整顺序';
+    $('#hint').textContent = '点击商店宠物购买 · 也可把商店宠物拖到队伍的指定位置 · 点两次出售 · 拖动调整顺序';
     $('#hint').classList.remove('active');
   }
 
@@ -320,7 +355,8 @@ function stepBattle() {
 
     case 'perk': {
       const t = findView(ev.t);
-      if (t) { t.pet.perks.push({ id: ev.id, uses: 1 }); hi = [ev.t]; label = petName(t.pet.def) + ' 获得' + ev.id; }
+      // 覆盖语义：Perk 只能带一个
+      if (t) { t.pet.perks = [{ id: ev.id, uses: 1 }]; hi = [ev.t]; label = petName(t.pet.def) + ' 获得' + ev.id; }
       break;
     }
 
@@ -359,7 +395,8 @@ function stepBattle() {
   // 移除阵亡的（保留一帧让玩家看到）
   renderBattleBoard(hi, label);
 
-  const delay = (ev.e === 'phase') ? UI.speed * 1.6 : UI.speed;
+  const base = 420 / (UI.speedMul || 1);
+  const delay = (ev.e === 'phase') ? base * 1.6 : base;
   UI.timer = setTimeout(stepBattle, delay);
 }
 
@@ -413,6 +450,17 @@ function bind() {
 
   root.addEventListener('click', function (e) {
     const g = UI.game;
+
+    // 战斗播放速度
+    const spd = e.target.closest('.spd');
+    if (spd) {
+      UI.speedMul = parseFloat(spd.dataset.speed) || 1;
+      const all = document.querySelectorAll('.spd');
+      for (let i = 0; i < all.length; i++) {
+        all[i].classList.toggle('active', all[i] === spd);
+      }
+      return;
+    }
 
     // 图鉴：打开 / 关闭 / 点遮罩关闭（面板内点击不关）
     if (e.target.closest('#btnCodex')) { openCodex(); return; }
@@ -526,31 +574,56 @@ function bind() {
     }
   });
 
-  // 拖拽排序
-  let dragFrom = -1;
+  // 拖拽：队伍内排序 + 从商店拖到指定位置购买
+  let dragTeamFrom = -1;    // 队伍内拖动
+  let dragShopFrom = -1;    // 从商店拖出
+
   root.addEventListener('dragstart', function (e) {
+    const shopCard = e.target.closest('[data-shop-pet]');
+    if (shopCard) {
+      dragShopFrom = +shopCard.dataset.shopPet;
+      shopCard.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'copy';
+      return;
+    }
     const c = e.target.closest('#myRow .pet');
     if (!c) return;
-    dragFrom = +c.dataset.teamIdx;
+    dragTeamFrom = +c.dataset.teamIdx;
     c.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
   });
+
   root.addEventListener('dragend', function (e) {
-    const c = e.target.closest('#myRow .pet');
+    const c = e.target.closest('.dragging');
     if (c) c.classList.remove('dragging');
   });
+
   root.addEventListener('dragover', function (e) {
-    if (e.target.closest('#myRow')) e.preventDefault();
+    if (dragShopFrom >= 0 ? e.target.closest('#myRow') : e.target.closest('#myRow')) {
+      e.preventDefault();
+      if (dragShopFrom >= 0) e.dataTransfer.dropEffect = 'copy';
+    }
   });
+
   root.addEventListener('drop', function (e) {
     const c = e.target.closest('#myRow [data-team-idx]');
-    if (!c || dragFrom < 0) return;
+    if (!c) return;
     e.preventDefault();
     const to = +c.dataset.teamIdx;
-    UI.game.movePet(dragFrom, to);
-    dragFrom = -1;
+
+    if (dragShopFrom >= 0) {
+      // 从商店拖到队伍的指定位置 → 买下并插到该位置
+      const r = UI.game.buyPet(dragShopFrom, to);
+      say(r.msg);
+    } else if (dragTeamFrom >= 0) {
+      UI.game.movePet(dragTeamFrom, to);
+    } else {
+      return;
+    }
+    dragTeamFrom = -1;
+    dragShopFrom = -1;
     UI.selectedTeam = -1;
-    renderShop();
+    renderTop(); renderShop();
   });
 }
 
@@ -567,7 +640,7 @@ function applyEventSilent(ev) {
     }
     case 'dmg': { const t = findView(ev.t); if (t) t.pet.hp -= ev.n; break; }
     case 'buff': { const t = findView(ev.t); if (t) { t.pet.atk += ev.atk; t.pet.hp += ev.hp; } break; }
-    case 'perk': { const t = findView(ev.t); if (t) t.pet.perks.push({ id: ev.id, uses: 1 }); break; }
+    case 'perk': { const t = findView(ev.t); if (t) t.pet.perks = [{ id: ev.id, uses: 1 }]; break; }
     case 'faint': { const t = findView(ev.t); if (t) t.pet.hp = 0; break; }
     case 'summon': {
       v[ev.side].splice(ev.pos, 0, { uid: ev.t, defId: ev.defId, def: PETS[ev.defId],
@@ -596,53 +669,106 @@ function codexEntries() {
   return ids;
 }
 
+/* ---- 图鉴：宠物卡片 ---- */
+function codexPetCard(id) {
+  const d = PETS[id];
+  let rows = '';
+  if (d.texts && d.texts.length) {
+    for (let i = 0; i < 3; i++) {
+      const txt = d.texts[i] || d.texts[0] || '';
+      rows += '<div class="codex-row"><span class="codex-lv">' + (i + 1) + '级</span>' +
+              '<span>' + esc(txt) + '</span></div>';
+    }
+  } else {
+    rows = '<div class="codex-row"><span>—</span></div>';
+  }
+  return '<div class="codex-card" data-tier="' + (d.tier || 0) + '">' +
+      '<div class="codex-top">' +
+        '<span class="codex-emoji">' + (PET_EMOJI[id] || '🐾') + '</span>' +
+        '<span class="codex-name">' + esc(petName(d)) + '</span>' +
+        '<span class="codex-en">' + esc(d.name) + '</span>' +
+        '<span class="codex-base">' +
+          '<span class="atk">' + d.atk + '</span>' +
+          '<span class="slash">/</span>' +
+          '<span class="hp">' + d.hp + '</span>' +
+        '</span>' +
+      '</div>' +
+      '<div class="codex-ability">' + rows + '</div>' +
+    '</div>';
+}
+
+/* ---- 图鉴：道具卡片 ---- */
+const FOOD_EMOJI = {
+  Apple: '🍎', BetterApple: '🍎', BestApple: '🍎',
+  Honey: '🍯', Melon: '🍉', BreadCrumbs: '🍞'
+};
+
+function codexFoodCard(id) {
+  const f = FOODS[id];
+  return '<div class="codex-card food" data-tier="0">' +
+      '<div class="codex-top">' +
+        '<span class="codex-emoji">' + (FOOD_EMOJI[id] || '🎁') + '</span>' +
+        '<span class="codex-name">' + esc(f.cn || f.name) + '</span>' +
+        '<span class="codex-en">' + esc(f.name) + '</span>' +
+        '<span class="codex-base">' + f.cost + ' 金</span>' +
+      '</div>' +
+      '<div class="codex-ability">' +
+        '<div class="codex-row"><span>' + esc(f.text) + '</span></div>' +
+      '</div>' +
+    '</div>';
+}
+
 function renderCodex() {
   const body = $('#codexBody');
   if (!body) return;
-  const ids = codexEntries();
 
+  let html = '';
+  let nPet = 0, nToken = 0, nFood = 0;
+
+  // ---- 可购买宠物：按星级分组 ----
+  const ids = codexEntries();
   const byTier = {};
   for (const id of ids) {
     const t = PETS[id].tier;
     (byTier[t] = byTier[t] || []).push(id);
   }
-
-  let html = '';
-  const tiers = Object.keys(byTier).sort(function (a, b) { return a - b; });
-  for (const t of tiers) {
+  for (const t of Object.keys(byTier).sort(function (a, b) { return a - b; })) {
     html += '<div class="codex-tier">' + (TIER_NAME[t] || 'Tier ' + t) +
             ' · ' + byTier[t].length + ' 只</div><div class="codex-grid">';
-    for (const id of byTier[t]) {
-      const d = PETS[id];
-      let rows = '';
-      if (d.texts && d.texts.length) {
-        for (let i = 0; i < 3; i++) {
-          const txt = d.texts[i] || d.texts[0] || '';
-          rows += '<div class="codex-row"><span class="codex-lv">' + (i + 1) + '级</span>' +
-                  '<span>' + esc(txt) + '</span></div>';
-        }
-      } else {
-        rows = '<div class="codex-row"><span>—</span></div>';
-      }
-      html +=
-        '<div class="codex-card" data-tier="' + (d.tier || 0) + '">' +
-          '<div class="codex-top">' +
-            '<span class="codex-emoji">' + (PET_EMOJI[id] || '🐾') + '</span>' +
-            '<span class="codex-name">' + esc(petName(d)) + '</span>' +
-            '<span class="codex-en">' + esc(d.name) + '</span>' +
-            '<span class="codex-base">' +
-              '<span class="atk">' + d.atk + '</span>' +
-              '<span class="slash">/</span>' +
-              '<span class="hp">' + d.hp + '</span>' +
-            '</span>' +
-          '</div>' +
-          '<div class="codex-ability">' + rows + '</div>' +
-        '</div>';
-    }
+    for (const id of byTier[t]) html += codexPetCard(id);
     html += '</div>';
+    nPet += byTier[t].length;
   }
+
+  // ---- 召唤物 ----
+  const tokens = Object.keys(PETS).filter(function (k) { return PETS[k].token; })
+    .sort(function (a, b) {
+      return (PETS[a].cn || a).localeCompare(PETS[b].cn || b, 'zh-CN');
+    });
+  if (tokens.length) {
+    html += '<div class="codex-tier">召唤物 · ' + tokens.length +
+            ' 只（只能由技能召唤，不会出现在商店）</div><div class="codex-grid">';
+    for (const id of tokens) html += codexPetCard(id);
+    html += '</div>';
+    nToken = tokens.length;
+  }
+
+  // ---- 道具 ----
+  const foods = Object.keys(FOODS).sort(function (a, b) {
+    const ta = FOODS[a].token ? 1 : 0, tb = FOODS[b].token ? 1 : 0;
+    if (ta !== tb) return ta - tb;
+    return (FOODS[a].cn || a).localeCompare(FOODS[b].cn || b, 'zh-CN');
+  });
+  if (foods.length) {
+    html += '<div class="codex-tier">道具 · ' + foods.length + ' 种</div><div class="codex-grid">';
+    for (const id of foods) html += codexFoodCard(id);
+    html += '</div>';
+    nFood = foods.length;
+  }
+
   body.innerHTML = html;
-  $('#codexSub').textContent = '共 ' + ids.length + ' 只 · 点空白处或按 Esc 关闭';
+  $('#codexSub').textContent =
+    '宠物 ' + nPet + ' 只 · 召唤物 ' + nToken + ' 只 · 道具 ' + nFood + ' 种 · 点空白处或按 Esc 关闭';
 }
 
 function openCodex() {

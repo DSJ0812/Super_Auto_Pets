@@ -110,12 +110,32 @@ html, body {
   display: flex;
   flex-direction: column;
 }
-.pet[data-tier="1"] { border-color: #4a5468; }
-.pet[data-tier="2"] { border-color: #3f7f5e; }
-.pet[data-tier="3"] { border-color: #4a6ea8; }
-.pet[data-tier="4"] { border-color: #8a5aa8; }
-.pet[data-tier="5"] { border-color: #b07a3a; }
-.pet[data-tier="6"] { border-color: #b04a4a; }
+/* 星级 = 边框颜色（金铲铲那套：灰→绿→蓝→紫→金→红）
+ * 用「鲜艳边框 + 卡片底色微染」做辨识，不用文字徽章 */
+.pet[data-tier="1"] {
+  border-color: #8791a5;
+  background: linear-gradient(180deg, rgba(135,145,165,.10), transparent 55%), var(--panel);
+}
+.pet[data-tier="2"] {
+  border-color: #3fb268;
+  background: linear-gradient(180deg, rgba(63,178,104,.13), transparent 55%), var(--panel);
+}
+.pet[data-tier="3"] {
+  border-color: #3d92e8;
+  background: linear-gradient(180deg, rgba(61,146,232,.15), transparent 55%), var(--panel);
+}
+.pet[data-tier="4"] {
+  border-color: #a75ce8;
+  background: linear-gradient(180deg, rgba(167,92,232,.17), transparent 55%), var(--panel);
+}
+.pet[data-tier="5"] {
+  border-color: #e8ad3a;
+  background: linear-gradient(180deg, rgba(232,173,58,.19), transparent 55%), var(--panel);
+}
+.pet[data-tier="6"] {
+  border-color: #e85c5c;
+  background: linear-gradient(180deg, rgba(232,92,92,.21), transparent 55%), var(--panel);
+}
 
 .pet.selectable { cursor: pointer; }
 .pet.selectable:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,.45); }
@@ -128,6 +148,7 @@ html, body {
   font-size: 10px; color: var(--gold);
   background: rgba(245,196,81,.12);
   border-radius: 5px; padding: 1px 5px; font-weight: 700;
+  white-space: nowrap;
 }
 .pet-name {
   font-size: 12px; margin: 3px 0 2px;
@@ -190,8 +211,38 @@ html, body {
   margin-bottom: 12px; flex-wrap: wrap;
 }
 .shop-head h3 { font-size: 15px; letter-spacing: .5px; }
+/* 商店等级徽章 */
+.shop-tier-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8fd0ff;
+  background: rgba(87,166,255,.14);
+  border: 1px solid rgba(87,166,255,.3);
+  border-radius: 6px;
+  vertical-align: middle;
+}
 .hint { color: var(--dim); font-size: 12.5px; }
 .hint.active { color: var(--gold); font-weight: 600; }
+
+/* 本回合技能汇总（方案 B） */
+.shop-notes {
+  margin-bottom: 11px;
+  padding: 7px 12px;
+  background: rgba(245,196,81,.07);
+  border: 1px solid rgba(245,196,81,.22);
+  border-radius: 9px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #d9c99f;
+}
+.shop-notes .notes-label {
+  color: var(--gold);
+  font-weight: 700;
+  margin-right: 8px;
+}
 
 .shop-cols { display: flex; gap: 16px; flex-wrap: wrap; }
 .shop-col { flex: 1 1 520px; }
@@ -211,7 +262,8 @@ html, body {
 .shop-slot.empty { background: transparent; border-style: dashed; border-color: #2c313b; min-height: 150px; }
 .shop-slot.frozen { border-color: #5aa8e8; background: #1d2a36; }
 .shop-slot.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(245,196,81,.22); }
-.shop-slot .pet { width: 100%; min-height: 0; border: none; background: transparent; padding: 2px; }
+/* 商店里的宠物卡也要显示星级边框（之前 border:none 把它藏掉了） */
+.shop-slot .pet { width: 100%; min-height: 0; padding: 2px; }
 .shop-slot .pet:hover { transform: none; box-shadow: none; }
 
 .price { font-size: 11.5px; color: var(--gold); font-weight: 700; }
@@ -266,7 +318,26 @@ html, body {
   margin-top: 12px;
   flex-wrap: wrap;
 }
-.battle-btns { margin-left: auto; display: flex; gap: 10px; }
+.battle-btns { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+/* 战斗播放速度切换 */
+.speed-ctl {
+  display: flex; gap: 2px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 3px;
+}
+.spd {
+  background: transparent; color: var(--dim);
+  border: none; border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  transition: background .12s, color .12s;
+}
+.spd:hover { color: var(--text); }
+.spd.active { background: var(--accent); color: #fff; }
 .battle-label { font-size: 15px; font-weight: 700; }
 .battle-label.win  { color: var(--win); }
 .battle-label.lose { color: var(--lose); }
@@ -346,9 +417,15 @@ html, body {
   border-radius: 10px;
   padding: 9px 11px;
 }
-.codex-card[data-tier="1"] { border-left-color: #4a5468; }
-.codex-card[data-tier="2"] { border-left-color: #3f7f5e; }
-.codex-card[data-tier="3"] { border-left-color: #4a6ea8; }
+.codex-card[data-tier="1"] { border-left-color: #8791a5; }
+.codex-card[data-tier="2"] { border-left-color: #3fb268; }
+.codex-card[data-tier="3"] { border-left-color: #3d92e8; }
+.codex-card[data-tier="4"] { border-left-color: #a75ce8; }
+.codex-card[data-tier="5"] { border-left-color: #e8ad3a; }
+.codex-card[data-tier="6"] { border-left-color: #e85c5c; }
+/* 召唤物 / 道具：用中性色，把「颜色」这个维度完整让给星级 */
+.codex-card[data-tier="0"] { border-left-color: #5c6473; }
+.codex-card.food { border-left-color: #5c6473; }
 
 .codex-top { display: flex; align-items: center; gap: 7px; }
 .codex-emoji { font-size: 20px; line-height: 1; }

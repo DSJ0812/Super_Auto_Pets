@@ -34,7 +34,7 @@ function makePet(defId, lvl, opts) {
   opts = opts || {};
   const def = (typeof PETS !== 'undefined' && PETS[defId]) ? PETS[defId] : null;
   const bonus = EXP_BONUS[lvl] || 0;
-  return {
+  const pet = {
     uid: ++__uid,
     defId: defId,
     def: def,
@@ -44,6 +44,9 @@ function makePet(defId, lvl, opts) {
     perks: opts.perks ? opts.perks.map(function (p) { return { id: p.id, uses: p.uses }; }) : [],
     side: -1,
   };
+  // 有些召唤物自带 Perk（例如 Deer 召唤的巴士带辣椒）
+  if (def && def.perk && !pet.perks.length) pet.perks = [{ id: def.perk, uses: 1 }];
+  return pet;
 }
 
 function clonePet(p) {
@@ -56,12 +59,21 @@ function clonePet(p) {
     atk: p.atk,
     hp: p.hp,
     perks: p.perks.map(function (x) { return { id: x.id, uses: x.uses }; }),
-    side: p.side
+    side: p.side,
+    copyDefId: p.copyDefId,     // Parrot 复制的技能来源
+    swallowed: p.swallowed      // Whale 吞下去的友方
   };
 }
 
 function cloneTeam(team) {
-  return team.filter(Boolean).map(clonePet);
+  return team.filter(Boolean).map(function (p) {
+    const cp = clonePet(p);
+    // Parrot：本场战斗中以「复制来的那只宠物」的技能行动
+    if (cp.copyDefId && typeof PETS !== 'undefined' && PETS[cp.copyDefId]) {
+      cp.def = PETS[cp.copyDefId];
+    }
+    return cp;
+  });
 }
 
 /* ------------------------------------------------------------
@@ -108,33 +120,44 @@ Battle.prototype.hit = function (pet, amount) {
   return dmg;
 };
 
-// 伤害计算：Melon 减 20，最低可到 0；否则最低 1
+// 伤害计算：Melon 减 20、Garlic 减 2、Coconut 完全免疫一次；否则最低 1
+// 注意：Perk 只能带一个，但这里仍用「只吃第一个」的写法做双保险，
+//       避免任何情况下出现减伤叠加（red += 会变成减 40）
 Battle.prototype.calcDamage = function (pet, raw) {
-  let red = 0;
   for (let i = 0; i < pet.perks.length; i++) {
     const pk = pet.perks[i];
     if (pk.uses === 0) continue;
-    if (pk.id === 'Melon')  red += 20;
-    if (pk.id === 'Garlic') red += 2;
+    if (pk.id === 'Melon')   return Math.max(0, raw - 20);
+    if (pk.id === 'Garlic')  return Math.max(0, raw - 2);
+    if (pk.id === 'Coconut') return 0;          // 官方：Ignore damage once
   }
-  if (red > 0) return Math.max(0, raw - red);
   return Math.max(1, raw);
 };
 
-// 消耗一次性减伤道具（Melon / Garlic）
+// 消耗一次性防御道具（Melon / Garlic / Coconut）
 Battle.prototype.consumeDefensive = function (pet) {
   for (let i = 0; i < pet.perks.length; i++) {
     const pk = pet.perks[i];
-    if ((pk.id === 'Melon' || pk.id === 'Garlic') && pk.uses > 0) {
+    if ((pk.id === 'Melon' || pk.id === 'Garlic' || pk.id === 'Coconut') && pk.uses > 0) {
       pk.uses--;
       this.emit({ e: 'perkUsed', t: pet.uid, id: pk.id });
     }
   }
 };
 
+// 宠物是否带着某个还有效的 Perk
+Battle.prototype.hasPerk = function (pet, id) {
+  if (!pet) return false;
+  for (let i = 0; i < pet.perks.length; i++) {
+    if (pet.perks[i].id === id && pet.perks[i].uses > 0) return true;
+  }
+  return false;
+};
+
 Battle.prototype.givePerk = function (pet, id, uses) {
   if (!pet || pet.hp <= 0) return;
-  pet.perks.push({ id: id, uses: uses == null ? 1 : uses });
+  // 官方规则：一只宠物同时只能带 1 个 Food Perk，新的覆盖旧的
+  pet.perks = [{ id: id, uses: uses == null ? 1 : uses }];
   this.emit({ e: 'perk', t: pet.uid, id: id });
 };
 
@@ -148,7 +171,10 @@ Battle.prototype.summon = function (side, index, defId, opts) {
   team.splice(idx, 0, pet);
   this.emit({ e: 'summon', t: pet.uid, side: side, pos: idx, defId: defId, atk: pet.atk, hp: pet.hp, lvl: pet.lvl });
 
-  // 友方被召唤时的触发（Horse / Dog 等）
+  // 自己被召唤时的触发（Scorpion「被召唤时获得花生」）
+  this.triggerOn('summoned', pet, {});
+
+  // 友方被召唤时的触发（Horse / Dog / Turkey 等）
   const team2 = this.sides[side];
   for (let i = 0; i < team2.length; i++) {
     if (team2[i] !== pet && team2[i].hp > 0) {
@@ -206,6 +232,16 @@ Battle.prototype.triggerOn = function (hook, pet, ctx) {
   ctx = Object.assign({ self: pet, lvl: pet.lvl }, ctx || {});
   this.emit({ e: 'ability', t: pet.uid, hook: hook });
   def.hooks[hook](this, ctx);
+
+  // Tiger：「紧邻后方有老虎」时，这只宠物的技能会额外重复一次（按 1 级结算）
+  // 排除 faint 避免遗言链出现意外重复
+  if (hook !== 'faint') {
+    const behind = this.sides[pet.side][this.sides[pet.side].indexOf(pet) + 1];
+    if (behind && behind.defId === 'Tiger' && behind.hp > 0) {
+      this.emit({ e: 'ability', t: pet.uid, hook: hook });
+      def.hooks[hook](this, Object.assign({}, ctx, { lvl: 1 }));
+    }
+  }
 };
 
 // 对某一阵营全体触发（按队伍从前到后）
@@ -253,6 +289,12 @@ Battle.prototype.resolveDeaths = function () {
     for (let k = 0; k < behindList.length; k++) {
       if (behindList[k].hp > 0) this.triggerOn('aheadFaint', behindList[k], { dead: dead });
     }
+
+    // 6) 全体友方见证：有同伴阵亡（Shark / Fly 用）
+    const rest = this.sides[side].slice();
+    for (let k = 0; k < rest.length; k++) {
+      if (rest[k].hp > 0) this.triggerOn('friendFaints', rest[k], { dead: dead });
+    }
   }
 };
 
@@ -264,8 +306,12 @@ Battle.prototype.exchange = function (a, b) {
   b = this.sides[b.side][0];
   if (!a || !b || a.hp <= 0 || b.hp <= 0) return;
 
-  const dmgToB = this.calcDamage(b, a.atk);
-  const dmgToA = this.calcDamage(a, b.atk);
+  let dmgToB = this.calcDamage(b, a.atk);
+  let dmgToA = this.calcDamage(a, b.atk);
+
+  // Peanut：带花生的宠物「秒杀」被它攻击并受伤的目标（血量 > 1 时直接归零）
+  if (dmgToB > 0 && this.hasPerk(a, 'Peanut') && b.hp > 1) dmgToB = b.hp;
+  if (dmgToA > 0 && this.hasPerk(b, 'Peanut') && a.hp > 1) dmgToA = a.hp;
 
   // 同时结算
   a.hp -= dmgToA;
@@ -275,13 +321,38 @@ Battle.prototype.exchange = function (a, b) {
   this.consumeDefensive(a);
   this.consumeDefensive(b);
 
+  // Chili：攻击时对「第二个敌人」额外 5 点伤害
+  if (this.hasPerk(a, 'Chili')) {
+    const t2 = this.sides[1 - a.side][1];
+    if (t2 && t2.hp > 0) this.hit(t2, 5);
+  }
+  if (this.hasPerk(b, 'Chili')) {
+    const t2 = this.sides[1 - b.side][1];
+    if (t2 && t2.hp > 0) this.hit(t2, 5);
+  }
+
   // 受伤触发
-  if (dmgToA > 0) this.triggerOn('hurt', a, { dmg: dmgToA });
-  if (dmgToB > 0) this.triggerOn('hurt', b, { dmg: dmgToB });
+  if (dmgToA > 0) {
+    this.triggerOn('hurt', a, { dmg: dmgToA });
+    // 友方受伤的见证者（Wolverine）
+    for (const fp of this.sides[a.side].slice()) {
+      if (fp !== a && fp.hp > 0) this.triggerOn('friendHurt', fp, { hurt: a });
+    }
+  }
+  if (dmgToB > 0) {
+    this.triggerOn('hurt', b, { dmg: dmgToB });
+    for (const fp of this.sides[b.side].slice()) {
+      if (fp !== b && fp.hp > 0) this.triggerOn('friendHurt', fp, { hurt: b });
+    }
+  }
 
   // 攻击者自身触发
   this.triggerOn('selfAttack', a, {});
   this.triggerOn('selfAttack', b, {});
+
+  // 击倒触发（Hippo / Rhino）：必须在死亡结算前，宠物还活着才能吃到加成
+  if (b.hp <= 0) this.triggerOn('knockOut', a, { target: b });
+  if (a.hp <= 0) this.triggerOn('knockOut', b, { target: a });
 
   // 死亡（含遗言链）
   this.resolveDeaths();

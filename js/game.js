@@ -8,7 +8,7 @@
  * ============================================================ */
 
 const CFG = {
-  TEAM_MAX: 5,          // 队伍上限
+  TEAM_MAX: 5,          // 队伍上限（实际按回合 3/4/5）
   GOLD_PER_TURN: 10,    // 每回合金币（回合结束清零，不累积）
   PET_COST: 3,
   FOOD_COST: 3,
@@ -17,13 +17,17 @@ const CFG = {
   WIN_TARGET: 10,       // 10 胜结束
   LOSE_MAX: 3,          // 3 败结束
   SHOP_PET_SLOTS: 5,
-  SHOP_FOOD_SLOTS: 2
+  SHOP_FOOD_SLOTS: 2,
+  AP_SCALE: 0.4         // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
+                        // 本作只有 Turtle Pack 61 只、对手全是幽灵，按原版会碾压玩家。
+                        // 实测：0.40→约 46%，0.35→53%（测试 AI 是下限，真人会更高）
 };
 
-/* 可购买池：Tier 1-3 的非代币宠物 */
+/* 可购买池：全部非代币宠物（Tier 1-6）
+ * 具体能买到几星由「商店等级」按回合决定，见 unlockedPool() */
 function buyablePool() {
   return Object.keys(PETS).filter(function (k) {
-    return !PETS[k].token && PETS[k].tier >= 1 && PETS[k].tier <= 3;
+    return !PETS[k].token && PETS[k].tier >= 1;
   });
 }
 
@@ -34,8 +38,13 @@ function ShopEnv(game) {
   this.game = game;
   this.lastBattleLost = game.lastBattleLost;
   this.events = [];
+  this.actor = null;     // 当前正在触发技能的宠物（用于给事件标记来源）
 }
-ShopEnv.prototype.emit = function (ev) { this.events.push(ev); return ev; };
+ShopEnv.prototype.emit = function (ev) {
+  if (this.actor && ev.by == null) ev.by = this.actor.uid;
+  this.events.push(ev);
+  return ev;
+};
 ShopEnv.prototype.team = function (side) { return this.game.team; };
 ShopEnv.prototype.allPets = function () { return this.game.team; };
 ShopEnv.prototype.indexOf = function (pet) { return this.game.team.indexOf(pet); };
@@ -68,9 +77,28 @@ ShopEnv.prototype.random = function (arr, n) {
   }
   return out;
 };
-ShopEnv.prototype.addGold = function (n) { this.game.gold += n; };
+ShopEnv.prototype.addGold = function (n) {
+  this.game.gold += n;
+  this.emit({ e: 'gold', n: n });
+};
+// Squirrel：本回合商店食物降价
+ShopEnv.prototype.discountFood = function (n) {
+  this.game.foodDiscount = (this.game.foodDiscount || 0) + n;
+  this.emit({ e: 'discount', n: n });
+};
+// Cow：把整个食物商店换成指定的免费牛奶
+ShopEnv.prototype.replaceFoodShop = function (foodId) {
+  const g = this.game;
+  for (let i = 0; i < CFG.SHOP_FOOD_SLOTS; i++) {
+    g.shopFoods[i] = { id: foodId, cost: 0 };
+    g.frozenFoods[i] = false;
+  }
+  this.emit({ e: 'stock', id: foodId, cost: 0 });
+};
 ShopEnv.prototype.stock = function (foodId, cost) {
-  this.game.stockFood(foodId, cost == null ? CFG.FOOD_COST : cost);
+  const c = cost == null ? CFG.FOOD_COST : cost;
+  this.game.stockFood(foodId, c);
+  this.emit({ e: 'stock', id: foodId, cost: c });
 };
 ShopEnv.prototype.buffShop = function (atk, hp) {
   for (const slot of this.game.shopPets) {
@@ -78,6 +106,43 @@ ShopEnv.prototype.buffShop = function (atk, hp) {
   }
   this.emit({ e: 'shopBuff', atk: atk, hp: hp });
 };
+
+/* ------------------------------------------------------------
+ *  把商店阶段的事件汇总成一句人话（方案 B：汇总成一条）
+ *  返回形如 ["虫子 库存 苹果", "天鹅 +2 金"] 的字符串数组
+ * ---------------------------------------------------------- */
+function describeShopNotes(game, events) {
+  const byUid = {};
+  for (const p of game.team) byUid[p.uid] = p;
+  const nameOf = function (uid) {
+    return byUid[uid] ? petName(byUid[uid].def) : '';
+  };
+  const statTxt = function (atk, hp) {
+    const parts = [];
+    if (atk) parts.push('+' + atk + ' 攻击');
+    if (hp)  parts.push('+' + hp + ' 生命');
+    return parts.join(' ');
+  };
+
+  const notes = [];
+  for (const ev of events) {
+    const who = nameOf(ev.by);
+    if (ev.e === 'gold') {
+      notes.push((who ? who + ' ' : '') + '+' + ev.n + ' 金');
+    } else if (ev.e === 'stock') {
+      const f = FOODS[ev.id];
+      notes.push((who ? who + ' ' : '') + '库存了' + (f ? f.cn : ev.id) +
+                 (ev.cost ? '（' + ev.cost + ' 金）' : '（免费）'));
+    } else if (ev.e === 'buff') {
+      const t = statTxt(ev.atk, ev.hp);
+      if (t) notes.push((who ? who + ' ' : '') + '给 ' + (nameOf(ev.t) || '友方') + ' ' + t);
+    } else if (ev.e === 'shopBuff') {
+      const t = statTxt(ev.atk, ev.hp);
+      if (t) notes.push((who ? who + ' ' : '') + '给商店宠物 ' + t);
+    }
+  }
+  return notes;
+}
 
 /* ------------------------------------------------------------
  *  游戏状态
@@ -101,24 +166,53 @@ Game.prototype.reset = function () {
   this.lastResult = null;
   this.pendingFood = null;       // 待选目标的食物索引
   this.history = [];
+  this.shopNotes = [];           // 商店阶段技能触发的汇总提示（方案 B）
+  this.foodDiscount = 0;         // 本回合的食物折扣（Squirrel）
   this.rollShop(true);
   // 第一回合：触发开局技能（此时队伍为空，无效果）
   this.triggerTurnStart();
 };
 
+/* ---- 商店等级（官方规则：每两回合解锁一级）----
+ *  回合1→T1 · 回合3→T2 · 回合5→T3 · 回合7→T4 · 回合9→T5 · 回合11+→T6
+ *  作用：商店只会刷出「已解锁」的宠物，玩家和幽灵共用同一套解锁进度 */
+Game.prototype.getShopTier = function () {
+  const t = this.turn;
+  if (t >= 11) return 6;
+  if (t >= 9)  return 5;
+  if (t >= 7)  return 4;
+  if (t >= 5)  return 3;
+  if (t >= 3)  return 2;
+  return 1;
+};
+
+/* 当前已解锁的宠物池 */
+Game.prototype.unlockedPool = function () {
+  const max = this.getShopTier();
+  return buyablePool().filter(function (id) { return PETS[id].tier <= max; });
+};
+
 /* ---- 商店刷新 ---- */
 Game.prototype.rollShop = function (isInitial) {
-  const pool = buyablePool();
+  const pool = this.unlockedPool();
   for (let i = 0; i < CFG.SHOP_PET_SLOTS; i++) {
-    if (!isInitial && this.frozenPets[i]) continue;   // 冻结的保留
+    // ⚠️ 必须同时判断「格子有货」：否则买空后残留的冻结标记会让这格永久不再补货
+    if (!isInitial && this.frozenPets[i] && this.shopPets[i]) continue;
     this.shopPets[i] = this.makeShopPet(pool[Math.floor(Math.random() * pool.length)]);
     this.frozenPets[i] = false;
   }
   for (let i = 0; i < CFG.SHOP_FOOD_SLOTS; i++) {
-    if (!isInitial && this.frozenFoods[i]) continue;
+    if (!isInitial && this.frozenFoods[i] && this.shopFoods[i]) continue;
     this.shopFoods[i] = this.makeShopFood();
     this.frozenFoods[i] = false;
   }
+};
+
+/* ---- 队伍上限：官方规则是随回合增长的 3 → 4 → 5 ---- */
+Game.prototype.getTeamMax = function () {
+  if (this.turn <= 2) return 3;
+  if (this.turn <= 4) return 4;
+  return 5;
 };
 
 // 商店里的宠物是「等级 1 的实例」，可以被 Duck 之类的技能加属性
@@ -129,44 +223,75 @@ Game.prototype.makeShopPet = function (defId) {
 
 Game.prototype.makeShopFood = function () {
   const keys = Object.keys(FOODS).filter(function (k) { return !FOODS[k].token; });
-  return { id: keys[Math.floor(Math.random() * keys.length)] };
+  return { id: keys[Math.floor(Math.random() * keys.length)], cost: CFG.FOOD_COST };
 };
 
+/* 往商店里放一个道具（Worm / Pigeon 之类的技能用）
+ * cost 由技能指定 —— 官方 Worm 给的是「2 金苹果」，比常价便宜 */
 Game.prototype.stockFood = function (foodId, cost) {
+  const item = { id: foodId, cost: cost == null ? CFG.FOOD_COST : cost };
+  // 1) 优先放空位（顺便清掉可能残留的冻结标记）
   for (let i = 0; i < this.shopFoods.length; i++) {
-    if (!this.shopFoods[i]) { this.shopFoods[i] = { id: foodId, free: true }; return; }
+    if (!this.shopFoods[i]) {
+      this.shopFoods[i] = item;
+      this.frozenFoods[i] = false;
+      return;
+    }
   }
-  // 槽位满了就替换第一个
-  this.shopFoods[0] = { id: foodId, free: true };
+  // 2) 其次找没被冻结的槽位
+  for (let i = 0; i < this.shopFoods.length; i++) {
+    if (!this.frozenFoods[i]) { this.shopFoods[i] = item; return; }
+  }
+  // 3) 全被冻结了，才覆盖第一个
+  this.shopFoods[0] = item;
+  this.frozenFoods[0] = false;
 };
 
-/* ---- 购买宠物 ---- */
-Game.prototype.buyPet = function (slotIdx) {
+/* 取某个道具槽的实际价格（0 表示免费；Squirrel 的折扣在这里生效） */
+Game.prototype.foodCost = function (f) {
+  if (!f) return CFG.FOOD_COST;
+  const base = f.cost == null ? CFG.FOOD_COST : f.cost;
+  return Math.max(0, base - (this.foodDiscount || 0));
+};
+
+/* ---- 购买宠物 ----
+ * teamIdx 可选：给了就插到队伍的那个位置（拖拽购买），不给就追加到末尾 */
+Game.prototype.buyPet = function (slotIdx, teamIdx) {
   const pet = this.shopPets[slotIdx];
   if (!pet) return { ok: false, msg: '这个位置没有宠物' };
   if (this.gold < CFG.PET_COST) return { ok: false, msg: '金币不够' };
 
-  // 1) 先看能否合并（队伍里有同名且未满级）
+  // 1) 先看能否合并（队伍里有同名且未满级）—— 合并时位置无意义
   const same = this.team.find(function (p) { return p.defId === pet.defId && p.lvl < 3; });
   if (same) {
     this.gold -= CFG.PET_COST;
     this.shopPets[slotIdx] = null;
+    this.frozenPets[slotIdx] = false;      // 商品没了，冻结标记也要清掉
     const before = same.lvl;
     this.addExp(same, 1);
-    return { ok: true, msg: petName(same.def) + ' 获得经验' + (same.lvl > before ? '，升到 ' + same.lvl + ' 级！' : ''),
+    const bn = this.notifyFriendBought(same);
+    return { ok: true, msg: petName(same.def) + ' 获得经验' + (same.lvl > before ? '，升到 ' + same.lvl + ' 级！' : '')
+             + (bn.length ? ' · ' + bn.join(' · ') : ''),
              merged: true, pet: same };
   }
 
   // 2) 队伍已满则不能加新宠物
-  if (this.team.length >= CFG.TEAM_MAX) {
-    return { ok: false, msg: '队伍已满（' + CFG.TEAM_MAX + '），先卖掉一只' };
+  const max = this.getTeamMax();
+  if (this.team.length >= max) {
+    return { ok: false, msg: '队伍已满（本回合上限 ' + max + ' 只），先卖掉一只' };
   }
 
   this.gold -= CFG.PET_COST;
   this.shopPets[slotIdx] = null;
+  this.frozenPets[slotIdx] = false;        // 商品没了，冻结标记也要清掉
   const np = clonePet(pet);
   np.side = -1;
-  this.team.push(np);
+  if (teamIdx == null) {
+    this.team.push(np);
+  } else {
+    const at = Math.max(0, Math.min(teamIdx, this.team.length));
+    this.team.splice(at, 0, np);
+  }
   this.applyPerksFromShop(pet, np);
 
   // 购买触发（Otter）
@@ -174,10 +299,15 @@ Game.prototype.buyPet = function (slotIdx) {
   env.lastBattleLost = this.lastBattleLost;
   const def = np.def;
   if (def && def.hooks && def.hooks.buy) {
-    env.emit({ e: 'ability', t: np.uid, hook: 'buy' });
+    env.actor = np;
     def.hooks.buy(env, { self: np, lvl: np.lvl });
   }
-  return { ok: true, msg: '购买了 ' + petName(np.def), pet: np };
+  env.actor = null;
+  const notes = describeShopNotes(this, env.events);
+  const bn2 = this.notifyFriendBought(np);
+  const allNotes = notes.concat(bn2);
+  return { ok: true, msg: '购买了 ' + petName(np.def)
+           + (allNotes.length ? ' · ' + allNotes.join(' · ') : ''), pet: np };
 };
 
 // 商店里被加过属性的宠物，购买时把差值带进队伍
@@ -187,6 +317,48 @@ Game.prototype.applyPerksFromShop = function (shopPet, teamPet) {
   const diffHp  = shopPet.hp  - base.hp;
   if (diffAtk > 0) teamPet.atk += diffAtk;
   if (diffHp  > 0) teamPet.hp  += diffHp;
+};
+
+/* 购买后通知其他友方（Dragon「购买 1 级友方时」） */
+Game.prototype.notifyFriendBought = function (bought) {
+  const env = new ShopEnv(this);
+  for (const p of this.team) {
+    if (p === bought) continue;
+    const d = p.def;
+    if (d && d.hooks && d.hooks.friendBought) {
+      env.actor = p;
+      d.hooks.friendBought(env, { self: p, lvl: p.lvl, bought: bought });
+    }
+  }
+  env.actor = null;
+  return describeShopNotes(this, env.events);
+};
+
+/* ---- 升星奖励（官方规则）----
+ *  「Upon leveling up, the player is given a choice between two Pets from
+ *    the next tier. However, this effect does not apply when merging two
+ *    Level 2 Pets into a Level 3 Pet.」
+ *  → 升星时，商店里出现 2 个「下一星级」的宠物供玩家挑选（可以买，也可以不买） */
+Game.prototype.tierUpReward = function () {
+  const cur = this.getShopTier();
+  if (cur >= 6) return;                      // 已是最高星级
+  const pool = buyablePool().filter(function (id) {
+    return PETS[id].tier === cur + 1;
+  });
+  if (!pool.length) return;
+
+  // 随机挑 2 个格子替换（洗牌取前 2）
+  const idxs = [];
+  for (let i = 0; i < this.shopPets.length; i++) idxs.push(i);
+  for (let i = idxs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = idxs[i]; idxs[i] = idxs[j]; idxs[j] = tmp;
+  }
+  for (let k = 0; k < 2 && k < idxs.length; k++) {
+    const slot = idxs[k];
+    this.shopPets[slot] = this.makeShopPet(pool[Math.floor(Math.random() * pool.length)]);
+    this.frozenPets[slot] = false;
+  }
 };
 
 /* ---- 加经验 / 升级 ---- */
@@ -206,6 +378,8 @@ Game.prototype.addExp = function (pet, n) {
         env.emit({ e: 'ability', t: pet.uid, hook: 'levelUp' });
         def.hooks.levelUp(env, { self: pet, lvl: pet.lvl });
       }
+      // 官方：升星时给「下一星级的两个宠物」；但合成到 3 级不触发
+      if (pet.lvl < 3) this.tierUpReward();
     }
   }
 };
@@ -220,20 +394,25 @@ Game.prototype.sellPet = function (teamIdx) {
   env.lastBattleLost = this.lastBattleLost;
   const def = pet.def;
   if (def && def.hooks && def.hooks.sell) {
-    env.emit({ e: 'ability', t: pet.uid, hook: 'sell' });
+    env.actor = pet;
     def.hooks.sell(env, { self: pet, lvl: pet.lvl });
   }
+  env.actor = null;
+
+  // ⚠️ 必须在移出队伍之前生成提示，否则查不到宠物名字
+  const notes = describeShopNotes(this, env.events);
 
   this.team.splice(teamIdx, 1);
   this.gold += CFG.SELL_GAIN;
-  return { ok: true, msg: '卖掉了 ' + petName(pet.def) + '，+' + CFG.SELL_GAIN + ' 金' };
+  return { ok: true, msg: '卖掉了 ' + petName(pet.def) + '，+' + CFG.SELL_GAIN + ' 金'
+           + (notes.length ? ' · ' + notes.join(' · ') : '') };
 };
 
 /* ---- 购买食物 ---- */
 Game.prototype.buyFood = function (slotIdx) {
   const f = this.shopFoods[slotIdx];
   if (!f) return { ok: false, msg: '这个位置没有道具' };
-  const cost = f.free ? 0 : CFG.FOOD_COST;
+  const cost = this.foodCost(f);
   if (this.gold < cost) return { ok: false, msg: '金币不够' };
   if (!this.team.length) return { ok: false, msg: '队伍是空的，先买宠物' };
   // 进入"选目标"状态
@@ -250,17 +429,28 @@ Game.prototype.applyFood = function (teamIdx) {
   if (!pet) return { ok: false, msg: '目标无效' };
 
   const def = FOODS[f.id];
-  const cost = f.free ? 0 : CFG.FOOD_COST;
+  const cost = this.foodCost(f);
   this.gold -= cost;
 
   if (def.buff) {
-    pet.atk += def.buff[0];
-    pet.hp  += def.buff[1];
+    // Cat：食物效果翻倍，每回合最多 2 次
+    let mul = 1;
+    const cat = this.team.find(function (p) {
+      return p.defId === 'Cat' && p !== pet && (p._catUsed || 0) < 2;
+    });
+    if (cat) {
+      mul = 2;
+      cat._catUsed = (cat._catUsed || 0) + 1;
+    }
+    pet.atk += def.buff[0] * mul;
+    pet.hp  += def.buff[1] * mul;
   }
   if (def.perk) {
-    pet.perks.push({ id: def.perk, uses: def.perk === 'Melon' ? 1 : 1 });
+    // 官方规则：新 Perk 覆盖旧 Perk（一只宠物同时只能带 1 个）
+    setPerk(pet, def.perk, 1);
   }
   this.shopFoods[this.pendingFood] = null;
+  this.frozenFoods[this.pendingFood] = false;   // 道具没了，冻结标记也要清掉
   this.pendingFood = null;
 
   // 「友方吃食物」触发（Rabbit）
@@ -270,11 +460,14 @@ Game.prototype.applyFood = function (teamIdx) {
     if (p === pet) continue;
     const d = p.def;
     if (d && d.hooks && d.hooks.friendlyAteFood) {
-      env.emit({ e: 'ability', t: p.uid, hook: 'friendlyAteFood' });
+      env.actor = p;
       d.hooks.friendlyAteFood(env, { self: p, lvl: p.lvl, eater: pet });
     }
   }
-  return { ok: true, msg: def.cn + ' 用在 ' + petName(pet.def) + ' 上' };
+  env.actor = null;
+  const notes = describeShopNotes(this, env.events);
+  return { ok: true, msg: def.cn + ' 用在 ' + petName(pet.def) + ' 上'
+           + (notes.length ? ' · ' + notes.join(' · ') : '') };
 };
 
 /* ---- 刷新商店 ---- */
@@ -309,12 +502,15 @@ Game.prototype.triggerTurnStart = function () {
   env.lastBattleLost = this.lastBattleLost;
   for (const p of this.team) {
     p._ox = 0; p._rabbit = 0;   // 重置每回合计数
+    p._catUsed = 0;             // Cat 的食物翻倍次数
     const d = p.def;
     if (d && d.hooks && d.hooks.startTurn) {
-      env.emit({ e: 'ability', t: p.uid, hook: 'startTurn' });
+      env.actor = p;
       d.hooks.startTurn(env, { self: p, lvl: p.lvl });
     }
   }
+  env.actor = null;
+  this.shopNotes = describeShopNotes(this, env.events);
 };
 
 /* ---- 回合结束技能 ---- */
@@ -324,36 +520,89 @@ Game.prototype.triggerTurnEnd = function () {
   for (const p of this.team) {
     const d = p.def;
     if (d && d.hooks && d.hooks.endTurn) {
-      env.emit({ e: 'ability', t: p.uid, hook: 'endTurn' });
+      env.actor = p;
       d.hooks.endTurn(env, { self: p, lvl: p.lvl });
     }
   }
+  env.actor = null;
+  const notes = describeShopNotes(this, env.events);
+  // 追加到本回合已有提示后面（回合开始的提示还在）
+  this.shopNotes = (this.shopNotes || []).concat(notes);
 };
 
 /* ------------------------------------------------------------
- *  对手生成（SAP 用的是其他玩家的队伍快照，这里按回合强度模拟）
+ *  对手生成 —— 严格按官方「Ghost（幽灵）」算法
+ *
+ *  官方 wiki 原文要点：
+ *   · Turn 1：从 Tier 1 选 3 只，放最前 3 位
+ *   · Turn 2+：选 5 只（不超过当回合队伍上限），并从本回合起累计行动点
+ *   · 行动点 = 回合数 × 2 − 4（回合 1 = 0，回合 2 = 1）
+ *   · 每点行动点随机做三件事之一：
+ *       ① 给一只宠物一个食物 Perk（每只最多一次）
+ *       ② 给一只宠物 +1 经验
+ *       ③ 给一只宠物 +(floor(回合/4) + 2) 点属性，随机分到攻击或生命
+ *   · 宠物一律从基础属性起步，不触发商店阶段技能
+ *
+ *  注意：官方【没有】显式难度系数 —— 难度差异来自行动点的随机分配
+ *  （有的幽灵属性堆在一只身上，有的摊得很散），这天然产生强弱差异。
  * ---------------------------------------------------------- */
 Game.prototype.makeOpponent = function () {
-  const pool = buyablePool();
   const t = this.turn;
-  // 队伍规模随回合增长（1、2、2、3、3、4、4、5…）
-  const size = Math.min(CFG.TEAM_MAX, 1 + Math.floor(t / 2));
-  // 等级随回合提升（给玩家留出合成升级的窗口）
-  let lvl = 1;
-  if (t >= 11) lvl = 3;
-  else if (t >= 6) lvl = 2;
+  // 官方 Ghost 规则：从「已解锁的 tier」里选宠物
+  const pool = this.unlockedPool();
+  const maxTeam = this.getTeamMax();
 
-  const out = [];
-  for (let i = 0; i < size; i++) {
-    const defId = pool[Math.floor(Math.random() * pool.length)];
-    out.push(makePet(defId, lvl));
+  // ---- 1) 组队 ----
+  let team = [];
+  if (t === 1) {
+    const tier1 = pool.filter(function (id) { return PETS[id].tier === 1; });
+    const src = tier1.length ? tier1 : pool;
+    for (let i = 0; i < Math.min(3, maxTeam); i++) {
+      team.push(makePet(src[Math.floor(Math.random() * src.length)], 1));
+    }
+  } else {
+    const n = Math.min(5, maxTeam);
+    for (let i = 0; i < n; i++) {
+      team.push(makePet(pool[Math.floor(Math.random() * pool.length)], 1));
+    }
   }
-  // 很后期才给对手额外属性，避免滚雪球
-  const extra = Math.max(0, Math.floor((t - 10) / 4));
-  if (extra > 0) {
-    for (const p of out) { p.atk += extra; p.hp += extra; }
+
+  // ---- 2) 花掉行动点 ----
+  // 官方 AP 曲线是给「完整 6 tier 宠物池 + 真实玩家快照」设计的，
+  // 对本作（61 只宠物、纯幽灵对手）偏强。实测折扣 0.7 时通关率约 45%。
+  const rawAp = (t === 1) ? 0 : (t === 2 ? 1 : t * 2 - 4);
+  const ap = Math.max(0, Math.round(rawAp * CFG.AP_SCALE));
+  const statGain = Math.floor(t / 4) + 2;
+  const perkFoods = Object.keys(FOODS).filter(function (id) {
+    return FOODS[id].perk && !FOODS[id].token;
+  });
+
+  for (let k = 0; k < ap && team.length; k++) {
+    const target = team[Math.floor(Math.random() * team.length)];
+    const action = Math.floor(Math.random() * 3);
+
+    if (action === 0 && perkFoods.length) {
+      // ① 给食物 Perk（同一只最多带一个，已有就跳过）
+      if (!target.perks.length) {
+        const fid = perkFoods[Math.floor(Math.random() * perkFoods.length)];
+        setPerk(target, FOODS[fid].perk, 1);
+      }
+    } else if (action === 1) {
+      // ② +1 经验（每点经验 +1/+1；满级后仍给 +1/+1，官方 0.24 起）
+      target.exp = (target.exp || 0) + 1;
+      target.atk += 1;
+      target.hp  += 1;
+      if (target.lvl < 3 && target.exp >= EXP_BONUS[target.lvl + 1]) target.lvl += 1;
+    } else {
+      // ③ 加属性，逐点随机分配到攻击或生命
+      for (let s = 0; s < statGain; s++) {
+        if (Math.random() < 0.5) target.atk += 1;
+        else                     target.hp  += 1;
+      }
+    }
   }
-  return out;
+
+  return team;
 };
 
 /* ------------------------------------------------------------
@@ -400,6 +649,7 @@ Game.prototype.nextTurn = function () {
   this.gold = CFG.GOLD_PER_TURN;
   this.phase = 'shop';
   this.pendingFood = null;
+  this.foodDiscount = 0;         // 每回合重置，Squirrel 会在开局重新打折
   this.rollShop(false);
   this.triggerTurnStart();
 };
