@@ -84,7 +84,7 @@ Melee.prototype.startTurn = function () {
   for (const f of this.fighters) {
     if (!f.alive) continue;
     const g = f.game;
-    g.turn = this.turn;
+    const up = g.setTurn(this.turn);   // 顺带拿到商店等级有没有提升
     g.streak = f.streak;
     g.grantIncome();          // TFT 收入：基础 + 利息 + 连胜
     g.phase = 'shop';
@@ -92,6 +92,7 @@ Melee.prototype.startTurn = function () {
     g.foodDiscount = 0;
     g.rollShop(false);        // 按当前商店等级刷新
     g.triggerTurnStart();
+    if (up.upgraded) g.triggerShopTierUp(up.after);
     g.offerRelicChoice();     // 到点给遗物三选一
     // AI 不会挑，随机拿一个（保证和玩家规则对等）
     if (!f.isHuman && g.pendingRelicChoice && g.pendingRelicChoice.length) {

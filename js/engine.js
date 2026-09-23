@@ -219,6 +219,62 @@ Battle.prototype.random = function (arr, n) {
   return out;
 };
 
+/* ---- 推位 ----
+ * 把 pet 朝「前排方向」（索引 0）推 spaces 格。星包的吉娃娃 / 海马等用。
+ * 必须记日志：回放靠它把展示镜像里的顺序也改掉，否则回放位置会错。 */
+Battle.prototype.push = function (pet, spaces) {
+  if (!pet || pet.hp <= 0 || spaces <= 0) return;
+  const team = this.sides[pet.side];
+  const from = team.indexOf(pet);
+  if (from < 0) return;
+  const to = Math.max(0, from - spaces);
+  if (to === from) return;
+  team.splice(from, 1);
+  team.splice(to, 0, pet);
+  this.emit({ e: 'push', t: pet.uid, side: pet.side, from: from, to: to });
+};
+
+/* ---- N 格内范围伤害 ----
+ * 萤火虫「对 N 格内所有宠物造成伤害」。
+ * 战场是一条线：我方索引 0 是最前排，敌方索引 0 也是其最前排，两者相邻。
+ * 所以：同侧距离 = |i - myIdx|，对面距离 = myIdx + k + 1（相邻记 1 格）。 */
+Battle.prototype.within = function (pet, spaces) {
+  if (!pet) return [];
+  const side = pet.side;
+  const my = this.sides[side].indexOf(pet);
+  if (my < 0) return [];
+  const out = [];
+  this.sides[side].forEach(function (p, i) {
+    if (Math.abs(i - my) <= spaces) out.push(p);
+  });
+  this.sides[1 - side].forEach(function (p, k) {
+    if (my + k + 1 <= spaces) out.push(p);
+  });
+  return out;
+};
+
+Battle.prototype.hitWithin = function (pet, spaces, dmg) {
+  const targets = this.within(pet, spaces);
+  for (const t of targets) this.hit(t, dmg);
+  return targets;
+};
+
+/* ---- 战斗内给经验（每 1 点经验 = +1/+1，够了就升级）----
+ * 蟑螂「召唤熟蟑螂并给它 +N 经验」用。 */
+Battle.prototype.grantExp = function (pet, n) {
+  if (!pet) return;
+  let gained = 0;
+  for (let i = 0; i < n; i++) {
+    if (pet.lvl >= 3) break;              // 已满级就不再吃经验
+    pet.exp = (pet.exp || 0) + 1;
+    pet.atk += 1;
+    pet.hp  += 1;
+    gained++;
+    if (pet.exp >= EXP_BONUS[pet.lvl + 1]) pet.lvl += 1;
+  }
+  if (gained) this.emit({ e: 'buff', t: pet.uid, atk: gained, hp: gained });
+};
+
 /* ------------------------------------------------------------
  *  触发系统
  *  hook 名与 data.js 中宠物技能的 hooks 键一一对应

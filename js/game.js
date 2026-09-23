@@ -159,6 +159,36 @@ ShopEnv.prototype.buffShop = function (atk, hp) {
   this.emit({ e: 'shopBuff', atk: atk, hp: hp });
 };
 
+/* 只给商店的某一个位置加属性（小鸭「给最左边的商店宠物 +N 生命」） */
+ShopEnv.prototype.buffShopAt = function (index, atk, hp) {
+  const slot = this.game.shopPets[index];
+  if (!slot) return;
+  if (atk) slot.atk += atk;
+  if (hp)  slot.hp += hp;
+  this.emit({ e: 'shopBuffAt', t: slot.uid, atk: atk || 0, hp: hp || 0 });
+};
+
+/* 交换两只宠物的攻击和生命（青蛙） */
+ShopEnv.prototype.swapStats = function (a, b) {
+  if (!a || !b) return;
+  const atk = a.atk; a.atk = b.atk; b.atk = atk;
+  const hp = a.hp;  a.hp = b.hp;   b.hp = hp;
+  this.emit({ e: 'swap', t: a.uid, t2: b.uid });
+};
+
+/* 直接把攻击设成某个值（白蚁「把攻击设为商店等级 +N」） */
+ShopEnv.prototype.setAtk = function (pet, n) {
+  if (!pet) return;
+  pet.atk = Math.max(0, n);
+  this.emit({ e: 'setAtk', t: pet.uid, n: pet.atk });
+};
+
+/* 接下来几次刷新免费（狨猴） */
+ShopEnv.prototype.freeRolls = function (n) {
+  this.game.freeRolls = (this.game.freeRolls || 0) + n;
+  this.emit({ e: 'freeRoll', n: n });
+};
+
 /* ------------------------------------------------------------
  *  把商店阶段的事件汇总成一句人话（方案 B：汇总成一条）
  *  返回形如 ["虫子 库存 苹果", "天鹅 +2 金"] 的字符串数组
@@ -191,6 +221,16 @@ function describeShopNotes(game, events) {
     } else if (ev.e === 'shopBuff') {
       const t = statTxt(ev.atk, ev.hp);
       if (t) notes.push((who ? who + ' ' : '') + '给商店宠物 ' + t);
+    } else if (ev.e === 'shopBuffAt') {
+      const t = statTxt(ev.atk, ev.hp);
+      if (t) notes.push((who ? who + ' ' : '') + '给商店里的 ' + (nameOf(ev.t) || '宠物') + ' ' + t);
+    } else if (ev.e === 'swap') {
+      notes.push((who ? who + ' ' : '') + '交换了 ' + (nameOf(ev.t) || '?') + ' 和 ' + (nameOf(ev.t2) || '?') + ' 的属性');
+    } else if (ev.e === 'setAtk') {
+      const p = byUid[ev.t];
+      notes.push((who ? who + ' ' : '') + '把 ' + (nameOf(ev.t) || '自己') + ' 的攻击设为 ' + ev.n);
+    } else if (ev.e === 'freeRoll') {
+      notes.push((who ? who + ' ' : '') + '接下来 ' + ev.n + ' 次刷新免费');
     }
   }
   return notes;
@@ -220,6 +260,7 @@ Game.prototype.reset = function () {
   this.history = [];
   this.shopNotes = [];           // 商店阶段技能触发的汇总提示（方案 B）
   this.foodDiscount = 0;         // 本回合的食物折扣（Squirrel）
+  this.freeRolls = 0;            // 剩余免费刷新次数（狨猴）
   this.relics = [];              // 已获得的遗物
   this.pendingRelicChoice = null;// 待选择的遗物（三选一）
   this.relicChoiceDone = {};     // 已给过选择的回合
@@ -533,11 +574,20 @@ Game.prototype.applyFood = function (teamIdx) {
 /* ---- 刷新商店 ---- */
 Game.prototype.roll = function () {
   const rc = rollCostOf();                 // SAP 1 金 / TFT 2 金
-  if (this.gold < rc) return { ok: false, msg: '金币不够刷新' };
-  this.gold -= rc;
+  let free = false;
+  if (this.freeRolls > 0) {                // 狨猴：接下来 N 次刷新免费
+    this.freeRolls--;
+    free = true;
+  } else {
+    if (this.gold < rc) return { ok: false, msg: '金币不够刷新' };
+    this.gold -= rc;
+  }
   this.pendingFood = null;
   this.rollShop(false);
-  return { ok: true, msg: '刷新了商店' };
+  return {
+    ok: true,
+    msg: free ? ('免费刷新（还剩 ' + this.freeRolls + ' 次）') : '刷新了商店'
+  };
 };
 
 /* ---- 冻结 ---- */
@@ -766,14 +816,42 @@ Game.prototype.pickRelic = function (id) {
 /* ---- 进入下一回合 ---- */
 Game.prototype.nextTurn = function () {
   if (this.phase === 'gameover') return;
-  this.turn++;
+  const up = this.setTurn(this.turn + 1);   // 会顺带告诉我们商店等级有没有提升
   this.grantIncome();
   this.phase = 'shop';
   this.pendingFood = null;
   this.foodDiscount = 0;         // 每回合重置，Squirrel 会在开局重新打折
   this.rollShop(false);
   this.triggerTurnStart();
+  if (up.upgraded) this.triggerShopTierUp(up.after);
   this.offerRelicChoice();       // 到点就给三选一
+};
+
+/* ---- 设置回合数，并报告商店等级是否提升 ----
+ * 商店等级是按回合推算出来的（见 getShopTier），所以没有天然的「升级事件」，
+ * 只能比较前后两次推算值。长臂猿（商店升级时…）依赖它。
+ * ⚠️ 8 人混战和联机是直接写 g.turn 的，那里也必须改用这个函数。 */
+Game.prototype.setTurn = function (n) {
+  const before = this.getShopTier();
+  this.turn = n;
+  const after = this.getShopTier();
+  return { before: before, after: after, upgraded: after > before };
+};
+
+/* 商店等级提升时触发（长臂猿） */
+Game.prototype.triggerShopTierUp = function (tier) {
+  const env = new ShopEnv(this);
+  env.lastBattleLost = this.lastBattleLost;
+  for (const p of this.team) {
+    const d = p.def;
+    if (d && d.hooks && d.hooks.shopTierUpgraded) {
+      env.actor = p;
+      d.hooks.shopTierUpgraded(env, { self: p, lvl: p.lvl, tier: tier });
+    }
+  }
+  env.actor = null;
+  const notes = describeShopNotes(this, env.events);
+  if (notes.length) this.shopNotes = (this.shopNotes || []).concat(notes);
 };
 
 if (typeof module !== 'undefined' && module.exports) {

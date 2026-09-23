@@ -192,7 +192,7 @@ OnlineGame.prototype.startTurn = function () {
   for (const s of this.seats) {
     if (!s.alive || !s.game) continue;
     const g = s.game;
-    g.turn = this.turn;
+    const up = g.setTurn(this.turn);   // 顺带拿到商店等级有没有提升
     g.streak = s.streak;
     g.grantIncome();
     g.phase = 'shop';
@@ -200,6 +200,7 @@ OnlineGame.prototype.startTurn = function () {
     g.foodDiscount = 0;
     g.rollShop(false);
     g.triggerTurnStart();
+    if (up.upgraded) g.triggerShopTierUp(up.after);
     g.offerRelicChoice();
     if (s.kind === 'ai' && g.pendingRelicChoice && g.pendingRelicChoice.length) {
       const ids = g.pendingRelicChoice;

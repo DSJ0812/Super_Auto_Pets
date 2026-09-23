@@ -128,6 +128,11 @@ function initSeed() {
   let seed = p ? p.get('seed') : null;
   let dateKey = null;
 
+  // 宠物包：?pack=star。⚠️ 目前只在地址栏生效，主页还没放选择入口 ——
+  // 星包只做到 T1，选了会是个残包，等 6 个星级都齐了再开放。
+  const pack = p ? p.get('pack') : null;
+  if (pack && typeof PACKS !== 'undefined' && PACKS[pack]) CFG.PACK = pack;
+
   if (daily) {
     dateKey = RNG.dailySeed();          // daily-2026-09-23，同一天所有人都一样
     seed = dateKey;
@@ -135,7 +140,7 @@ function initSeed() {
     seed = RNG.randomSeed();            // 每局都有种子，好玩的一局才能发给别人
   }
   RNG.seed(seed);
-  return { seed: seed, daily: daily, dateKey: dateKey };
+  return { seed: seed, daily: daily, dateKey: dateKey, pack: activePack() };
 }
 
 /* 分享用的地址。file:// 打开的页面没有能分享的地址，就退回种子本身 */
@@ -466,7 +471,9 @@ function renderCodexInto(bodyEl, subEl) {
   let html = '';
   let nPet = 0, nToken = 0, nFood = 0, nRelic = 0;
 
-  /* ---- 可购买宠物：按星级分组 ---- */
+  /* ---- 可购买宠物：先按宠物包分组，再按星级 ----
+   * 两个包混在一起看会很乱（同一个 Tier 1 里既有龟包也有星包），
+   * 所以先给一行包标题，再列各星级。 */
   const ids = Object.keys(PETS).filter(function (k) {
     const d = PETS[k];
     return !d.token && d.tier >= 1;
@@ -475,14 +482,28 @@ function renderCodexInto(bodyEl, subEl) {
     if (A.tier !== B.tier) return A.tier - B.tier;
     return (A.cn || A.name).localeCompare(B.cn || B.name, 'zh-CN');
   });
-  const byTier = {};
-  for (const id of ids) (byTier[PETS[id].tier] = byTier[PETS[id].tier] || []).push(id);
-  for (const t of Object.keys(byTier).sort(function (a, b) { return a - b; })) {
-    html += '<div class="codex-tier">' + (TIER_NAME[t] || 'Tier ' + t) +
-            ' · ' + byTier[t].length + ' 只</div><div class="codex-grid">';
-    for (const id of byTier[t]) html += codexPetCard(id);
-    html += '</div>';
-    nPet += byTier[t].length;
+
+  const packIds = (typeof PACKS !== 'undefined') ? Object.keys(PACKS) : ['turtle'];
+  for (const pk of packIds) {
+    const mine = ids.filter(function (id) { return packOf(id) === pk; });
+    if (!mine.length) continue;
+    const info = (typeof PACKS !== 'undefined' && PACKS[pk]) || { cn: pk, icon: '' };
+
+    // 只有一个包有宠物时不显示包标题，免得白占一行
+    if (packIds.filter(function (q) { return ids.some(function (id) { return packOf(id) === q; }); }).length > 1) {
+      html += '<div class="codex-pack">' + info.icon + ' ' + esc(info.cn) +
+              ' · ' + mine.length + ' 只</div>';
+    }
+
+    const byTier = {};
+    for (const id of mine) (byTier[PETS[id].tier] = byTier[PETS[id].tier] || []).push(id);
+    for (const t of Object.keys(byTier).sort(function (a, b) { return a - b; })) {
+      html += '<div class="codex-tier">' + (TIER_NAME[t] || 'Tier ' + t) +
+              ' · ' + byTier[t].length + ' 只</div><div class="codex-grid">';
+      for (const id of byTier[t]) html += codexPetCard(id);
+      html += '</div>';
+      nPet += byTier[t].length;
+    }
   }
 
   /* ---- 召唤物 ---- */

@@ -34,6 +34,19 @@ function battleFind(view, uid) {
   return null;
 }
 
+/* 把展示镜像里某个 uid 的宠物移动到新位置（推位事件用） */
+function battleMoveTo(view, uid, to) {
+  if (!view) return;
+  for (const key of ['mine', 'foe']) {
+    const arr = view[key];
+    const i = arr.findIndex(function (p) { return p.uid === uid; });
+    if (i < 0) continue;
+    const pet = arr.splice(i, 1)[0];
+    arr.splice(Math.max(0, Math.min(to, arr.length)), 0, pet);
+    return;
+  }
+}
+
 /* ------------------------------------------------------------
  *  回放器
  *  opt = {
@@ -158,6 +171,13 @@ BattlePlayer.prototype.step = function () {
       this._hi = [ev.t];
       break;
     }
+    case 'push': {
+      battleMoveTo(state.view, ev.t, ev.to);
+      const t = battleFind(state.view, ev.t);
+      if (t) label = petName(t.pet.def) + ' 被推向前排';
+      this._hi = [ev.t];
+      break;
+    }
     case 'ability': this._hi = [ev.t]; break;
 
     case 'battleEnd':
@@ -219,6 +239,7 @@ BattlePlayer.prototype.apply = function (ev) {
       });
       break;
     }
+    case 'push': battleMoveTo(state.view, ev.t, ev.to); break;
   }
 };
 

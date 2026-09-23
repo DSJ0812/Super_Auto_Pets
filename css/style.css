@@ -426,6 +426,18 @@ html, body {
 }
 .codex-tier:first-child { margin-top: 0; }
 
+/* 宠物包大标题（图鉴里区分龟包 / 星包） */
+.codex-pack {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold);
+  margin: 26px 0 4px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid rgba(245,196,81,.28);
+  letter-spacing: .5px;
+}
+.codex-pack:first-child { margin-top: 0; }
+
 .codex-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));

@@ -31,7 +31,9 @@ const TOKEN_PETS = {
   // T4-T6 扩展带来的新召唤物
   Bus:           { name: 'Bus',            cn: '巴士',       tier: 5, atk: 5, hp: 3, token: true, perk: 'Chili' },
   Chick:         { name: 'Chick',          cn: '小鸡',       tier: 0, atk: 1, hp: 1, token: true },
-  ZombieFly:     { name: 'Zombie Fly',     cn: '僵尸苍蝇',   tier: 0, atk: 4, hp: 4, token: true }
+  ZombieFly:     { name: 'Zombie Fly',     cn: '僵尸苍蝇',   tier: 0, atk: 4, hp: 4, token: true },
+  // 星包召唤物
+  CookedRoach:   { name: 'Cooked Roach',   cn: '熟蟑螂',     tier: 0, atk: 1, hp: 1, token: true }
 };
 
 /* ------------------------------------------------------------
@@ -740,6 +742,140 @@ const PETS = {
         if (c.self._wolv % 4 !== 0) return;
         const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
         for (const p of foes) g.hit(p, 2);
+      }
+    }
+  },
+
+  /* ============================================================
+   *  星包 Star Pack
+   *
+   *  数据来源：官方 wiki 的宠物页（本仓库 sap_ref/wiki_pet.html）。
+   *  ⚠️ sap_ref 里的 Rust 参考实现【不能按宠物名信】—— 它的名字↔技能映射
+   *     是错位的（PetName::Pillbug 挂的其实是长臂猿的技能，而 Gibbon 根本
+   *     不存在）。所以技能一律照 wiki 描述实现，Rust 只用来按内容查机制语义。
+   *
+   *  没写 pack 字段的宠物都算龟包（见 game.js 的 packOf），所以这里每只都要写。
+   * ============================================================ */
+
+  /* ==================== 星包 Tier 1 ==================== */
+
+  Chihuahua: {
+    name: 'Chihuahua', cn: '吉娃娃', tier: 1, atk: 4, hp: 1, pack: 'star',
+    texts: ['开战时：把生命最高的敌人向前推 1 格',
+            '开战时：把生命最高的敌人向前推 2 格',
+            '开战时：把生命最高的敌人向前推 3 格'],
+    hooks: {
+      startOfBattle: function (g, c) {
+        const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
+        if (!foes.length) return;
+        let best = foes[0];
+        for (const p of foes) if (p.hp > best.hp) best = p;
+        g.push(best, c.lvl);
+      }
+    }
+  },
+
+  Cockroach: {
+    name: 'Cockroach', cn: '蟑螂', tier: 1, atk: 1, hp: 1, pack: 'star',
+    texts: ['阵亡：召唤 1 个 1/1 熟蟑螂，并给它 +1 经验',
+            '阵亡：召唤 1 个 1/1 熟蟑螂，并给它 +2 经验',
+            '阵亡：召唤 1 个 1/1 熟蟑螂，并给它 +3 经验'],
+    hooks: {
+      faint: function (g, c) {
+        const p = g.summon(c.self.side, g.indexOf(c.self), 'CookedRoach',
+                           { atk: 1, hp: 1, lvl: 1 });
+        if (p) g.grantExp(p, c.lvl);
+      }
+    }
+  },
+
+  Duckling: {
+    name: 'Duckling', cn: '小鸭', tier: 1, atk: 1, hp: 2, pack: 'star',
+    texts: ['出售：给最左边的商店宠物 +2 生命',
+            '出售：给最左边的商店宠物 +4 生命',
+            '出售：给最左边的商店宠物 +6 生命'],
+    hooks: {
+      sell: function (g, c) { g.buffShopAt(0, 0, c.lvl * 2); }
+    }
+  },
+
+  Firefly: {
+    name: 'Firefly', cn: '萤火虫', tier: 1, atk: 2, hp: 2, pack: 'star',
+    texts: ['阵亡：对 1 格内的所有宠物造成 1 伤害',
+            '阵亡：对 2 格内的所有宠物造成 1 伤害',
+            '阵亡：对 3 格内的所有宠物造成 1 伤害'],
+    hooks: {
+      faint: function (g, c) { g.hitWithin(c.self, c.lvl, 1); }
+    }
+  },
+
+  Frog: {
+    name: 'Frog', cn: '青蛙', tier: 1, atk: 3, hp: 2, pack: 'star',
+    texts: ['出售：若两侧相邻友方都不超过 2 阶，交换它们的属性',
+            '出售：若两侧相邻友方都不超过 4 阶，交换它们的属性',
+            '出售：若两侧相邻友方都不超过 6 阶，交换它们的属性'],
+    hooks: {
+      sell: function (g, c) {
+        const team = g.game.team;
+        const i = team.indexOf(c.self);
+        const left = team[i - 1], right = team[i + 1];
+        if (!left || !right) return;
+        const limit = c.lvl * 2;
+        const tierOf = function (p) { return (PETS[p.defId] || {}).tier || 1; };
+        if (tierOf(left) <= limit && tierOf(right) <= limit) g.swapStats(left, right);
+      }
+    }
+  },
+
+  Gibbon: {
+    name: 'Gibbon', cn: '长臂猿', tier: 1, atk: 2, hp: 2, pack: 'star',
+    texts: ['商店升级时：给身后最近的 2 只友方 +1 生命',
+            '商店升级时：给身后最近的 2 只友方 +2 生命',
+            '商店升级时：给身后最近的 2 只友方 +3 生命'],
+    hooks: {
+      shopTierUpgraded: function (g, c) {
+        for (const p of g.behind(c.self, 2)) g.buff(p, 0, c.lvl);
+      }
+    }
+  },
+
+  Marmoset: {
+    name: 'Marmoset', cn: '狨猴', tier: 1, atk: 2, hp: 3, pack: 'star',
+    texts: ['出售：接下来 1 次刷新免费',
+            '出售：接下来 2 次刷新免费',
+            '出售：接下来 3 次刷新免费'],
+    hooks: {
+      sell: function (g, c) { g.freeRolls(c.lvl); }
+    }
+  },
+
+  Mouse: {
+    name: 'Mouse', cn: '老鼠', tier: 1, atk: 1, hp: 2, pack: 'star',
+    texts: ['出售：把商店食物换成一个免费苹果',
+            '出售：把商店食物换成一个免费优质苹果',
+            '出售：把商店食物换成一个免费顶级苹果'],
+    hooks: {
+      sell: function (g, c) {
+        const id = ['Apple', 'BetterApple', 'BestApple'][c.lvl - 1] || 'Apple';
+        const game = g.game;
+        // 官方是「清空食物位，然后放一个」——不是每个位置都塞满
+        for (let i = 0; i < game.shopFoods.length; i++) {
+          game.shopFoods[i] = null;
+          game.frozenFoods[i] = false;
+        }
+        g.stock(id, 0);
+      }
+    }
+  },
+
+  Termite: {
+    name: 'Termite', cn: '白蚁', tier: 1, atk: 1, hp: 4, pack: 'star',
+    texts: ['回合开始：把攻击设为当前商店等级 +1',
+            '回合开始：把攻击设为当前商店等级 +2',
+            '回合开始：把攻击设为当前商店等级 +3'],
+    hooks: {
+      startTurn: function (g, c) {
+        g.setAtk(c.self, g.game.getShopTier() + c.lvl);
       }
     }
   }

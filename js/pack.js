@@ -75,7 +75,8 @@ function packSelf(game, seat) {
     relics: game.relics.slice(),
     shopNotes: (game.shopNotes || []).slice(),
     lastIncome: game.lastIncome || null,
-    foodDiscount: game.foodDiscount || 0
+    foodDiscount: game.foodDiscount || 0,
+    freeRolls: game.freeRolls || 0
   };
 }
 
@@ -101,6 +102,7 @@ function gameFromPack(pk) {
   g.history = [];
   g.shopNotes = (pk.shopNotes || []).slice();
   g.foodDiscount = pk.foodDiscount || 0;
+  g.freeRolls = pk.freeRolls || 0;
   g.relics = (pk.relics || []).slice();
   g.pendingRelicChoice = pk.pendingRelicChoice ? pk.pendingRelicChoice.slice() : null;
   g.relicChoiceDone = {};
