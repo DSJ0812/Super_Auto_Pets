@@ -50,7 +50,7 @@ const FACTION_MEMBERS = {
         'Cockroach', 'Firefly', 'Termite', 'Leech', 'Pillbug', 'PrayingMantis'],
   aqua: ['Fish', 'Crab', 'Dolphin', 'Blowfish', 'Whale', 'Seal', 'Shark',
          'Bass', 'Jellyfish', 'Seahorse', 'Eel', 'Tuna', 'Clownfish', 'SeaAnemone', 'Blobfish',
-         'HammerheadShark', 'Orca', 'Piranha', 'Platypus', 'Penguin', 'Starfish'],
+         'HammerheadShark', 'Orca', 'Piranha', 'Platypus', 'Penguin', 'Starfish', 'Ammonite'],
   bird: ['Duck', 'Pigeon', 'Flamingo', 'Peacock', 'Swan', 'Dodo', 'Parrot', 'Rooster', 'Turkey',
          'Duckling', 'Hummingbird', 'Kiwi', 'AtlanticPuffin', 'Dove', 'Stork', 'Cardinal',
          'Cassowary', 'Crow', 'Hawk', 'Sparrow', 'Shoebill', 'Vulture', 'Woodpecker',
@@ -62,7 +62,7 @@ const FACTION_MEMBERS = {
   critter: ['Beaver', 'Otter', 'Sloth', 'Hedgehog', 'Rat', 'Badger', 'Dog', 'Rabbit', 'Sheep',
             'Skunk', 'Squirrel', 'Armadillo', 'Monkey', 'Cat', 'Chihuahua', 'Gibbon', 'Marmoset',
             'Mouse', 'GuineaPig', 'Capybara', 'Okapi', 'Orangutan', 'Pug', 'Fossa', 'Fox',
-            'Hamster', 'SiberianHusky', 'Koala'],
+            'Hamster', 'SiberianHusky', 'Koala', 'FairyArmadillo'],
   // 龙、乌龟、鳄鱼都算爬行 —— 它们在分类上本来就是爬行动物。
   // 乌龟/鳄鱼放这里是为了让龟包里的爬行阵营从 T4 起就能凑到（否则龟包里
   // 爬行只有 T6 的蛇和龙，等于永远激活不了）。

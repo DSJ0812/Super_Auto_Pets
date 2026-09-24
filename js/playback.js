@@ -165,6 +165,17 @@ BattlePlayer.prototype.step = function () {
       this._hi = [ev.t];
       break;
     }
+    case 'transform': {
+      const t = battleFind(state.view, ev.t);
+      if (t) {
+        t.pet.defId = ev.id;
+        t.pet.def = (typeof PETS !== 'undefined' && PETS[ev.id]) ? PETS[ev.id] : t.pet.def;
+        t.pet.atk = ev.atk; t.pet.hp = ev.hp; t.pet.lvl = ev.lvl;
+        label = '变成了 ' + petName(t.pet.def);
+      }
+      this._hi = [ev.t];
+      break;
+    }
     case 'summon': {
       // side 0 = 视图左边（我方），side 1 = 右边（对手）
       const key = (ev.side === 0) ? 'mine' : 'foe';
@@ -241,6 +252,15 @@ BattlePlayer.prototype.apply = function (ev) {
       break;
     }
     case 'faint':  { const t = battleFind(state.view, ev.t); if (t) { t.pet.hp = 0; t.pet._dead = true; } break; }
+    case 'transform': {
+      const t = battleFind(state.view, ev.t);
+      if (t) {
+        t.pet.defId = ev.id;
+        t.pet.def = (typeof PETS !== 'undefined' && PETS[ev.id]) ? PETS[ev.id] : t.pet.def;
+        t.pet.atk = ev.atk; t.pet.hp = ev.hp; t.pet.lvl = ev.lvl;
+      }
+      break;
+    }
     case 'summon': {
       const key = (ev.side === 0) ? 'mine' : 'foe';
       state.view[key].splice(ev.pos, 0, {

@@ -27,6 +27,7 @@ const EXPORTS = [
   'Game', 'ShopEnv', 'Fighter', 'Melee',
   'petCostOf', 'rollCostOf', 'buyablePool', 'PACKS', 'packOf', 'activePack', 'foodForPerk',
   'relicSum', 'rollRelics', 'applyRelicTurnStart', 'applyRelicBattleStart',
+  'applyPermBuffs',
   'petToJSON', 'petFromJSON', 'packSelf', 'gameFromPack', 'rosterOf',
   'OnlineGame', 'Seat', 'RNG',
   'FACTIONS', 'FACTION_MEMBERS', 'PET_FACTION', 'factionOf', 'factionInfo', 'teamFactions',

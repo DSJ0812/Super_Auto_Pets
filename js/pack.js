@@ -25,6 +25,7 @@ function petToJSON(p) {
     side: p.side,
     perks: (p.perks || []).map(function (x) { return { id: x.id, uses: x.uses }; }),
     copyDefId: p.copyDefId,
+    reduceFlat: p.reduceFlat,          // 星包仙球的常驻减伤
     // Whale 吞下去的友方是嵌套宠物，需要递归
     swallowed: p.swallowed ? petToJSON(p.swallowed) : undefined
   };
@@ -45,6 +46,7 @@ function petFromJSON(j) {
     side: (j.side == null) ? -1 : j.side
   };
   if (j.copyDefId) p.copyDefId = j.copyDefId;
+  if (j.reduceFlat) p.reduceFlat = j.reduceFlat;
   if (j.swallowed) p.swallowed = petFromJSON(j.swallowed);
   return p;
 }

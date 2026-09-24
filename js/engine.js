@@ -46,6 +46,8 @@ function makePet(defId, lvl, opts) {
   };
   // 有些召唤物自带 Perk（例如 Deer 召唤的巴士带辣椒）
   if (def && def.perk && !pet.perks.length) pet.perks = [{ id: def.perk, uses: 1 }];
+  // 常驻减伤（仙球这类 token 用 flatReduce 声明，不占 Perk 槽）
+  if (def && def.flatReduce) pet.reduceFlat = def.flatReduce * lvl;
   return pet;
 }
 
@@ -61,6 +63,7 @@ function clonePet(p) {
     perks: p.perks.map(function (x) { return { id: x.id, uses: x.uses }; }),
     side: p.side,
     copyDefId: p.copyDefId,     // Parrot 复制的技能来源
+    reduceFlat: p.reduceFlat,   // 星包仙球的常驻减伤
     swallowed: p.swallowed      // Whale 吞下去的友方
   };
 }
@@ -113,6 +116,17 @@ Battle.prototype.buff = function (pet, atk, hp) {
   if (atk) pet.atk += atk;
   if (hp)  pet.hp = Math.max(1, pet.hp + hp);
   this.emit({ e: 'buff', t: pet.uid, atk: atk || 0, hp: hp || 0 });
+};
+
+/* 加【永久】属性（星包仙犰狳「若还活着永久 +2 生命」）。
+ * 战斗跑在队伍副本上，所以这里除了当场加，还要额外发一条 permBuff 事件，
+ * 让 Game.resolveTurn 按 uid 回写到商店里的真实宠物上（见 game.js 的 applyPermBuffs）。 */
+Battle.prototype.buffPerm = function (pet, atk, hp) {
+  if (!pet || pet.hp <= 0) return;
+  if (atk) pet.atk += atk;
+  if (hp)  pet.hp = Math.max(1, pet.hp + hp);
+  this.emit({ e: 'buff', t: pet.uid, atk: atk || 0, hp: hp || 0 });
+  this.emit({ e: 'permBuff', t: pet.uid, atk: atk || 0, hp: hp || 0 });
 };
 
 // 造成伤害（含减伤计算），返回实际伤害。opts.friendly 见 calcDamage
@@ -181,6 +195,8 @@ Battle.prototype.calcDamage = function (pet, raw, opts) {
   //    —— 实测西瓜能连挡两次 10 点技能伤害都不消失。这里补上。
   if (used) pet._defUsed = used;
   if (dmg === null) dmg = Math.max(1, raw);
+  // 常驻减伤（星包仙球：受到的所有伤害减 2/4/6，不像 Perk 那样会被消耗）
+  if (pet.reduceFlat) dmg = Math.max(0, dmg - pet.reduceFlat);
   // 星包麻雀给的一次性减伤（和 Food Perk 无关，所以单独记一个字段）
   if (pet.reduceOnce > 0) {
     dmg = Math.max(0, dmg - pet.reduceOnce);
@@ -367,6 +383,40 @@ Battle.prototype.hitWithin = function (pet, spaces, dmg) {
   const targets = this.within(pet, spaces);
   for (const t of targets) this.hit(t, dmg);
   return targets;
+};
+
+/* ---- 变身：就地把 pet 换成另一只宠物 ----
+ * 官方「Transform」类技能用它（星包菊石 → 拟态章鱼、仙犰狳 → 仙球）。
+ * 规则：
+ *   · 保留 uid / 位置 / Perk（uid 不变，回放才能对应上同一个格子）
+ *   · 等级重置为 1（官方：变身会把目标等级重置，见菊石的 wiki 说明）
+ *   · 已经吃到的属性加成会保留 —— 变身后按新宠物的基础属性重算，再加上差额
+ *   · 变身不会致死，最低留 1 点生命
+ * 返回变身后的 pet。 */
+Battle.prototype.transform = function (pet, defId, opts) {
+  opts = opts || {};
+  if (!pet || pet.hp <= 0) return null;
+  const def = (typeof PETS !== 'undefined' && PETS[defId]) ? PETS[defId] : null;
+  if (!def) return null;
+  const lvl = opts.lvl || 1;
+  const bonus = EXP_BONUS[lvl] || 0;
+  const oldBonus = EXP_BONUS[pet.lvl] || 0;
+  // 已经吃到的加成 = 当前属性 - 旧基础属性（含旧等级经验）→ 变身后照样保留
+  const gainAtk = pet.atk - ((pet.def ? pet.def.atk : 1) + oldBonus);
+  const gainHp  = pet.hp  - ((pet.def ? pet.def.hp  : 1) + oldBonus);
+  pet.defId = defId;
+  pet.def = def;
+  pet.lvl = lvl;
+  pet.exp = 0;
+  pet.atk = Math.max(0, def.atk + bonus + gainAtk);
+  pet.hp  = Math.max(1, def.hp + bonus + gainHp);
+  if (def.perk) pet.perks = [{ id: def.perk, uses: 1 }];
+  pet.reduceFlat = def.flatReduce ? def.flatReduce * lvl : 0;
+  if (this.emit) {
+    this.emit({ e: 'transform', t: pet.uid, id: defId,
+                atk: pet.atk, hp: pet.hp, lvl: pet.lvl });
+  }
+  return pet;
 };
 
 /* ---- 战斗内给经验（每 1 点经验 = +1/+1，够了就升级）----

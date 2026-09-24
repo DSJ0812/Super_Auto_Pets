@@ -334,6 +334,37 @@ ShopEnv.prototype.hasPerk = function (pet, id) {
   return pet.perks.some(function (p) { return p.id === id; });
 };
 
+/* 把战斗里「永久」加成回写到商店队伍（星包仙犰狳）。
+ * 战斗跑在队伍【副本】上，所以引擎只能发 permBuff 事件，由这里按 uid 找回真实宠物。
+ * ⚠️ 三个跑战斗的地方都要调：solo/经典（resolveTurn）、8 人混战、联机。 */
+function applyPermBuffs(teams, log) {
+  if (!log || !log.length) return 0;
+  // teams 允许两种写法：[队伍A, 队伍B] 或者直接一个队伍（形如 [宠物, 宠物]）。
+  // ⚠️ 用「第一个元素是不是数组」来区分 —— 否则单个队伍会被当成队伍列表，
+  //    于是把宠物当成队伍去 .find()，直接 TypeError。
+  const list = (Array.isArray(teams) && Array.isArray(teams[0])) ? teams : [teams];
+  let n = 0;
+  for (const ev of log) {
+    if (ev.e !== 'permBuff') continue;
+    for (const team of list) {
+      if (!team || !Array.isArray(team)) continue;
+      const real = team.find(function (p) { return p.uid === ev.t; });
+      if (!real) continue;
+      if (ev.atk) real.atk += ev.atk;
+      if (ev.hp)  real.hp  = Math.max(1, real.hp + ev.hp);
+      n++;
+      break;
+    }
+  }
+  return n;
+}
+
+/* 商店里自己加【永久】属性（仙犰狳在商店受击时用）。
+ * 商店里的属性本来就是永久的，所以这里不需要额外的事件。 */
+ShopEnv.prototype.buffPerm = function (pet, atk, hp) {
+  return this.buff(pet, atk, hp);
+};
+
 /* 商店里给 Perk（星包考拉：友方在商店受伤时给桉树叶）。
  * 和 engine.js 的 Battle.givePerk 同规则：一只宠物同时只能带 1 个 Food Perk。 */
 ShopEnv.prototype.givePerk = function (pet, id, uses) {
@@ -342,6 +373,30 @@ ShopEnv.prototype.givePerk = function (pet, id, uses) {
   pet.weak = false;
   this.emit({ e: 'perk', t: pet.uid, id: id });
   this.notifyPerkGained(pet, id);
+};
+
+/* 商店里变身（星包菊石用安眠药在商店阵亡时，把身后的友方变成拟态章鱼）。
+ * 规则和 engine.js 的 Battle.transform 一致：等级重置为 1、已得加成保留、
+ * 不会致死。区别是这里直接改真实队伍里的宠物，所以是永久生效的。 */
+ShopEnv.prototype.transform = function (pet, defId, opts) {
+  opts = opts || {};
+  if (!pet || pet.hp <= 0) return null;
+  const def = PETS[defId];
+  if (!def) return null;
+  const lvl = opts.lvl || 1;
+  const bonus = EXP_BONUS[lvl] || 0;
+  const oldBonus = EXP_BONUS[pet.lvl] || 0;
+  const gainAtk = pet.atk - ((pet.def ? pet.def.atk : 1) + oldBonus);
+  const gainHp  = pet.hp  - ((pet.def ? pet.def.hp  : 1) + oldBonus);
+  pet.defId = defId;
+  pet.def = def;
+  pet.lvl = lvl;
+  pet.exp = 0;
+  pet.atk = Math.max(0, def.atk + bonus + gainAtk);
+  pet.hp  = Math.max(1, def.hp + bonus + gainHp);
+  if (def.perk) pet.perks = [{ id: def.perk, uses: 1 }];
+  this.emit({ e: 'transform', t: pet.uid, id: defId, atk: pet.atk, hp: pet.hp, lvl: pet.lvl });
+  return pet;
 };
 
 /* 「直到战斗结束」的临时属性（星包霍加狓：刷新时 +1/+1 直到战斗结束）。
@@ -1064,6 +1119,8 @@ Game.prototype.endTurn = function () {
   applySynergyBattleStart(this, myTeam);
   applySynergyBattleStart(this, foeTeam);
   const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier(), rolls: this.rollsThisTurn || 0, turn: this.turn });
+  // 战斗里的「永久」加成回写到真实队伍（星包仙犰狳）
+  applyPermBuffs(this.team, result.log);
 
   this.phase = 'battle';
   this.lastResult = {

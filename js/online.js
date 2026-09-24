@@ -352,6 +352,8 @@ OnlineGame.prototype.resolveTurn = function () {
     applyRelicBattleStart(b.game, bTeam, aTeam);
     applySynergyBattleStart(b.game, bTeam);
     const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0, turn: a.game.turn });
+    // 战斗里的「永久」加成回写到双方真实队伍（星包仙犰狳）
+    applyPermBuffs([a.game.team, b.game.team], res.log);
 
     let win = null, lose = null;
     if (res.winner === 0)      { win = a; lose = b; }

@@ -33,7 +33,31 @@ const TOKEN_PETS = {
   Chick:         { name: 'Chick',          cn: '小鸡',       tier: 0, atk: 1, hp: 1, token: true },
   ZombieFly:     { name: 'Zombie Fly',     cn: '僵尸苍蝇',   tier: 0, atk: 4, hp: 4, token: true },
   // 星包召唤物
-  CookedRoach:   { name: 'Cooked Roach',   cn: '熟蟑螂',     tier: 0, atk: 1, hp: 1, token: true }
+  CookedRoach:   { name: 'Cooked Roach',   cn: '熟蟑螂',     tier: 0, atk: 1, hp: 1, token: true },
+  /* 仙球（仙犰狳受伤存活后变身的形态）。
+   * 官方它是唯一带真技能的 token 之一：受到的所有伤害减 2/4/6（像大蒜，但常驻）。
+   * ⚠️ 用 flatReduce 字段而不是 Perk —— Perk 只允许带 1 个且会被消耗，
+   *    而仙球的减伤是常驻的、并且不该占掉食物 Perk 槽。 */
+  FairyBall:     {
+    name: 'Fairy Ball', cn: '仙球', tier: 4, atk: 2, hp: 6, token: true, flatReduce: 2,
+    texts: ['受到的所有伤害减少 2', '受到的所有伤害减少 4', '受到的所有伤害减少 6']
+  },
+  /* 拟态章鱼（菊石阵亡时把身后的友方变成它）。
+   * 官方它 tier 算 6，而且有真技能：攻击后对生命最低的 1/2/3 个敌人各 4 伤害。 */
+  MimicOctopus:  {
+    name: 'Mimic Octopus', cn: '拟态章鱼', tier: 6, atk: 4, hp: 7, token: true,
+    texts: ['攻击后：对生命最低的 1 个敌人造成 4 伤害',
+            '攻击后：对生命最低的 2 个敌人造成 4 伤害',
+            '攻击后：对生命最低的 3 个敌人造成 4 伤害'],
+    hooks: {
+      afterAttack: function (g, c) {
+        const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
+        if (!foes.length) return;
+        foes.sort(function (a, b) { return a.hp - b.hp; });
+        for (let i = 0; i < c.lvl && i < foes.length; i++) g.hit(foes[i], 4);
+      }
+    }
+  }
 };
 
 /* ------------------------------------------------------------
@@ -1869,6 +1893,52 @@ const PETS = {
         if (!cand.length) return;
         const n = c.lvl * (g.turn || 1);
         g.buff(RNG.pick(cand), n, n);
+      }
+    }
+  },
+
+  /* 仙犰狳：受伤且存活 → 永久 +2 生命 + 变成仙球。
+   * 官方 v0.37 改成「每次受伤都 +2」（以前要被打两次），而且三级都是 +2。
+   * 「永久」靠 g.buffPerm 发 permBuff 事件、由 Game 按 uid 回写到商店队伍
+   * （战斗跑在副本上，见 game.js 的 applyPermBuffs）。
+   * 变身之后这个宠物就没有 hurt 钩子了（仙球没技能），所以每场战斗只触发一次。
+   * 官方说的是「变成保护球」，这里的变身只发生在战斗内 ——
+   * 商店里的仙犰狳保留原名继续吃永久生命，这样它才能持续成长。 */
+  FairyArmadillo: {
+    name: 'Fairy Armadillo', cn: '仙犰狳', tier: 4, atk: 2, hp: 6, pack: 'star',
+    texts: ['受伤时：若还活着，永久 +2 生命，并变成仙球（受伤减 2）',
+            '受伤时：若还活着，永久 +2 生命，并变成仙球（受伤减 4）',
+            '受伤时：若还活着，永久 +2 生命，并变成仙球（受伤减 6）'],
+    hooks: {
+      hurt: function (g, c) {
+        if (c.self.hp <= 0) return;              // 「若还活着」
+        if (g.buffPerm) g.buffPerm(c.self, 0, 2);
+        else g.buff(c.self, 0, 2);
+        if (g.transform) g.transform(c.self, 'FairyBall', { lvl: c.lvl });
+      }
+    }
+  },
+
+  /* 菊石：阵亡时把【身后】的友方变成 1 级拟态章鱼。
+   * 官方 v0.41 把「把最前面 N 个友方变成蝴蝶」改成了这个版本 ——
+   * 这里跟当前官方走（蝴蝶那个版本是旧版）。
+   * 「每刷新 2 次给 +N 经验」只在【战斗中】结算（官方原文 "in battle"），
+   * 所以拿安眠药在商店里杀掉菊石时只会变身、不给经验。
+   * 官方小技巧：4 次刷新 → 2 经验 → 2 级；10 次 → 5 经验 → 3 级。 */
+  Ammonite: {
+    name: 'Ammonite', cn: '菊石', tier: 6, atk: 5, hp: 3, pack: 'star',
+    texts: ['阵亡：把身后的友方变成 1 级拟态章鱼。战斗中每刷新 2 次再给它 +1 经验',
+            '阵亡：把身后的友方变成 1 级拟态章鱼。战斗中每刷新 2 次再给它 +2 经验',
+            '阵亡：把身后的友方变成 1 级拟态章鱼。战斗中每刷新 2 次再给它 +3 经验'],
+    hooks: {
+      faint: function (g, c) {
+        const behind = g.behind(c.self, 1)[0];
+        if (!behind || behind.hp <= 0) return;
+        const oct = g.transform(behind, 'MimicOctopus', { lvl: 1 });
+        if (!oct) return;
+        if (g.rolls == null) return;                 // 商店里不给经验
+        const exp = c.lvl * Math.floor(g.rolls / 2);
+        if (exp > 0) g.grantExp(oct, exp);
       }
     }
   },
