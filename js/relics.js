@@ -19,7 +19,10 @@ const RELICS = {
   },
   bank: {
     name: 'Bank', cn: '钱庄', icon: '🏦', tag: '经济',
-    desc: '利息上限 +3（攒钱更划算）',
+    desc: '利息上限 +3（攒钱更划算）｜仅 8 人混战（经典模式没有利息机制）',
+    // ⚠️ 只有 TFT 经济（8 人混战）有利息。经典模式是 SAP 经济（每回合固定
+    //    发钱、不累积、无利息），抽到它就是白给 —— 所以这里标上只适用于 tft。
+    economy: 'tft',
     interestMax: 3
   },
   broker: {
@@ -101,9 +104,18 @@ const RELICS = {
 /* 可以抽到的遗物 id 列表 */
 const RELIC_IDS = Object.keys(RELICS);
 
-/* 从池子里随机抽 n 个（排除已拥有的） */
-function rollRelics(owned, n) {
-  const pool = RELIC_IDS.filter(function (id) { return owned.indexOf(id) < 0; });
+/* 从池子里随机抽 n 个（排除已拥有的、以及不适用于当前经济模式的）
+ * ⚠️ economy: 'sap'（经典，无利息）/'tft'（8 人混战，有利息）。
+ *    不带 economy 字段的遗物两种模式都能用。
+ *    之前没过滤，经典模式会抽到「钱庄（利息上限 +3）」—— 经典模式根本没利息，
+ *    等于白送一个空遗物位。 */
+function rollRelics(owned, n, economy) {
+  const eco = economy || CFG.ECONOMY;
+  const pool = RELIC_IDS.filter(function (id) {
+    if (owned.indexOf(id) >= 0) return false;
+    const r = RELICS[id];
+    return !r.economy || r.economy === eco;
+  });
   const out = [];
   for (let i = pool.length - 1; i > 0; i--) {
     const j = RNG.int(i + 1);

@@ -438,7 +438,11 @@ OnlineGame.prototype.resolveTurn = function () {
         mine: rp.mine.map(petToJSON),
         foe: rp.theirs.map(petToJSON),
         foeName: rp.foe.name,
-        winner: winFlag
+        // ⚠️ 发【引擎视角】的 winner（0 = 日志里的 side 0 赢），和 log 保持同一套语义。
+        //    客户端拿 isA 换成 mySide 再翻译成「我赢/我输」。
+        //    winFlag 是玩家视角，只用于战报里的文字。
+        winner: rp.res.winner,
+        winnerFlag: winFlag
       },
       roster: roster
     };

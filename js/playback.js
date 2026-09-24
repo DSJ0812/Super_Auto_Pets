@@ -71,20 +71,30 @@ BattlePlayer.prototype.speed = function () {
 };
 
 /* 开始回放
- *  state  各界面自己的状态对象（会被写入 view / log / idx / timer）
+ *  state  各界面自己的状态对象（会被写入 view / log / idx / timer / mySide）
  *  log    引擎事件日志
  *  mine   我方开战前队伍（原始宠物对象）
  *  foe    对手开战前队伍
- *  label  开场文案 */
-BattlePlayer.prototype.start = function (state, log, mine, foe, label) {
+ *  label  开场文案
+ *  opts.mySide  我方在【引擎】里是 side 0 还是 side 1（默认 0）
+ *               ⚠️ 8 人混战/联机的配对里，玩家可能是 b 方（引擎 side 1）。
+ *                  引擎的 summon 事件是按 side 决定插到哪一边的，不做这个
+ *                  翻译的话，我方的召唤物会被插到【对手】那一侧；
+ *                  胜负判定（winner 0/1）也会反过来说。 */
+BattlePlayer.prototype.start = function (state, log, mine, foe, label, opts) {
   this.state = state;
+  const mySide = (opts && opts.mySide != null) ? opts.mySide : 0;
+  state.mySide = mySide;
   state.log = log || [];
   state.idx = 0;
   state.view = {
-    mine: (mine || []).map(function (p) { return battleCloneView(p, 0); }),
-    foe:  (foe  || []).map(function (p) { return battleCloneView(p, 1); })
+    mine: (mine || []).map(function (p) { return battleCloneView(p, mySide); }),
+    foe:  (foe  || []).map(function (p) { return battleCloneView(p, 1 - mySide); })
   };
   this._hi = null;
+  // 日志跑完时 step() 会调 finish()（不带参数），所以把胜负先存起来。
+  // ⚠️ winner 一律是【引擎视角】的 0/1，由 finish() 按 mySide 翻译成「我赢/我输」。
+  if (opts && opts.winner != null) this._defaultWinner = opts.winner;
 
   const sv = this.$(this.el.shopView);
   const bv = this.$(this.el.battleView);
@@ -178,7 +188,8 @@ BattlePlayer.prototype.step = function () {
     }
     case 'summon': {
       // side 0 = 视图左边（我方），side 1 = 右边（对手）
-      const key = (ev.side === 0) ? 'mine' : 'foe';
+      // ⚠️ 必须和 state.mySide 比 —— 玩家不一定是引擎的 side 0
+      const key = (ev.side === (state.mySide || 0)) ? 'mine' : 'foe';
       state.view[key].splice(ev.pos, 0, {
         uid: ev.t, defId: ev.defId, def: PETS[ev.defId], lvl: ev.lvl || 1,
         atk: ev.atk, hp: ev.hp, perks: [], side: ev.side
@@ -262,7 +273,7 @@ BattlePlayer.prototype.apply = function (ev) {
       break;
     }
     case 'summon': {
-      const key = (ev.side === 0) ? 'mine' : 'foe';
+      const key = (ev.side === (state.mySide || 0)) ? 'mine' : 'foe';
       state.view[key].splice(ev.pos, 0, {
         uid: ev.t, defId: ev.defId, def: PETS[ev.defId], lvl: ev.lvl || 1,
         atk: ev.atk, hp: ev.hp, perks: [], side: ev.side
@@ -314,10 +325,18 @@ BattlePlayer.prototype.finish = function (winner) {
 
   const lb = this.$(this.el.label);
   if (lb) {
+    // ⚠️ winner 是【引擎视角】的 0/1（0 = side 0 赢），必须按 mySide 翻译成
+    //    「我赢/我输」—— 玩家在引擎里可能是 side 1，直接当成「0 就是我赢」
+    //    会把胜负显示反。
+    const mySide = (state && state.mySide != null) ? state.mySide : 0;
     let txt, cls;
-    if (winner === 0)      { txt = '🎉 这一场赢了！'; cls = 'win'; }
-    else if (winner === 1) { txt = '💀 这一场输了';   cls = 'lose'; }
-    else                   { txt = '🤝 平局';         cls = 'draw'; }
+    if (winner === 0 || winner === 1) {
+      const iWon = (winner === mySide);
+      txt = iWon ? '🎉 这一场赢了！' : '💀 这一场输了';
+      cls = iWon ? 'win' : 'lose';
+    } else {
+      txt = '🤝 平局'; cls = 'draw';
+    }
     lb.textContent = txt;
     lb.className = 'battle-label ' + cls;
   }

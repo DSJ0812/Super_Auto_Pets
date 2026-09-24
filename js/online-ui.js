@@ -451,7 +451,12 @@ function oOnBattle(d) {
   // ⚠️ 日志里的 uid 是按 uid 索引的，所以必须先解包出 def 再交给回放器
   const mine = (y.mine || []).map(petFromJSON);
   const foe  = (y.foe  || []).map(petFromJSON);
-  OPLAY.start(OUI, y.log, mine, foe, '对手：' + y.foeName);
+  // ⚠️ isA=false 时玩家是引擎的 side 1 —— 不翻译的话召唤物会跑到对手那一侧、
+  //    胜负也会反（和 8 人混战是同一个 bug）。
+  OPLAY.start(OUI, y.log, mine, foe, '对手：' + y.foeName, {
+    mySide: y.isA === false ? 1 : 0,
+    winner: y.winner            // 引擎视角，playback 会按 mySide 翻译
+  });
 }
 
 /* 出局后的观战画面：没有自己的战斗可看，但还能看战报、能推进 */

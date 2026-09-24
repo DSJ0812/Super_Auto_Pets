@@ -9,37 +9,77 @@
  *  依赖：data.js（PETS / petName）
  * ============================================================ */
 
-/* 宠物表情（纯装饰） */
+/* 宠物表情（纯装饰）
+ * ⚠️ 每只宠物都必须在这里有一条 —— 否则卡片会 fallback 成 🐾（两个爪爪），
+ *    星包刚加进来时就是这样，整包宠物长得一模一样。
+ *    有一条测试（emoji.js）会检查「所有宠物/食物都有 emoji」，别再漏了。 */
 const PET_EMOJI = {
+  /* ---- 龟包 Tier 1 ---- */
   Ant: '🐜', Beaver: '🦫', Cricket: '🦗', Duck: '🦆', Fish: '🐟', Horse: '🐴',
   Mosquito: '🦟', Otter: '🦦', Pig: '🐷', Pigeon: '🐦', Sloth: '🦥',
+  /* ---- 龟包 Tier 2 ---- */
   Crab: '🦀', Flamingo: '🦩', Hedgehog: '🦔', Kangaroo: '🦘', Peacock: '🦚',
   Rat: '🐀', Snail: '🐌', Spider: '🕷️', Swan: '🦢', Worm: '🪱',
+  /* ---- 龟包 Tier 3 ---- */
   Badger: '🦡', Camel: '🐫', Dodo: '🦤', Dog: '🐕', Dolphin: '🐬',
   Elephant: '🐘', Giraffe: '🦒', Ox: '🐂', Rabbit: '🐰', Sheep: '🐑',
-  /* Tier 4 */
+  /* ---- 龟包 Tier 4 ---- */
   Bison: '🦬', Blowfish: '🐡', Deer: '🦌', Hippo: '🦛', Parrot: '🦜',
   Penguin: '🐧', Skunk: '🦨', Squirrel: '🐿️', Turtle: '🐢', Whale: '🐋',
-  /* Tier 5 */
+  /* ---- 龟包 Tier 5 ---- */
   Armadillo: '🦔', Cow: '🐄', Crocodile: '🐊', Monkey: '🐒', Rhino: '🦏',
   Rooster: '🐓', Scorpion: '🦂', Seal: '🦭', Shark: '🦈', Turkey: '🦃',
-  /* Tier 6 */
+  /* ---- 龟包 Tier 6 ---- */
   Boar: '🐗', Cat: '🐈', Dragon: '🐉', Fly: '🪰', Gorilla: '🦍',
   Leopard: '🐆', Mammoth: '🦣', Snake: '🐍', Tiger: '🐅', Wolverine: '🐺',
-  /* 召唤物 */
+
+  /* ---- 星包 Tier 1 ---- */
+  Pillbug: '🪲', Chihuahua: '🐕', Cockroach: '🪳', Duckling: '🐤', Firefly: '✨',
+  Frog: '🐸', Gibbon: '🐒', Hummingbird: '🐦', Kiwi: '🥝', Marmoset: '🐒',
+  Mouse: '🐭', Termite: '🐜',
+  /* ---- 星包 Tier 2 ---- */
+  AtlanticPuffin: '🐧', Bass: '🐟', Dove: '🕊️', GuineaPig: '🐹', Iguana: '🦎',
+  Jellyfish: '🪼', Panda: '🐼', Salamander: '🦎', Seahorse: '🐠', Stork: '🐦',
+  Yak: '🐂', Roadrunner: '🐦', Koala: '🐨',
+  /* ---- 星包 Tier 3 ---- */
+  Anteater: '🐜', Capybara: '🐹', Cardinal: '🐦', Cassowary: '🦤', Eel: '🐍',
+  Leech: '🪱', Okapi: '🦓', Orangutan: '🦧', Pug: '🐕', Toad: '🐸', Tuna: '🐟',
+  /* ---- 星包 Tier 4 ---- */
+  Clownfish: '🐠', Crow: '🐦', Donkey: '🫏', Elk: '🦌', Fossa: '🐆',
+  Hawk: '🦅', Platypus: '🦫', SeaAnemone: '🪸', Sparrow: '🐦', PrayingMantis: '🦗',
+  RacketTail: '🐦', FairyArmadillo: '🦔',
+  /* ---- 星包 Tier 5 ---- */
+  Ibex: '🐐', Blobfish: '🐡', Fox: '🦊', Hamster: '🐹', Lion: '🦁',
+  PolarBear: '🐻', Shoebill: '🐦', SiberianHusky: '🐕', Starfish: '⭐',
+  Triceratops: '🦕', Vulture: '🦅', Woodpecker: '🐦', Zebra: '🦓',
+  /* ---- 星包 Tier 6 ---- */
+  Alpaca: '🦙', HammerheadShark: '🦈', HarpyEagle: '🦅', Komodo: '🦎',
+  Orca: '🐋', Ostrich: '🦤', Piranha: '🐟', RealVelociraptor: '🦖',
+  Reindeer: '🦌', SabertoothTiger: '🐯', Spinosaurus: '🦖', Stegosaurus: '🦕',
+  Velociraptor: '🦖', TerrorBird: '🦤', Therizinosaurus: '🦖', Ammonite: '🐚',
+
+  /* ---- 召唤物 ---- */
   ZombieCricket: '🧟', DirtyRat: '🐭', Ram: '🐏', Bee: '🐝',
-  Bus: '🚌', Chick: '🐤', ZombieFly: '🪳'
+  Bus: '🚌', Chick: '🐤', ZombieFly: '🪳', CookedRoach: '🪳',
+  FairyBall: '🔮', MimicOctopus: '🐙'
 };
 
 const PERK_EMOJI = {
   Melon: '🍉', Honey: '🍯', Garlic: '🧄',
-  Chili: '🌶️', Peanut: '🥜', Coconut: '🥥'
+  Chili: '🌶️', Peanut: '🥜', Coconut: '🥥',
+  /* 星包 */
+  Strawberry: '🍓', Cucumber: '🥒', Cheese: '🧀', Grapes: '🍇',
+  Carrot: '🥕', Pepper: '🧂', Popcorn: '🍿', Eucalyptus: '🌿'
 };
 
 const FOOD_EMOJI = {
   Apple: '🍎', BetterApple: '🍎', BestApple: '🍎',
   Honey: '🍯', Melon: '🍉', Chili: '🌶️', Peanut: '🥜', Coconut: '🥥',
-  Milk: '🥛', BetterMilk: '🥛', BestMilk: '🥛', BreadCrumbs: '🍞'
+  Milk: '🥛', BetterMilk: '🥛', BestMilk: '🥛', BreadCrumbs: '🍞',
+  /* 星包食物 */
+  Strawberry: '🍓', Chocolate: '🍫', Cucumber: '🥒', Cheese: '🧀',
+  Grapes: '🍇', Carrot: '🥕', Pepper: '🧂', Popcorn: '🍿',
+  Eucalyptus: '🌿', SleepingPill: '💊'
 };
 
 const TIER_NAME = { 1: 'Tier 1', 2: 'Tier 2', 3: 'Tier 3', 4: 'Tier 4', 5: 'Tier 5', 6: 'Tier 6' };
@@ -118,18 +158,22 @@ function teamHintText() {
 function renderSynergyBar(box, team) {
   if (!box) return;
   if (typeof activeFactions !== 'function') { box.innerHTML = ''; return; }
+  bindFactionClicks();
   const list = activeFactions(team || []);
   if (!list.length) {
+    // 一个羁绊都还没凑到：把六个阵营都列出来，玩家能点开看它们分别要谁
     box.innerHTML = '<span class="sy-empty">还没有阵营羁绊' +
       '（同一个阵营的【不同】宠物凑够 2 只就激活）</span>';
+    renderFactionLegend(box, team);
     return;
   }
   let html = '';
   for (const f of list) {
     const info = FACTIONS[f.id];
     const on = f.lvl > 0;
-    html += '<span class="sy-chip' + (on ? ' on' : '') + '" title="' +
-              esc(info.cn + '：' + info.desc.join(' → ')) + '">' +
+    // data-faction = 点击打开羁绊详情（参考金铲铲的羁绊说明）
+    html += '<span class="sy-chip' + (on ? ' on' : '') + '" data-faction="' + f.id + '" title="' +
+              esc(info.cn + '：' + info.desc.join(' → ') + '（点击看详情和成员）') + '">' +
               info.icon + ' ' + esc(info.cn) + ' <b>' + f.n + '</b>' +
               (on ? '<span class="sy-lv">' + f.lvl + '档</span>'
                   : '<span class="sy-next">还差' + f.next + '</span>') +
@@ -142,6 +186,139 @@ function renderSynergyBar(box, team) {
     }).join(' ・ ') + '</span>';
   }
   box.innerHTML = html;
+}
+
+/* 没有羁绊时也列出全部阵营（可点开看详情） */
+function renderFactionLegend(box, team) {
+  if (!box || typeof FACTIONS === 'undefined') return;
+  let h = '<span class="sy-legend">';
+  for (const id of Object.keys(FACTIONS)) {
+    const info = FACTIONS[id];
+    h += '<span class="sy-chip mini" data-faction="' + id + '" title="' +
+         esc(info.cn + '（点击看详情和成员）') + '">' + info.icon + ' ' + esc(info.cn) + '</span>';
+  }
+  h += '</span>';
+  box.innerHTML += h;
+}
+
+/* ------------------------------------------------------------
+ *  羁绊详情弹层（点阵营条上的 chip 打开）
+ *  「这个羁绊有什么用、包含哪些宠物、我队里现在有几个」——一次看全。
+ * ---------------------------------------------------------- */
+function factionDetailHtml(id, team, noClose) {
+  const info = (typeof FACTIONS !== 'undefined') ? FACTIONS[id] : null;
+  if (!info) return '';
+  const members = (typeof FACTION_MEMBERS !== 'undefined' && FACTION_MEMBERS[id]) || [];
+  // 队里已经凑了几个（按 defId 去重，和羁绊计数规则一致）
+  const mineSet = {};
+  for (const p of (team || [])) {
+    if (p && typeof factionOf === 'function' && factionOf(p.defId) === id) mineSet[p.defId] = 1;
+  }
+  const mineN = Object.keys(mineSet).length;
+
+  let h = '<div class="fac-pop-box">';
+  h += '<div class="fac-pop-head"><span class="fac-pop-title">' + info.icon + ' ' +
+       esc(info.cn) + '</span><span class="fac-pop-count">' + members.length +
+       ' 只</span>' + (noClose ? '' : '<span class="fac-pop-close" data-fac-close="1">✕</span>') +
+       '</div>';
+  h += '<div class="fac-pop-tiers">';
+  info.tiers.forEach(function (need, i) {
+    const got = mineN >= need;
+    h += '<div class="fac-pop-tier' + (got ? ' on' : '') + '">' +
+         '<b>' + need + ' 只</b><span>' + esc(info.desc[i] || '') + '</span></div>';
+  });
+  h += '</div>';
+  h += '<div class="fac-pop-sub">你队里现在有 <b class="' + (mineN > 0 ? 'has' : '') + '">' +
+       mineN + '</b> 只' +
+       (mineN >= info.tiers[info.tiers.length - 1] ? '（已吃满）'
+         : '（还差 ' + (info.tiers.filter(function (n) { return n > mineN; })[0] - mineN) + ' 只到下一档）') +
+       '</div>';
+  h += '<div class="fac-pop-sub">包含的宠物（点卡片可加进筛选）</div>';
+  h += '<div class="fac-pop-members">';
+  const sorted = members.slice().sort(function (a, b) {
+    const A = (typeof PETS !== 'undefined' && PETS[a]) || {}, B = (typeof PETS !== 'undefined' && PETS[b]) || {};
+    if ((A.tier || 0) !== (B.tier || 0)) return (A.tier || 0) - (B.tier || 0);
+    return String(A.cn || a).localeCompare(String(B.cn || b), 'zh-CN');
+  });
+  for (const mid of sorted) {
+    const d = (typeof PETS !== 'undefined' && PETS[mid]) || null;
+    const cn = d ? (d.cn || d.name) : mid;
+    const em = (typeof PET_EMOJI !== 'undefined' && PET_EMOJI[mid]) || '🐾';
+    const inMine = mineSet[mid] ? ' in' : '';
+    h += '<span class="fac-member' + inMine + '" title="' + esc(cn) + '">' + em +
+         '<i>T' + ((d && d.tier) || '?') + '</i>' + esc(cn) + '</span>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+/* 惰性创建弹层容器（不用改三个页面的 HTML） */
+function ensureFactionPop() {
+  if (typeof document === 'undefined' || !document.body) return null;
+  let el0 = document.getElementById('facPop');
+  if (!el0) {
+    el0 = document.createElement('div');
+    el0.id = 'facPop';
+    el0.className = 'fac-pop';
+    el0.style.display = 'none';
+    el0.addEventListener('click', function (ev) {
+      // 点空白处或 ✕ 关闭（点内容不关）
+      if (ev.target === el0 || (ev.target && ev.target.getAttribute &&
+          ev.target.getAttribute('data-fac-close'))) {
+        el0.style.display = 'none';
+      }
+    });
+    document.body.appendChild(el0);
+  }
+  return el0;
+}
+
+/* 打开羁绊详情。team 用于显示「你队里现在有几个」 */
+function showFactionPop(id, team) {
+  const pop = ensureFactionPop();
+  if (!pop) return;
+  const html = factionDetailHtml(id, team);
+  if (!html) return;
+  pop.innerHTML = html;
+  pop.style.display = 'flex';
+}
+
+function hideFactionPop() {
+  const pop = (typeof document !== 'undefined' && document.getElementById)
+    ? document.getElementById('facPop') : null;
+  if (pop) pop.style.display = 'none';
+}
+
+/* 全局事件委托：点到带 data-faction 的东西就弹详情。
+ * 用委托而不是逐个绑定，三个模式共用一份、也不怕重新渲染丢监听。 */
+let __facBound = false;
+function bindFactionClicks() {
+  if (__facBound || typeof document === 'undefined' || !document.addEventListener) return;
+  __facBound = true;
+  document.addEventListener('click', function (ev) {
+    let n = ev.target;
+    while (n && n.getAttribute) {
+      const fid = n.getAttribute('data-faction');
+      if (fid) {
+        // 找到「当前正在看的队伍」：优先各模式暴露的 getter，找不到就不显示队内计数
+        let team = null;
+        try {
+          if (typeof MUI !== 'undefined' && MUI.m && MUI.m.human) team = MUI.m.human.game.team;
+          else if (typeof OUI !== 'undefined' && OUI.game) team = OUI.game.team;
+          else if (typeof UI !== 'undefined' && UI.game) team = UI.game.team;
+        } catch (e) { team = null; }
+        showFactionPop(fid, team);
+        ev.stopPropagation();
+        return;
+      }
+      n = n.parentNode;
+    }
+  });
+  if (typeof document.addEventListener === 'function') {
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') hideFactionPop();
+    });
+  }
 }
 
 /* ============================================================
@@ -329,6 +506,16 @@ function petCard(p, opts) {
 
   const skill = skillTextOf(def, p.lvl);
 
+  // 阵营（羁绊）徽章 —— 商店/队伍/回放里的卡片都要能看到它属于哪个阵营，
+  // 否则玩家得自己背下来哪只宠物算哪个羁绊。点它有详情（见 showFactionPop）。
+  const facId = (typeof factionOf === 'function') ? factionOf(p.defId) : null;
+  const facInfo = (facId && typeof factionInfo === 'function') ? factionInfo(facId) : null;
+  const facHtml = facInfo
+    ? '<span class="pet-faction fac-' + facId + '" data-faction="' + facId + '" title="' +
+        esc(facInfo.cn + '｜' + facInfo.desc.join(' → ') + '（点击看详情）') + '">' +
+        facInfo.icon + esc(facInfo.cn) + '</span>'
+    : '';
+
   card.innerHTML =
     // 星级只用边框颜色表达（data-tier 驱动 CSS），不显示文字徽章
     '<div class="pet-top">' +
@@ -336,6 +523,7 @@ function petCard(p, opts) {
       '<span class="pet-lvl">' + p.lvl + '级</span>' +
     '</div>' +
     '<div class="pet-name">' + esc(petName(def)) + '</div>' +
+    (facHtml ? '<div class="pet-fac-row">' + facHtml + '</div>' : '') +
     '<div class="pet-stats">' +
       '<span class="stat atk">' + p.atk + '</span>' +
       '<span class="slash">/</span>' +
@@ -449,7 +637,8 @@ function codexPetCard(id) {
   } else {
     rows = '<div class="codex-row"><span>—</span></div>';
   }
-  return '<div class="codex-card" data-tier="' + (d.tier || 0) + '">' +
+  return '<div class="codex-card" data-tier="' + (d.tier || 0) +
+      '" data-pet-id="' + esc(id) + '">' +
       '<div class="codex-top">' +
         '<span class="codex-emoji">' + (PET_EMOJI[id] || '🐾') + '</span>' +
         '<span class="codex-name">' + esc(petName(d)) + '</span>' +
@@ -498,98 +687,179 @@ function codexRelicCard(id) {
     '</div>';
 }
 
-/* 把整个图鉴渲染进 bodyEl，并回填计数到 subEl */
+/* 图鉴当前分页。都放一页太长（138 只宠物 + 10 召唤物 + 21 道具 + 13 遗物），
+ * 所以拆成几个可点击切换的标签页。 */
+let __codexTab = 'turtle';
+
+function codexTabList() {
+  const packIds = (typeof PACKS !== 'undefined') ? Object.keys(PACKS) : ['turtle'];
+  const tabs = [];
+  for (const pk of packIds) {
+    const info = (typeof PACKS !== 'undefined' && PACKS[pk]) || { cn: pk, icon: '' };
+    tabs.push({ id: 'pack:' + pk, label: info.icon + ' ' + info.cn });
+  }
+  tabs.push({ id: 'token',   label: '🥚 召唤物' });
+  tabs.push({ id: 'food',    label: '🍎 道具' });
+  tabs.push({ id: 'relic',   label: '🏺 遗物' });
+  tabs.push({ id: 'faction', label: '🧬 羁绊' });
+  return tabs;
+}
+
+/* 某个分页里有几项（显示在标签上） */
+function codexTabCount(tabId) {
+  if (typeof PETS === 'undefined') return 0;
+  if (tabId.indexOf('pack:') === 0) {
+    const pk = tabId.slice(5);
+    return Object.keys(PETS).filter(function (k) {
+      return !PETS[k].token && PETS[k].tier >= 1 && packOf(k) === pk;
+    }).length;
+  }
+  if (tabId === 'token')   return Object.keys(PETS).filter(function (k) { return PETS[k].token; }).length;
+  if (tabId === 'food')    return Object.keys(FOODS).length;
+  if (tabId === 'relic')   return (typeof RELIC_IDS !== 'undefined' ? RELIC_IDS : Object.keys(RELICS)).length;
+  if (tabId === 'faction') return (typeof FACTIONS !== 'undefined') ? Object.keys(FACTIONS).length : 0;
+  return 0;
+}
+
+/* 把整个图鉴渲染进 bodyEl，并回填计数到 subEl。
+ * 分页切换只重渲染 bodyEl，不关弹层。 */
 function renderCodexInto(bodyEl, subEl) {
   if (!bodyEl) return;
-  let html = '';
-  let nPet = 0, nToken = 0, nFood = 0, nRelic = 0;
+  bindCodexTabs();
+  const tabs = codexTabList();
+  // 选中的分页如果不存在了（比如包被删掉），退回第一个
+  if (!tabs.some(function (t) { return t.id === __codexTab; })) __codexTab = tabs[0].id;
 
-  /* ---- 可购买宠物：先按宠物包分组，再按星级 ----
-   * 两个包混在一起看会很乱（同一个 Tier 1 里既有龟包也有星包），
-   * 所以先给一行包标题，再列各星级。 */
-  const ids = Object.keys(PETS).filter(function (k) {
-    const d = PETS[k];
-    return !d.token && d.tier >= 1;
+  let head = '<div class="codex-tabs">';
+  for (const t of tabs) {
+    head += '<span class="codex-tab' + (t.id === __codexTab ? ' on' : '') +
+            '" data-codex-tab="' + t.id + '">' + esc(t.label) +
+            '<i>' + codexTabCount(t.id) + '</i></span>';
+  }
+  head += '</div>';
+
+  let body = '';
+  if (__codexTab.indexOf('pack:') === 0) {
+    body = codexPackHtml(__codexTab.slice(5));
+  } else if (__codexTab === 'token') {
+    const tokens = Object.keys(PETS).filter(function (k) { return PETS[k].token; })
+      .sort(function (a, b) { return (PETS[a].cn || a).localeCompare(PETS[b].cn || b, 'zh-CN'); });
+    body = '<div class="codex-tier">召唤物 · ' + tokens.length +
+           ' 只（只能由技能召唤或变身得到，不会出现在商店）</div><div class="codex-grid">';
+    for (const id of tokens) body += codexPetCard(id);
+    body += '</div>';
+  } else if (__codexTab === 'food') {
+    const foods = Object.keys(FOODS).sort(function (a, b) {
+      const ta = FOODS[a].token ? 1 : 0, tb = FOODS[b].token ? 1 : 0;
+      if (ta !== tb) return ta - tb;
+      return (FOODS[a].cn || a).localeCompare(FOODS[b].cn || b, 'zh-CN');
+    });
+    const shop = foods.filter(function (k) { return !FOODS[k].token; });
+    const tok  = foods.filter(function (k) { return FOODS[k].token; });
+    if (shop.length) {
+      body += '<div class="codex-tier">商店道具 · ' + shop.length +
+              ' 种（每只宠物同时只能带 1 个食物标记）</div><div class="codex-grid">';
+      for (const id of shop) body += codexFoodCard(id);
+      body += '</div>';
+    }
+    if (tok.length) {
+      body += '<div class="codex-tier">只能靠技能获得的道具 · ' + tok.length +
+              ' 种</div><div class="codex-grid">';
+      for (const id of tok) body += codexFoodCard(id);
+      body += '</div>';
+    }
+  } else if (__codexTab === 'relic') {
+    const relicIds = (typeof RELIC_IDS !== 'undefined' ? RELIC_IDS : Object.keys(RELICS));
+    const tags = RELIC_TAG_ORDER.concat(
+      Object.keys(RELICS).map(function (k) { return RELICS[k].tag; })
+        .filter(function (t, i, arr) { return RELIC_TAG_ORDER.indexOf(t) < 0 && arr.indexOf(t) === i; })
+    );
+    let first = true;
+    for (const tag of tags) {
+      const arr = relicIds.filter(function (id) { return RELICS[id] && RELICS[id].tag === tag; });
+      if (!arr.length) continue;
+      body += '<div class="codex-tier">遗物 · ' + esc(tag) + ' · ' + arr.length + ' 件' +
+              (first ? '（回合 3/6/9… 三选一，永久生效）' : '') +
+              '</div><div class="codex-grid">';
+      for (const id of arr) body += codexRelicCard(id);
+      body += '</div>';
+      first = false;
+    }
+  } else if (__codexTab === 'faction') {
+    body += '<div class="codex-note">⚠️ 官方没有羁绊机制，这是自创的：' +
+            '队伍里凑够同一个阵营的【不同】宠物就激活加成。' +
+            '「不同」指按宠物种类去重 —— 3 只同名蚂蚁只算 1 只。</div>';
+    for (const id of Object.keys(FACTIONS)) {
+      body += factionDetailHtml(id, null, true);
+    }
+  }
+
+  bodyEl.innerHTML = head + '<div class="codex-body">' + body + '</div>';
+  if (subEl) {
+    const t = tabs.filter(function (x) { return x.id === __codexTab; })[0];
+    subEl.textContent = (t ? t.label + ' · ' + codexTabCount(t.id) + ' 项' : '') +
+      ' · 点上面的标签切换 · 点空白处或按 Esc 关闭';
+  }
+}
+
+/* 某一个包的宠物（按星级） */
+function codexPackHtml(pk) {
+  const mine = Object.keys(PETS).filter(function (k) {
+    return !PETS[k].token && PETS[k].tier >= 1 && packOf(k) === pk;
   }).sort(function (a, b) {
     const A = PETS[a], B = PETS[b];
     if (A.tier !== B.tier) return A.tier - B.tier;
     return (A.cn || A.name).localeCompare(B.cn || B.name, 'zh-CN');
   });
-
-  const packIds = (typeof PACKS !== 'undefined') ? Object.keys(PACKS) : ['turtle'];
-  for (const pk of packIds) {
-    const mine = ids.filter(function (id) { return packOf(id) === pk; });
-    if (!mine.length) continue;
-    const info = (typeof PACKS !== 'undefined' && PACKS[pk]) || { cn: pk, icon: '' };
-
-    // 只有一个包有宠物时不显示包标题，免得白占一行
-    if (packIds.filter(function (q) { return ids.some(function (id) { return packOf(id) === q; }); }).length > 1) {
-      html += '<div class="codex-pack">' + info.icon + ' ' + esc(info.cn) +
-              ' · ' + mine.length + ' 只</div>';
-    }
-
-    const byTier = {};
-    for (const id of mine) (byTier[PETS[id].tier] = byTier[PETS[id].tier] || []).push(id);
-    for (const t of Object.keys(byTier).sort(function (a, b) { return a - b; })) {
-      html += '<div class="codex-tier">' + (TIER_NAME[t] || 'Tier ' + t) +
-              ' · ' + byTier[t].length + ' 只</div><div class="codex-grid">';
-      for (const id of byTier[t]) html += codexPetCard(id);
-      html += '</div>';
-      nPet += byTier[t].length;
-    }
+  const info = (typeof PACKS !== 'undefined' && PACKS[pk]) || { cn: pk, icon: '' };
+  // 这个包里有哪些召唤物（挑出「被这个包的宠物召唤/变身出来」的那些）
+  const ownIds = {};
+  mine.forEach(function (k) { ownIds[k] = 1; });
+  const tokens = Object.keys(PETS).filter(function (k) {
+    return PETS[k].token && (PETS[k].pack || 'turtle') === pk;
+  });
+  let html = '';
+  const byTier = {};
+  for (const id of mine) (byTier[PETS[id].tier] = byTier[PETS[id].tier] || []).push(id);
+  for (const t of Object.keys(byTier).sort(function (a, b) { return a - b; })) {
+    html += '<div class="codex-tier">' + (TIER_NAME[t] || 'Tier ' + t) +
+            ' · ' + byTier[t].length + ' 只</div><div class="codex-grid">';
+    for (const id of byTier[t]) html += codexPetCard(id);
+    html += '</div>';
   }
-
-  /* ---- 召唤物 ---- */
-  const tokens = Object.keys(PETS).filter(function (k) { return PETS[k].token; })
-    .sort(function (a, b) {
-      return (PETS[a].cn || a).localeCompare(PETS[b].cn || b, 'zh-CN');
-    });
   if (tokens.length) {
-    html += '<div class="codex-tier">召唤物 · ' + tokens.length +
-            ' 只（只能由技能召唤，不会出现在商店）</div><div class="codex-grid">';
+    html += '<div class="codex-tier">' + esc(info.cn) + '的召唤物 · ' + tokens.length +
+            ' 只</div><div class="codex-grid">';
     for (const id of tokens) html += codexPetCard(id);
     html += '</div>';
-    nToken = tokens.length;
   }
+  return html;
+}
 
-  /* ---- 道具 ---- */
-  const foods = Object.keys(FOODS).sort(function (a, b) {
-    const ta = FOODS[a].token ? 1 : 0, tb = FOODS[b].token ? 1 : 0;
-    if (ta !== tb) return ta - tb;
-    return (FOODS[a].cn || a).localeCompare(FOODS[b].cn || b, 'zh-CN');
+/* 供测试/外部切换分页用（界面上是点标签切，走事件委托） */
+function codexSetTab(id) { __codexTab = id; }
+function codexGetTab() { return __codexTab; }
+
+/* 图鉴分页标签的点击（全局委托，重新渲染也不会丢） */
+let __codexTabBound = false;
+function bindCodexTabs() {
+  if (__codexTabBound || typeof document === 'undefined' || !document.addEventListener) return;
+  __codexTabBound = true;
+  document.addEventListener('click', function (ev) {
+    let n = ev.target;
+    while (n && n.getAttribute) {
+      const t = n.getAttribute('data-codex-tab');
+      if (t) {
+        __codexTab = t;
+        // 只重渲染图鉴内容，弹层保持打开（三个页面都用 #codexBody / #codexSub）
+        const bodyEl = document.getElementById('codexBody');
+        if (bodyEl) renderCodexInto(bodyEl, document.getElementById('codexSub'));
+        ev.stopPropagation();
+        return;
+      }
+      n = n.parentNode;
+    }
   });
-  if (foods.length) {
-    html += '<div class="codex-tier">道具 · ' + foods.length +
-            ' 种（每只宠物同时只能带 1 个）</div><div class="codex-grid">';
-    for (const id of foods) html += codexFoodCard(id);
-    html += '</div>';
-    nFood = foods.length;
-  }
-
-  /* ---- 遗物：按类别分组（保持 relics.js 里的声明顺序）---- */
-  const relicIds = (typeof RELIC_IDS !== 'undefined' ? RELIC_IDS : Object.keys(RELICS));
-  const tags = RELIC_TAG_ORDER.concat(
-    Object.keys(RELICS).map(function (k) { return RELICS[k].tag; })
-      .filter(function (t, i, arr) { return RELIC_TAG_ORDER.indexOf(t) < 0 && arr.indexOf(t) === i; })
-  );
-  let relicFirst = true;
-  for (const tag of tags) {
-    const arr = relicIds.filter(function (id) { return RELICS[id] && RELICS[id].tag === tag; });
-    if (!arr.length) continue;
-    html += '<div class="codex-tier">遗物 · ' + esc(tag) + ' · ' + arr.length + ' 件' +
-            (relicFirst ? '（回合 3/6/9… 三选一，永久生效）' : '') +
-            '</div><div class="codex-grid">';
-    for (const id of arr) html += codexRelicCard(id);
-    html += '</div>';
-    nRelic += arr.length;
-    relicFirst = false;
-  }
-
-  bodyEl.innerHTML = html;
-  if (subEl) {
-    subEl.textContent = '宠物 ' + nPet + ' 只 · 召唤物 ' + nToken + ' 只 · 道具 ' +
-      nFood + ' 种 · 遗物 ' + nRelic + ' 件 · 点空白处或按 Esc 关闭';
-  }
 }
 
 /* 打开 / 关闭图鉴（两种模式各有一套遮罩，但行为一致） */

@@ -243,7 +243,10 @@ function mRenderBattleBoard(highlight, label) { MPLAY.render(highlight, label); 
 function mStartBattle(res, foeTeam, foeName, iAmA) {
   MUI.foeName = foeName;
   // ⚠️ 用「开战前」的对手队伍，不能用 res.final（那是打完后的残局）
-  MPLAY.start(MUI, res.log, MUI.m.human.game.team, foeTeam, '准备开战…');
+  // ⚠️ iAmA 必须传下去！8 人混战里玩家可能是配对里的 b 方（引擎 side 1），
+  //    不翻译的话召唤物会显示到对手那一侧、胜负也会反。
+  MPLAY.start(MUI, res.log, MUI.m.human.game.team, foeTeam, '准备开战…',
+    { mySide: iAmA === false ? 1 : 0, winner: res.winner });
 }
 
 function mApplyEvent(ev) { MPLAY.apply(ev); }
@@ -278,9 +281,29 @@ function mEndTurn() {
     // ⚠️ 用「开战前」的对手队伍，不能用 res.final（那是打完后的残局）
     mStartBattle(rp.humanRes, rp.humanFoe || [], rp.humanFoeName || '', rp.humanIsA);
   } else {
-    // 轮空
+    // 轮空：没有战斗可播，但【必须】让玩家能走到下一回合。
+    // ⚠️ 以前这里只 mRenderAll() 就结束了，结果 Melee.phase 一直停在 'battle'
+    //    （endTurn() 结尾会把它设成 'battle'，靠点「进入下一回合」按钮才推进），
+    //    而那个按钮在战斗视图里、轮空时压根不显示 ——
+    //    于是下一回合点「结束回合开打」会被 mEndTurn() 开头的 phase 检查挡掉，
+    //    表现就是「点了没反应」。
     say(m.human.name + ' 本回合轮空，不掉血');
-    mRenderAll();
+    // 手动把界面切到「战斗结束」的样子，复用同一个「进入下一回合」按钮
+    MUI.view = { mine: [], foe: [] };
+    MUI.log = []; MUI.idx = 0;
+    const sv = $('#mShopView'); if (sv) sv.style.display = 'none';
+    const bv = $('#mbattle');   if (bv) bv.style.display = '';
+    const mr = $('#mMyBattleRow'); if (mr) mr.innerHTML = '';
+    const fr2 = $('#mFoeRow');     if (fr2) fr2.innerHTML = '';
+    const lb = $('#mBattleLabel');
+    if (lb) { lb.textContent = '本回合轮空（不掉血，也不算连胜）'; lb.className = 'battle-label draw'; }
+    const sk = $('#mBtnSkip'); if (sk) sk.style.display = 'none';
+    const nx = $('#mBtnNext');
+    if (nx) {
+      nx.style.display = '';
+      if (m.phase === 'over') { nx.textContent = '📊 查看最终结果'; nx.dataset.mrestart = '1'; }
+      else { nx.textContent = '➡️ 进入第 ' + (m.turn + 1) + ' 回合'; nx.dataset.mrestart = ''; }
+    }
   }
 }
 

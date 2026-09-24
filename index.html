@@ -19,9 +19,38 @@
   <div class="pack-pick">
     <span class="pp-label">宠物包</span>
     <button class="pp-btn active" data-pack="turtle">🐢 龟包 <b>61</b> 只</button>
-    <button class="pp-btn" data-pack="star">⭐ 星包 <b>67</b> 只</button>
+    <button class="pp-btn" data-pack="star">⭐ 星包 <b>77</b> 只</button>
     <span class="pp-note" id="packNote">经典 Turtle Pack</span>
   </div>
+
+  <!-- 玩法说明。刻意写得很短 —— 长篇大论没人看，但完全不给第一次玩的人会懵。
+       用原生 <details> 折叠，不需要 JS。 -->
+  <details class="howto" open>
+    <summary>🎮 第一次玩？30 秒看懂</summary>
+    <div class="howto-body">
+      <p class="howto-lead">
+        每回合在商店<b>买宠物、喂道具、摆好队形</b>，然后自动打一场。
+        <b>同名宠物会合成升级</b>（2 级、3 级），所以「反复买同一只」是变强的主要方式。
+      </p>
+      <ol class="howto-steps">
+        <li><b>买</b>　花金币把宠物买进队伍（最多 5 只）。买同名宠物会合成 → 升到 2 级、3 级。</li>
+        <li><b>摆</b>　<b>左边的先挨打</b>。肉盾放前面，靠技能吃饭的放后面。</li>
+        <li><b>喂</b>　道具给宠物加属性或挂标记。⚠️ 一只宠物同时<b>只能带 1 个道具</b>，新的会顶掉旧的。</li>
+        <li><b>打</b>　点「结束回合，开打！」。双方最前排<b>同时</b>互殴，伤害 = 攻击力，最低 1 点。</li>
+        <li><b>赢</b>　经典：10 胜通关 / 3 败出局。8 人混战：每回合两两配对，输的扣血，<b>活到最后</b>就是赢家。</li>
+      </ol>
+      <p class="howto-tip">
+        💡 <b>新人最容易忽略的 3 件事</b>：
+        刷新商店要花钱（不是免费）；
+        商店等级会<b>按回合自动提升</b>（第 1/3/5/7/9/11 回合），等级越高越容易刷出强宠物；
+        点 ❄ 可以把商店里的宠物<b>冻结</b>留到下一回合。
+      </p>
+      <p class="howto-tip">
+        🧬 队伍里凑够<b>同一个阵营</b>的【不同】宠物会激活羁绊加成 ——
+        游戏里点顶部阵营条上任意一个阵营就能看它有什么用、包含谁。这是本作自创的机制，官方没有。
+      </p>
+    </div>
+  </details>
 
   <div class="mode-grid">
 
@@ -73,7 +102,7 @@
   </div>
 
   <div class="home-foot" id="homeFoot">
-    龟包 61 只 + 星包 67 只 · 7 种召唤物 · 道具 &nbsp;|&nbsp; 打开即玩，无需安装
+    龟包 61 只 + 星包 77 只 · 10 种召唤物 · 道具 &nbsp;|&nbsp; 打开即玩，无需安装
   </div>
 
 </div>
@@ -86,7 +115,7 @@
 (function () {
   var PACKS = {
     turtle: { icon: '🐢', cn: '龟包', note: '经典 Turtle Pack', count: 61 },
-    star:   { icon: '⭐', cn: '星包', note: 'Star Pack（官方第二个包）', count: 67 }
+    star:   { icon: '⭐', cn: '星包', note: 'Star Pack（官方第二个包）', count: 77 }
   };
   var cur = 'turtle';
   var btns = document.querySelectorAll('.pp-btn');
@@ -123,7 +152,7 @@
 (function () {
   var card = document.getElementById('onlineCard');
   var foot = document.getElementById('homeFoot');
-  var base = '龟包 61 只 + 星包 67 只 · 7 种召唤物 · 道具';
+  var base = '龟包 61 只 + 星包 77 只 · 10 种召唤物 · 道具';
   // 同一份 index.html 会用在两种场景：file:// 双击打开、以及网页链接打开，
   // 所以文案用「打开即玩」而不是「双击即玩」
   var offlineFoot = base + ' &nbsp;|&nbsp; 打开即玩，无需安装' +

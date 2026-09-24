@@ -32,20 +32,20 @@ const TOKEN_PETS = {
   Bus:           { name: 'Bus',            cn: '巴士',       tier: 5, atk: 5, hp: 3, token: true, perk: 'Chili' },
   Chick:         { name: 'Chick',          cn: '小鸡',       tier: 0, atk: 1, hp: 1, token: true },
   ZombieFly:     { name: 'Zombie Fly',     cn: '僵尸苍蝇',   tier: 0, atk: 4, hp: 4, token: true },
-  // 星包召唤物
-  CookedRoach:   { name: 'Cooked Roach',   cn: '熟蟑螂',     tier: 0, atk: 1, hp: 1, token: true },
+  /* 星包召唤物（pack 要写清楚，图鉴按包分页时要列在各自包下面） */
+  CookedRoach:   { name: 'Cooked Roach',   cn: '熟蟑螂',     tier: 0, atk: 1, hp: 1, token: true, pack: 'star' },
   /* 仙球（仙犰狳受伤存活后变身的形态）。
    * 官方它是唯一带真技能的 token 之一：受到的所有伤害减 2/4/6（像大蒜，但常驻）。
    * ⚠️ 用 flatReduce 字段而不是 Perk —— Perk 只允许带 1 个且会被消耗，
    *    而仙球的减伤是常驻的、并且不该占掉食物 Perk 槽。 */
   FairyBall:     {
-    name: 'Fairy Ball', cn: '仙球', tier: 4, atk: 2, hp: 6, token: true, flatReduce: 2,
+    name: 'Fairy Ball', cn: '仙球', tier: 4, atk: 2, hp: 6, token: true, flatReduce: 2, pack: 'star',
     texts: ['受到的所有伤害减少 2', '受到的所有伤害减少 4', '受到的所有伤害减少 6']
   },
   /* 拟态章鱼（菊石阵亡时把身后的友方变成它）。
    * 官方它 tier 算 6，而且有真技能：攻击后对生命最低的 1/2/3 个敌人各 4 伤害。 */
   MimicOctopus:  {
-    name: 'Mimic Octopus', cn: '拟态章鱼', tier: 6, atk: 4, hp: 7, token: true,
+    name: 'Mimic Octopus', cn: '拟态章鱼', tier: 6, atk: 4, hp: 7, token: true, pack: 'star',
     texts: ['攻击后：对生命最低的 1 个敌人造成 4 伤害',
             '攻击后：对生命最低的 2 个敌人造成 4 伤害',
             '攻击后：对生命最低的 3 个敌人造成 4 伤害'],
@@ -524,25 +524,36 @@ const PETS = {
     }
   },
 
+  /* 鲸鱼 —— 官方原文：「Start of battle: Swallow the nearest friend ahead and
+   * release it as level 1/2/3 on faint」，而且强调是 **swallow (knock out)** ——
+   * 被吞的友方是【真的被击倒】，所以**会触发它的遗言**。
+   * 官方攻略里就推荐鲸鱼 + 鹿：鹿被吞掉的瞬间就召唤一只巴士，
+   * 鲸鱼阵亡时把鹿吐出来、鹿再阵亡，又召唤一只巴士（一共两只）。
+   * ⚠️ 以前这里只是把宠物从队伍里 splice 掉（静默移除），鹿的遗言根本不触发。
+   * 吐出时按官方规则：属性照吞进去时，但【不带任何 Perk】，等级取鲸鱼自己的等级。
+   * Tiger 在鲸鱼后面时开战技能会触发两次 → 吞 2 只、阵亡时全部吐出，所以这里是数组。 */
   Whale: {
     name: 'Whale', cn: '鲸鱼', tier: 4, atk: 3, hp: 7,
-    texts: ['开战：吞掉前方最近的友方，自己阵亡时按 1 级把它吐出来',
-            '开战：吞掉前方最近的友方，自己阵亡时按 2 级把它吐出来',
-            '开战：吞掉前方最近的友方，自己阵亡时按 3 级把它吐出来'],
+    texts: ['开战：击倒前方最近的友方，自己阵亡时按 1 级把它吐出来',
+            '开战：击倒前方最近的友方，自己阵亡时按 2 级把它吐出来',
+            '开战：击倒前方最近的友方，自己阵亡时按 3 级把它吐出来'],
     hooks: {
       startOfBattle: function (g, c) {
         const a = g.ahead(c.self, 1)[0];
         if (!a || a.hp <= 0) return;
-        c.self.swallowed = { defId: a.defId, atk: a.atk, hp: a.hp, lvl: c.lvl };
-        const team = g.team(c.self.side);
-        const i = team.indexOf(a);
-        if (i >= 0) team.splice(i, 1);
+        if (!c.self.swallowed) c.self.swallowed = [];
+        c.self.swallowed.push({ defId: a.defId, atk: a.atk, hp: a.hp, lvl: c.lvl });
+        a.hp = 0;                       // 「吞掉」= 击倒，走正常死亡流程
+        if (g.resolveDeaths) g.resolveDeaths();   // 立刻结算，让它的遗言马上触发
       },
       faint: function (g, c) {
-        const s = c.self.swallowed;
-        if (!s) return;
-        const idx = Math.min(g.indexOf(c.self), g.team(c.self.side).length);
-        g.summon(c.self.side, idx, s.defId, { atk: s.atk, hp: s.hp, lvl: s.lvl });
+        const list = c.self.swallowed;
+        if (!list || !list.length) return;
+        let idx = Math.min(g.indexOf(c.self), g.team(c.self.side).length);
+        for (const s of list) {
+          g.summon(c.self.side, idx, s.defId, { atk: s.atk, hp: s.hp, lvl: s.lvl });
+          idx++;
+        }
       }
     }
   },

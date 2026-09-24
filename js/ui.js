@@ -115,26 +115,16 @@ function renderShop() {
   const fr = $('#shopFoods');
   fr.innerHTML = '';
   for (let i = 0; i < CFG.SHOP_FOOD_SLOTS; i++) {
-    const f = g.shopFoods[i];
-    if (!f) { fr.appendChild(el('div', 'shop-slot empty')); continue; }
-    const d = FOODS[f.id];
-    const wrap = el('div', 'shop-slot food');
-    if (g.frozenFoods[i]) wrap.classList.add('frozen');
-    if (UI.game.pendingFood === i) wrap.classList.add('selected');
-    wrap.innerHTML =
-      '<div class="food-emoji">' + (f.id === 'Apple' || f.id === 'BetterApple' || f.id === 'BestApple' ? '🍎' : f.id === 'Honey' ? '🍯' : '🍉') + '</div>' +
-      '<div class="food-name">' + d.cn + '</div>' +
-      '<div class="food-text">' + d.text + '</div>';
-    wrap.dataset.shopFood = i;
-    // 价格读实际值（虫子的「2 金苹果」、鸽子的免费苹果都在这里体现）
-    const fc = g.foodCost(f);
-    wrap.appendChild(el('div', 'price', fc === 0
-      ? '<span class="free">免费</span>'
-      : (g.gold >= fc ? fc + ' 金' : '<span class="no">' + fc + ' 金</span>')));
-    const fz = el('button', 'freeze', g.frozenFoods[i] ? '❄ 已冻结' : '❄ 冻结');
-    fz.dataset.freezeFood = i;
-    wrap.appendChild(fz);
-    fr.appendChild(wrap);
+    // ⚠️ 这里以前是经典模式【自己手写】的一份食物渲染，emoji 写成了
+    //    「不是苹果、不是蜂蜜的统统 🍉」—— 结果西瓜/辣椒/花生/椰子/牛奶/
+    //    安眠药 全都显示成西瓜。现在统一复用 render.js 的 foodSlot()，
+    //    三种模式同一份实现，emoji 表也只有一份。
+    fr.appendChild(foodSlot(g.shopFoods[i], g, {
+      frozen: g.frozenFoods[i],
+      selected: UI.game.pendingFood === i,
+      slotAttr: 'shopFood', slotIndex: i,
+      freezeAttr: 'freezeFood'
+    }));
   }
 
   // ---- 按钮状态 ----

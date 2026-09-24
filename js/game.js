@@ -612,16 +612,27 @@ Game.prototype.stockFood = function (foodId, cost) {
     if (!this.shopFoods[i]) {
       this.shopFoods[i] = item;
       this.frozenFoods[i] = false;
-      return;
+      return true;
     }
   }
-  // 2) 其次找没被冻结的槽位
+  // 2) 其次找「没被冻结、而且不是同一个道具」的槽位。
+  //    ⚠️ 这一步是关键：像鸽子「库存 N 个苹果」、鼠妇「库存 N 个安眠药」这种
+  //       连续库存，如果每次都覆盖同一个槽位，N 次下来只会剩 1 个
+  //       （实测 2 级鸽子卖完只有 1 个苹果）。优先避开同类就不会互相覆盖。
   for (let i = 0; i < this.shopFoods.length; i++) {
-    if (!this.frozenFoods[i]) { this.shopFoods[i] = item; return; }
+    if (this.frozenFoods[i]) continue;
+    if (this.shopFoods[i] && this.shopFoods[i].id === foodId) continue;
+    this.shopFoods[i] = item;
+    return true;
   }
-  // 3) 全被冻结了，才覆盖第一个
+  // 3) 只剩同类可放（两个槽位都是同一个道具）—— 位置不变，数量上也确实放不下了
+  for (let i = 0; i < this.shopFoods.length; i++) {
+    if (!this.frozenFoods[i]) { this.shopFoods[i] = item; return false; }
+  }
+  // 4) 全被冻结了，才覆盖第一个
   this.shopFoods[0] = item;
   this.frozenFoods[0] = false;
+  return true;
 };
 
 /* 取某个道具槽的实际价格（0 表示免费；Squirrel 折扣与遗物「营养师」在这里生效） */
@@ -977,10 +988,16 @@ Game.prototype.triggerTurnStart = function () {
     }
   }
   env.actor = null;
-  for (const p of this.team) {
+  // ⚠️ 必须先 slice 成快照再遍历：螳螂的 startTurn 会「击倒相邻友方」
+  //    （ShopEnv.kill 会 splice 真实队伍），直接 for...of this.team 的话
+  //    数组一变短，遍历就会【跳过】后面的宠物 —— 表现就是「回合开始技能
+  //    有的没触发 / 触发顺序怪怪的」。
+  const turnOrder = this.team.slice();
+  for (const p of turnOrder) {
     p._ox = 0; p._rabbit = 0;   // 重置每回合计数
     p._catUsed = 0;             // Cat 的食物翻倍次数
     p._koala = 0;               // 星包考拉：本回合还能给几次桉树叶
+    if (this.team.indexOf(p) < 0) continue;   // 已经被前面的技能弄走了，跳过
     const d = p.def;
     if (d && d.hooks && d.hooks.startTurn) {
       env.actor = p;
@@ -1186,7 +1203,7 @@ Game.prototype.shouldOfferRelic = function () {
 
 Game.prototype.offerRelicChoice = function () {
   if (!this.shouldOfferRelic()) return null;
-  const ids = rollRelics(this.relics, 3);
+  const ids = rollRelics(this.relics, 3, CFG.ECONOMY);
   if (!ids.length) return null;
   this.relicChoiceDone[this.turn] = true;
   this.pendingRelicChoice = ids;
