@@ -1,28 +1,55 @@
 /* ============================================================
  *  style.css — Super Auto Pets 单机版
+ *
+ *  配色：暖色桌游风（v2）
+ *    · 页面/面板 = 深棕木质，文字用浅米色
+ *    · 宠物卡片 = 奶油色【实物卡牌】，文字用深棕
+ *  ⚠️ 所以有【两套文字色】：
+ *      --text / --dim        用在木色底上
+ *      --card-text / --card-dim  用在奶油卡面上
+ *     卡片内部的任何文字都必须用后者，否则会看不清。
  * ============================================================ */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #14161c;
-  --bg2:       #1c1f28;
-  --panel:     #22262f;
-  --panel2:    #2b303b;
-  --line:      #363c49;
-  --text:      #e8ecf3;
-  --dim:       #8c96a8;
+  /* ---- 木质 UI 底 ---- */
+  --bg:        #241a12;
+  --bg2:       #2e2117;
+  --panel:     #3a2a1e;
+  --panel2:    #47331f;
+  --line:      #5c432b;
+  --text:      #f4e8d2;
+  --dim:       #b8a184;
   --gold:      #f5c451;
-  --atk:       #ff7a6b;
-  --hp:        #6bd47f;
-  --win:       #5ad17a;
-  --lose:      #ff6b6b;
-  --accent:    #57a6ff;
+  --win:       #7fd99a;
+  --lose:      #ff8a7a;
+  --accent:    #e0a45e;
+
+  /* ---- 奶油色实物卡牌 ---- */
+  --card:      #fdf6e6;
+  --card2:     #f2e3c8;
+  --card-line: #8a6a45;
+  --card-edge: #6b5133;     /* 厚底边（投影做厚度） */
+  --card-text: #46321a;
+  --card-dim:  #8b7355;
+
+  /* ---- 攻/血（印在奶油卡上，要深一点才看得清）---- */
+  --atk:       #c0392b;
+  --hp:        #1e8449;
+
+  /* ---- 战场（木纹桌面）---- */
+  --arena:     #6b4d31;
+  --arena2:    #553c26;
+
   --radius:    12px;
 }
 
 html, body {
-  background: var(--bg);
+  background:
+    repeating-linear-gradient(91deg, rgba(0,0,0,.14) 0 26px, rgba(255,255,255,.018) 26px 52px),
+    linear-gradient(180deg, #2e2117 0%, #1e150e 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   min-height: 100%;
@@ -102,13 +129,13 @@ html, body {
   flex-wrap: wrap;
 }
 
-/* ===================== 宠物卡片 ===================== */
+/* ===================== 宠物卡片（奶油色实物卡） ===================== */
 .pet {
   width: 112px;
   min-height: 150px;
-  background: var(--panel);
-  border: 2px solid var(--line);
-  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--card) 0%, var(--card2) 100%);
+  border: 2px solid var(--card-line);
+  border-radius: 10px;
   padding: 7px 6px;
   text-align: center;
   position: relative;
@@ -116,67 +143,80 @@ html, body {
   user-select: none;
   display: flex;
   flex-direction: column;
+  color: var(--card-text);
+  /* 厚底边 + 投影 = 实物卡牌的手感 */
+  box-shadow: 0 3px 0 var(--card-edge), 0 5px 12px rgba(0,0,0,.35);
 }
-/* 星级 = 边框颜色（金铲铲那套：灰→绿→蓝→紫→金→红）
- * 用「鲜艳边框 + 卡片底色微染」做辨识，不用文字徽章 */
-.pet[data-tier="1"] {
-  border-color: #8791a5;
-  background: linear-gradient(180deg, rgba(135,145,165,.10), transparent 55%), var(--panel);
-}
-.pet[data-tier="2"] {
-  border-color: #3fb268;
-  background: linear-gradient(180deg, rgba(63,178,104,.13), transparent 55%), var(--panel);
-}
-.pet[data-tier="3"] {
-  border-color: #3d92e8;
-  background: linear-gradient(180deg, rgba(61,146,232,.15), transparent 55%), var(--panel);
-}
-.pet[data-tier="4"] {
-  border-color: #a75ce8;
-  background: linear-gradient(180deg, rgba(167,92,232,.17), transparent 55%), var(--panel);
-}
-.pet[data-tier="5"] {
-  border-color: #e8ad3a;
-  background: linear-gradient(180deg, rgba(232,173,58,.19), transparent 55%), var(--panel);
-}
-.pet[data-tier="6"] {
-  border-color: #e85c5c;
-  background: linear-gradient(180deg, rgba(232,92,92,.21), transparent 55%), var(--panel);
-}
+/* 星级 = 边框颜色（灰→绿→蓝→紫→金→红）
+ * 在奶油卡面上，用「饱和边框 + 卡面顶部淡染」做辨识 */
+.pet[data-tier="1"] { border-color: #8d8578; }
+.pet[data-tier="2"] { border-color: #2f9e57; background: linear-gradient(180deg, #eaf7ea 0%, var(--card2) 60%); }
+.pet[data-tier="3"] { border-color: #2f7fcf; background: linear-gradient(180deg, #e8f2fc 0%, var(--card2) 60%); }
+.pet[data-tier="4"] { border-color: #8b46cf; background: linear-gradient(180deg, #f2eafc 0%, var(--card2) 60%); }
+.pet[data-tier="5"] { border-color: #d99a1e; background: linear-gradient(180deg, #fdf3dc 0%, var(--card2) 60%); }
+.pet[data-tier="6"] { border-color: #cf4444; background: linear-gradient(180deg, #fceceb 0%, var(--card2) 60%); }
 
 .pet.selectable { cursor: pointer; }
-.pet.selectable:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,.45); }
-.pet.selected { border-color: var(--gold) !important; box-shadow: 0 0 0 3px rgba(245,196,81,.25); }
+.pet.selectable:hover { transform: translateY(-3px); box-shadow: 0 5px 0 var(--card-edge), 0 10px 20px rgba(0,0,0,.45); }
+.pet.selected { border-color: var(--gold) !important; box-shadow: 0 3px 0 var(--card-edge), 0 0 0 3px rgba(245,196,81,.45); }
 .pet.dragging { opacity: .4; }
 
 .pet-top { display: flex; justify-content: space-between; align-items: center; }
-.pet-emoji { font-size: 22px; line-height: 1; }
+/* 宠物头像：圆形底盘 —— 以后换成真图只改里面的内容（见 PET_ART 映射表） */
+.pet-emoji {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 19px; line-height: 1;
+  background: radial-gradient(circle at 34% 28%, #ffffff, var(--card2));
+  box-shadow: inset 0 -2px 5px rgba(120,90,50,.28), 0 1px 2px rgba(0,0,0,.18);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+/* 换成真图（PET_ART）之后的样式 —— 圆形容器里铺满 */
+.pet-emoji .pet-img,
+.codex-emoji .pet-img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
 .pet-lvl {
-  font-size: 10px; color: var(--gold);
-  background: rgba(245,196,81,.12);
+  font-size: 10px; color: #7a5a12;
+  background: rgba(217,154,30,.22);
+  border: 1px solid rgba(217,154,30,.45);
   border-radius: 5px; padding: 1px 5px; font-weight: 700;
   white-space: nowrap;
 }
 /* 商店里「买了就能给同名宠物升级」的角标 */
-.pet.upgradable { box-shadow: 0 0 0 2px rgba(120,220,140,.75) inset; }
+.pet.upgradable { box-shadow: 0 3px 0 var(--card-edge), 0 0 0 2px rgba(47,158,87,.6) inset; }
 .pet.upgradable::after {
   content: '⬆';
   position: absolute;
   top: 2px; right: 3px;
   font-size: 11px;
-  color: #78dc8c;
+  color: #2f9e57;
 }
 .pet { position: relative; }
 .pet-name {
   font-size: 12px; margin: 3px 0 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: var(--text); font-weight: 600;
+  color: var(--card-text); font-weight: 700;
 }
 .pet-stats { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .pet-stats .atk { color: var(--atk); }
 .pet-stats .hp  { color: var(--hp); }
-.pet-stats .slash { color: var(--dim); font-size: 13px; margin: 0 1px; }
+.pet-stats .slash { color: var(--card-dim); font-size: 13px; margin: 0 1px; }
 .pet-perks { height: 16px; font-size: 13px; margin-top: 1px; }
+
+/* 血条：以「开战时的生命」为满值（playback 里存 maxHp） */
+.pet-hpbar {
+  height: 4px; border-radius: 3px; overflow: hidden;
+  background: #ddcdaf; margin-top: 3px;
+  box-shadow: inset 0 1px 1px rgba(120,90,50,.25);
+}
+.pet-hpbar > i {
+  display: block; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, #2e9e57, #5fd07f);
+  transition: width .18s ease;
+}
+.pet-hpbar.low > i { background: linear-gradient(90deg, #c0392b, #e8763f); }
 
 /* 技能描述：卡片上直接可见，悬停看完整文本 */
 .pet-skill {
@@ -184,9 +224,9 @@ html, body {
   padding-top: 5px;
   font-size: 9px;
   line-height: 1.3;
-  color: #9aa6b8;
+  color: var(--card-dim);
   text-align: left;
-  border-top: 1px solid #2f3541;
+  border-top: 1px solid rgba(138,106,69,.35);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -196,10 +236,11 @@ html, body {
 
 .pet.slot-empty {
   border-style: dashed;
-  border-color: #333944;
-  background: transparent;
+  border-color: rgba(244,232,210,.22);
+  background: rgba(255,255,255,.03);
+  box-shadow: none;
   display: flex; align-items: center; justify-content: center;
-  color: #4a515e; font-size: 12px;
+  color: rgba(244,232,210,.35); font-size: 12px;
 }
 
 /* ---- 点选式换站位：选中某只后，把其他格子标成「点这里就换过去」----
@@ -217,6 +258,43 @@ html, body {
   50%      { box-shadow: 0 0 0 3px rgba(245,196,81,.18); }
 }
 
+/* ===================== 战场（对手在上 / 交战区 / 我方在下）===================== */
+.arena {
+  position: relative;
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  margin-bottom: 12px;
+  background:
+    repeating-linear-gradient(92deg, rgba(0,0,0,.11) 0 18px, rgba(255,255,255,.022) 18px 36px),
+    radial-gradient(ellipse at 50% 45%, #7d5c3c 0%, #553c26 78%);
+  border: 1px solid #7d5c3c;
+  box-shadow: inset 0 2px 16px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
+}
+.arena-side { position: relative; }
+.arena-label {
+  font-size: 11px; letter-spacing: .16em; color: rgba(255,240,215,.55);
+  margin: 0 0 5px 3px; text-transform: uppercase;
+}
+.arena-label.mine { color: rgba(245,196,81,.8); }
+.arena-row-foe, .arena-row-mine { min-height: 0; justify-content: center; }
+/* 交战区：中间那条，战斗中会有 ⚔ 在闪 */
+.arena-clash {
+  height: 34px; display: flex; align-items: center; justify-content: center;
+  position: relative; color: rgba(255,240,215,.30); font-size: 15px;
+}
+.arena-clash::before, .arena-clash::after {
+  content: ''; position: absolute; top: 50%; height: 1px; width: 34%;
+  background: currentColor; opacity: .5;
+}
+.arena-clash::before { left: 3%; }
+.arena-clash::after  { right: 3%; }
+.arena.fighting .arena-clash { color: rgba(245,196,81,.75); }
+.arena.fighting .arena-clash span { animation: clashPulse .7s ease-in-out infinite; }
+@keyframes clashPulse {
+  0%, 100% { transform: scale(1); opacity: .8; }
+  50%      { transform: scale(1.35); opacity: 1; }
+}
+
 /* 战斗高亮 */
 @keyframes acting {
   0%   { transform: scale(1); }
@@ -224,6 +302,49 @@ html, body {
   100% { transform: scale(1); }
 }
 .pet.acting { animation: acting .38s ease; z-index: 5; }
+
+/* ---- 攻击前冲：我方往上冲、对手往下冲（对手在上面）---- */
+@keyframes lungeUp {
+  0%   { transform: translateY(0); }
+  45%  { transform: translateY(12px) scale(1.06); }
+  100% { transform: translateY(0); }
+}
+@keyframes lungeDown {
+  0%   { transform: translateY(0); }
+  45%  { transform: translateY(-12px) scale(1.06); }
+  100% { transform: translateY(0); }
+}
+.pet.lunge-up   { animation: lungeUp .26s ease; z-index: 6; }
+.pet.lunge-down { animation: lungeDown .26s ease; z-index: 6; }
+
+/* ---- 受击抖动 ---- */
+@keyframes hitShake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px); }
+  55%      { transform: translateX(4px); }
+  80%      { transform: translateX(-2px); }
+}
+.pet.hit { animation: hitShake .22s ease; }
+
+/* ---- 扣血飘字 ---- */
+.dmg-float {
+  position: absolute;
+  left: 50%; top: -4px;
+  transform: translateX(-50%);
+  font-size: 17px; font-weight: 900;
+  color: #ff5a4a;
+  text-shadow: 0 1px 0 #000, 0 0 10px rgba(255,70,50,.85);
+  pointer-events: none; white-space: nowrap;
+  z-index: 20;
+  animation: floatUp .85s ease-out forwards;
+}
+.dmg-float.heal { color: #63d98a; text-shadow: 0 1px 0 #000, 0 0 10px rgba(80,220,130,.85); }
+.dmg-float.zero { color: #cfd7e3; font-size: 14px; text-shadow: 0 1px 0 #000; }
+@keyframes floatUp {
+  0%   { opacity: 0; transform: translate(-50%, 6px) scale(.7); }
+  22%  { opacity: 1; transform: translate(-50%, -6px) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -34px) scale(1); }
+}
 
 @keyframes die {
   0%   { opacity: 1; transform: scale(1); }
@@ -291,29 +412,50 @@ html, body {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   transition: border-color .12s, background .12s;
 }
-.shop-slot.empty { background: transparent; border-style: dashed; border-color: #2c313b; min-height: 150px; }
-.shop-slot.frozen { border-color: #5aa8e8; background: #1d2a36; }
-.shop-slot.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(245,196,81,.22); }
+.shop-slot.empty {
+  background: rgba(0,0,0,.14); border-style: dashed;
+  border-color: rgba(244,232,210,.20); min-height: 150px;
+}
+.shop-slot.frozen { border-color: #7fc4ff; background: #35506a; }
+.shop-slot.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(245,196,81,.25); }
 /* 商店里的宠物卡也要显示星级边框（之前 border:none 把它藏掉了） */
 .shop-slot .pet { width: 100%; min-height: 0; padding: 2px; }
-.shop-slot .pet:hover { transform: none; box-shadow: none; }
+.shop-slot .pet:hover { transform: none; box-shadow: 0 3px 0 var(--card-edge); }
 
-.price { font-size: 11.5px; color: var(--gold); font-weight: 700; }
-.price .no { color: #6b7280; font-weight: 400; }
-.price .free { color: var(--win); }
+.price { font-size: 11.5px; color: var(--gold); font-weight: 800; }
+.price .no { color: #8d7a5f; font-weight: 400; }
+.price .free { color: #7fd99a; }
 
 .freeze {
   width: 100%;
-  background: #2b303b; color: var(--dim);
+  background: rgba(255,255,255,.07); color: var(--dim);
   border: 1px solid var(--line); border-radius: 7px;
   font-size: 10.5px; padding: 3px 0; cursor: pointer;
   transition: background .12s, color .12s;
 }
-.freeze:hover { background: #333a47; color: var(--text); }
+.freeze:hover { background: rgba(255,255,255,.14); color: var(--text); }
 
-.shop-slot.food .food-emoji { font-size: 26px; line-height: 1.1; }
-.shop-slot.food .food-name { font-size: 12px; font-weight: 700; }
-.shop-slot.food .food-text { font-size: 10.5px; color: var(--dim); text-align: center; line-height: 1.25; min-height: 26px; }
+/* 道具卡：跟宠物卡一样用奶油色实物卡（原来是深色的，跟宠物卡放一起很割裂） */
+.shop-slot.food {
+  background: linear-gradient(180deg, var(--card) 0%, var(--card2) 100%);
+  border: 2px solid var(--card-line);
+  box-shadow: 0 3px 0 var(--card-edge), 0 5px 12px rgba(0,0,0,.35);
+  color: var(--card-text);
+}
+.shop-slot.food .food-emoji { font-size: 30px; line-height: 1.1; }
+.shop-slot.food .food-name { font-size: 12px; font-weight: 700; color: var(--card-text); }
+.shop-slot.food .food-text {
+  font-size: 10.5px; color: var(--card-dim); text-align: center;
+  line-height: 1.25; min-height: 26px;
+}
+.shop-slot.food .freeze {
+  background: rgba(138,106,69,.16); color: var(--card-dim);
+  border-color: rgba(138,106,69,.42);
+}
+.shop-slot.food .freeze:hover { background: rgba(138,106,69,.28); color: var(--card-text); }
+.shop-slot.food .price { color: #8a5a10; }
+.shop-slot.food .price .no { color: #a08a6c; }
+.shop-slot.food .price .free { color: #1e8449; }
 
 /* ===================== 按钮 ===================== */
 .actions { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
@@ -329,15 +471,19 @@ html, body {
   font-family: inherit;
   transition: background .12s, transform .08s, opacity .12s;
 }
-.btn:hover:not(:disabled) { background: #353c4a; }
+.btn:hover:not(:disabled) { background: #5a4128; }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
+/* 主按钮：木桌上的「铜牌」质感，比冷色按钮更搭暖色主题 */
 .btn.primary {
-  background: linear-gradient(180deg, #3f8ef7, #2f74d8);
-  border-color: #4d96f8;
-  color: #fff;
+  background: linear-gradient(180deg, #e0a45e, #b87a34);
+  border-color: #f0c184;
+  color: #2b1a08;
+  font-weight: 800;
+  box-shadow: 0 3px 0 #8a5a24, 0 5px 12px rgba(0,0,0,.3);
 }
-.btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #4d9bff, #387ee0); }
+.btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #eab271, #c98a3f); }
+.btn.primary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #8a5a24; }
 
 /* ===================== 战斗面板 ===================== */
 #battlePanel { margin-bottom: 14px; }
@@ -1050,15 +1196,15 @@ html, body {
 .pet-faction {
   display: inline-block;
   font-size: 10.5px;
-  color: var(--dim);
-  background: #1e232b;
-  border: 1px solid var(--line);
+  color: var(--card-dim);
+  background: rgba(138,106,69,.14);
+  border: 1px solid rgba(138,106,69,.42);
   border-radius: 999px;
   padding: 1px 7px;
   cursor: pointer;
   white-space: nowrap;
 }
-.pet-faction:hover { border-color: rgba(245,196,81,.7); color: var(--text); }
+.pet-faction:hover { border-color: var(--gold); color: var(--card-text); background: rgba(245,196,81,.22); }
 
 /* ---- 待用库存（商店摆不下的道具）---- */
 .pending-foods {

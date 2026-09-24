@@ -64,8 +64,34 @@ const PET_EMOJI = {
   FairyBall: '🔮', MimicOctopus: '🐙'
 };
 
-const PERK_EMOJI = {
-  Melon: '🍉', Honey: '🍯', Garlic: '🧄',
+/* ------------------------------------------------------------
+ *  宠物图片接口（预留）
+ *
+ *  现在用 emoji 顶着，但整套渲染都走 petArtHtml()，所以以后要换成真图
+ *  只需要在这里加一行、把图片丢进 assets/pets/ 就行 —— 三种模式、
+ *  商店、队伍、战斗、图鉴会一起生效，不用改任何别的地方。
+ *
+ *  用法（示例，注释掉的那行就是格式）：
+ *      const PET_ART = {
+ *        Ant: 'assets/pets/ant.png',
+ *        Beaver: 'assets/pets/beaver.png',
+ *      };
+ *  没在这里登记的宠物会自动退回 emoji，所以可以一张一张慢慢加。
+ * ---------------------------------------------------------- */
+const PET_ART = {
+  // Ant: 'assets/pets/ant.png',
+};
+
+function petArtHtml(defId) {
+  const src = PET_ART[defId];
+  if (src) {
+    return '<img class="pet-img" src="' + esc(src) + '" alt="' +
+           esc((PETS[defId] && PETS[defId].cn) || defId) + '">';
+  }
+  return PET_EMOJI[defId] || '🐾';
+}
+
+const PERK_EMOJI = {  Melon: '🍉', Honey: '🍯', Garlic: '🧄',
   Chili: '🌶️', Peanut: '🥜', Coconut: '🥥',
   /* 星包 */
   Strawberry: '🍓', Cucumber: '🥒', Cheese: '🧀', Grapes: '🍇',
@@ -543,7 +569,7 @@ function petCard(p, opts) {
   card.innerHTML =
     // 星级只用边框颜色表达（data-tier 驱动 CSS），不显示文字徽章
     '<div class="pet-top">' +
-      '<span class="pet-emoji">' + (PET_EMOJI[p.defId] || '🐾') + '</span>' +
+      '<span class="pet-emoji">' + petArtHtml(p.defId) + '</span>' +
       '<span class="pet-lvl">' + esc(lvlTextOf(p)) + '</span>' +
     '</div>' +
     '<div class="pet-name">' + esc(petName(def)) + '</div>' +
@@ -556,6 +582,62 @@ function petCard(p, opts) {
     '<div class="pet-perks">' + perkHtml + '</div>' +
     (skill ? '<div class="pet-skill" title="' + esc(skill) + '">' + esc(skill) + '</div>' : '');
   return card;
+}
+
+/* 血量归零就立刻标记阵亡。
+ * ⚠️ 为什么需要：引擎的 attack 事件【自带伤害】，所以回放里血量在这一步就掉到 0 了，
+ *    但 _dead 要等好几条事件之后的 faint 才标记 —— 中间那些 ability（遗言/受伤/
+ *    击倒触发）步骤里，这具 0 血的"尸体"还留在场上，看起来就是「死了还在打」。
+ *    实测最长停留 30 步（约 12 秒）。
+ *    这里只是【提前打标记】，真正移出数组仍在下一步开头做 ——
+ *    所以 summon 的插入位置依然和引擎对齐。
+ * ⚠️ 三种模式都要用：playback.js（8 人/联机）和 ui.js（经典）都调它。 */
+function markDeadIfZero(pet) {
+  if (pet && pet.hp <= 0) pet._dead = true;
+}
+
+/* ------------------------------------------------------------
+ *  战斗中的宠物卡装饰（血条 / 扣血飘字 / 前冲 / 受击）
+ *  三种模式共用 —— playback.js 和 ui.js 都调这个，样式才不会各写一遍。
+ *
+ *  fx = { lunges: [uid...], hits: [uid...], floats: [{uid, n}...] }
+ *  isMine = 这一侧是不是我方（决定前冲方向：对手在上面，我方往上冲）
+ * ---------------------------------------------------------- */
+function battleDecorateCard(card, pet, fx, isMine) {
+  // 血条：以开战时的生命为满值（maxHp 由 cloneForView / battleCloneView 记下）
+  if (pet.maxHp > 0) {
+    const ratio = pet.hp / pet.maxHp;
+    const bar = el('div', 'pet-hpbar' + (ratio <= 0.34 ? ' low' : ''));
+    const fill = el('i');
+    fill.style.width = Math.max(0, Math.min(100, ratio * 100)) + '%';
+    bar.appendChild(fill);
+    card.appendChild(bar);
+  }
+  if (!fx) return;
+  if (fx.lunges && fx.lunges.indexOf(pet.uid) >= 0) {
+    card.classList.add(isMine ? 'lunge-up' : 'lunge-down');
+  }
+  if (fx.hits && fx.hits.indexOf(pet.uid) >= 0) card.classList.add('hit');
+  for (const f of (fx.floats || [])) {
+    if (f.uid !== pet.uid) continue;
+    const cls = 'dmg-float' + (f.n <= 0 ? ' zero' : '');
+    card.appendChild(el('span', cls, f.n <= 0 ? '0' : '−' + f.n));
+  }
+}
+
+/* 从引擎事件里抽出「这一帧要播的特效」 */
+function battleFxOfEvent(ev) {
+  if (!ev) return null;
+  if (ev.e === 'attack') {
+    const floats = [];
+    if (ev.dmgA > 0) floats.push({ uid: ev.a, n: ev.dmgA });
+    if (ev.dmgB > 0) floats.push({ uid: ev.b, n: ev.dmgB });
+    return { lunges: [ev.a, ev.b], hits: floats.map(function (f) { return f.uid; }), floats: floats };
+  }
+  if (ev.e === 'dmg') {
+    return { hits: [ev.t], floats: [{ uid: ev.t, n: ev.n }] };
+  }
+  return null;
 }
 
 /* 商店里的宠物槽（单人模式与 8 人模式样式一致） */
@@ -698,7 +780,7 @@ function codexPetCard(id) {
   return '<div class="codex-card" data-tier="' + (d.tier || 0) +
       '" data-pet-id="' + esc(id) + '">' +
       '<div class="codex-top">' +
-        '<span class="codex-emoji">' + (PET_EMOJI[id] || '🐾') + '</span>' +
+        '<span class="codex-emoji">' + petArtHtml(id) + '</span>' +
         '<span class="codex-name">' + esc(petName(d)) + '</span>' +
         '<span class="codex-en">' + esc(d.name) + '</span>' +
         '<span class="codex-base">' +

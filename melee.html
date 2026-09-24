@@ -54,15 +54,18 @@
   <!-- ===================== 主区域 ===================== -->
   <main id="board">
 
-    <!-- 战斗视图 -->
+    <!-- 战斗视图（布局照官方：对手在上 / 中间交战区 / 我方在下） -->
     <section id="mbattle" style="display:none">
-      <div class="row-wrap">
-        <div class="row-label">对手</div>
-        <div id="mFoeRow" class="pet-row"></div>
-      </div>
-      <div class="row-wrap">
-        <div class="row-label">我的队伍</div>
-        <div id="mMyBattleRow" class="pet-row"></div>
+      <div class="arena">
+        <div class="arena-side">
+          <div class="arena-label">对手</div>
+          <div id="mFoeRow" class="pet-row arena-row-foe"></div>
+        </div>
+        <div class="arena-clash"><span>⚔</span></div>
+        <div class="arena-side">
+          <div class="arena-label mine">我的队伍</div>
+          <div id="mMyBattleRow" class="pet-row arena-row-mine"></div>
+        </div>
       </div>
       <div class="battle-ctrl">
         <div id="mBattleLabel" class="battle-label"></div>

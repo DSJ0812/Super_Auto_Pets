@@ -20,6 +20,7 @@ function battleCloneView(p, side) {
     lvl: p.lvl,
     atk: p.atk,
     hp: p.hp,
+    maxHp: p.hp,        // 开战时的生命 —— 血条以它为满值
     perks: (p.perks || []).map(function (x) { return { id: x.id, uses: x.uses }; }),
     side: side
   };
@@ -70,17 +71,7 @@ BattlePlayer.prototype.speed = function () {
   return (typeof v === 'number' && v > 0) ? v : 1;
 };
 
-/* 血量归零就立刻标记阵亡。
- * ⚠️ 为什么需要这个：引擎的 attack 事件【自带伤害】，所以回放里血量在这一步
- *    就掉到 0 了，但 _dead 要等好几条事件之后的 faint 才标记 —— 中间那些
- *    ability（遗言 / 受伤 / 击倒触发）步骤里，这具 0 血的"尸体"还留在场上，
- *    看起来就是「宠物已经死了还站着打 / 挨打」。实测最长停留 30 步（约 12 秒）。
- *    这里只是【提前打标记】，真正移出数组仍在下一步开头做 ——
- *    所以 summon 的插入位置依然和引擎对齐。
- * 注意：阵亡后它自己的遗言还要播，所以不能直接从 view 里删掉，只能标记。 */
-function markDeadIfZero(pet) {
-  if (pet && pet.hp <= 0) pet._dead = true;
-}
+/* markDeadIfZero 在 render.js 里（三种模式共用） */
 
 /* 开始回放
  *  state  各界面自己的状态对象（会被写入 view / log / idx / timer / mySide）
@@ -229,6 +220,7 @@ BattlePlayer.prototype.step = function () {
       return;
   }
 
+  this._fx = battleFxOfEvent(ev);     // 这一帧的扣血飘字 / 前冲 / 受击
   this.render(this._hi, label);
   const base = (this.el.baseDelay || 420) / this.speed();
   const self = this;
@@ -309,6 +301,10 @@ BattlePlayer.prototype.render = function (highlight, label) {
   const state = this.state;
   if (!state || !state.view) return;
   const v = state.view;
+  const fx = this._fx;          // 这一帧要播的特效（扣血飘字 / 前冲 / 受击）
+
+  const arena = this.$(this.el.arena);
+  if (arena) arena.classList.toggle('fighting', !!fx);
 
   const foe = this.$(this.el.foe);
   if (foe) {
@@ -316,6 +312,7 @@ BattlePlayer.prototype.render = function (highlight, label) {
     for (const p of v.foe) {
       const c = petCard(p);
       if (highlight && highlight.indexOf(p.uid) >= 0) c.classList.add('acting');
+      battleDecorateCard(c, p, fx, false);
       foe.appendChild(c);
     }
   }
@@ -325,6 +322,7 @@ BattlePlayer.prototype.render = function (highlight, label) {
     for (const p of v.mine) {
       const c = petCard(p);
       if (highlight && highlight.indexOf(p.uid) >= 0) c.classList.add('acting');
+      battleDecorateCard(c, p, fx, true);
       mine.appendChild(c);
     }
   }
@@ -336,6 +334,9 @@ BattlePlayer.prototype.render = function (highlight, label) {
 BattlePlayer.prototype.finish = function (winner) {
   const state = this.state;
   clearTimeout(this.timer);
+  this._fx = null;                    // 结束画面不要再飘扣血数字
+  const arena = this.$(this.el.arena);
+  if (arena) arena.classList.remove('fighting');
   if (state && state.view) {
     state.view.mine = state.view.mine.filter(function (p) { return !p._dead; });
     state.view.foe  = state.view.foe.filter(function (p) { return !p._dead; });

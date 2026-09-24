@@ -45,14 +45,20 @@
   <!-- ===================== 主区域 ===================== -->
   <main id="board">
 
-    <!-- 战斗：对手 -->
-    <section id="foeRow" class="row-wrap" style="display:none"></section>
-
-    <!-- 战斗：我的 + 控制条 -->
+    <!-- ===================== 战斗 =====================
+         布局照官方：对手在上 / 中间交战区 / 我方在下。
+         #foeRow 原来是放在 battlePanel 外面的独立 section，现在收进战场里。 -->
     <section id="battlePanel" style="display:none">
-      <div class="row-wrap">
-        <div class="row-label">我的队伍</div>
-        <div id="myBattleRow" class="pet-row"></div>
+      <div class="arena">
+        <div class="arena-side">
+          <div class="arena-label">对手</div>
+          <div id="foeRow" class="pet-row arena-row-foe"></div>
+        </div>
+        <div class="arena-clash"><span id="clashMark">⚔</span></div>
+        <div class="arena-side">
+          <div class="arena-label mine">我的队伍</div>
+          <div id="myBattleRow" class="pet-row arena-row-mine"></div>
+        </div>
       </div>
       <div class="battle-ctrl">
         <div id="battleLabel" class="battle-label"></div>

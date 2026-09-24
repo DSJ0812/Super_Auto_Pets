@@ -21,6 +21,7 @@ const MPLAY = new BattlePlayer({
   foe: '#mFoeRow', mine: '#mMyBattleRow', label: '#mBattleLabel',
   skip: '#mBtnSkip', next: '#mBtnNext',
   shopView: '#mShopView', battleView: '#mbattle',
+  arena: '#mbattle .arena',        // 交战中给战场加个类，中间的 ⚔ 会闪
   speedMul: function () { return MUI.speedMul; },
   onFinish: function () {
     const m = MUI.m;

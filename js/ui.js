@@ -164,34 +164,43 @@ function renderShop() {
  * ---------------------------------------------------------- */
 function cloneForView(p, side) {
   return { uid: p.uid, defId: p.defId, def: p.def, lvl: p.lvl, atk: p.atk, hp: p.hp,
+           maxHp: p.hp,        // 开战时的生命 —— 血条以它为满值
            perks: (p.perks || []).map(function (x) { return { id: x.id, uses: x.uses }; }), side: side };
 }
 
 function renderBattleBoard(highlightUids, label) {
   const v = UI.view;
   if (!v) return;
+  const fx = UI._fx;            // 这一帧的扣血飘字 / 前冲 / 受击
+
+  const arena = $('#battlePanel .arena');
+  if (arena) arena.classList.toggle('fighting', !!fx);
 
   const foe = $('#foeRow');
   foe.innerHTML = '';
+  // ⚠️ 必须把 display 清掉：商店阶段会把它设成 none（ui.js 上面那行），
+  //    改布局时漏了这句，结果对手行永远不显示。
   foe.style.display = '';
-  foe.appendChild(el('div', 'row-label', '对手 ' + (v.opponentName || '')));
-  const foeInner = el('div', 'pet-row');
   for (const p of v[1]) {
     const c = petCard(p);
     if (highlightUids && highlightUids.indexOf(p.uid) >= 0) c.classList.add('acting');
-    foeInner.appendChild(c);
+    battleDecorateCard(c, p, fx, false);
+    foe.appendChild(c);
   }
-  foe.appendChild(foeInner);
 
   const my = $('#myBattleRow');
   my.innerHTML = '';
   for (const p of v[0]) {
     const c = petCard(p);
     if (highlightUids && highlightUids.indexOf(p.uid) >= 0) c.classList.add('acting');
+    battleDecorateCard(c, p, fx, true);
     my.appendChild(c);
   }
 
   if (label != null) $('#battleLabel').textContent = label;
+  // 对手名字显示在战场的「对手」标签上（新版布局里标签是 HTML 里的）
+  const foeLabel = $('#battlePanel .arena-label');
+  if (foeLabel) foeLabel.textContent = '对手' + (v.opponentName ? ' · ' + v.opponentName : '');
   $('#shop').style.display = 'none';
   $('#myRowWrap').style.display = 'none';
   $('#battlePanel').style.display = '';
@@ -252,8 +261,8 @@ function stepBattle() {
 
     case 'attack': {
       const A = findView(ev.a), B = findView(ev.b);
-      if (A) A.pet.hp -= ev.dmgA;
-      if (B) B.pet.hp -= ev.dmgB;
+      if (A) { A.pet.hp -= ev.dmgA; markDeadIfZero(A.pet); }
+      if (B) { B.pet.hp -= ev.dmgB; markDeadIfZero(B.pet); }
       hi = [ev.a, ev.b];
       label = (A ? petName(A.pet.def) : '?') + ' ⚔ ' + (B ? petName(B.pet.def) : '?');
       break;
@@ -261,7 +270,7 @@ function stepBattle() {
 
     case 'dmg': {
       const t = findView(ev.t);
-      if (t) { t.pet.hp -= ev.n; hi = [ev.t]; label = petName(t.pet.def) + ' 受到 ' + ev.n + ' 点伤害'; }
+      if (t) { t.pet.hp -= ev.n; markDeadIfZero(t.pet); hi = [ev.t]; label = petName(t.pet.def) + ' 受到 ' + ev.n + ' 点伤害'; }
       break;
     }
 
@@ -315,6 +324,7 @@ function stepBattle() {
   }
 
   // 移除阵亡的（保留一帧让玩家看到）
+  UI._fx = battleFxOfEvent(ev);      // 这一帧的扣血飘字 / 前冲 / 受击
   renderBattleBoard(hi, label);
 
   const base = 420 / (UI.speedMul || 1);
@@ -326,6 +336,9 @@ function finishBattle(winner) {
   const g = UI.game;
   if (winner === undefined) winner = g.lastResult.winner;
   const v = UI.view;
+  UI._fx = null;                       // 结束画面不要再飘扣血数字
+  const arena = $('#battlePanel .arena');
+  if (arena) arena.classList.remove('fighting');
 
   // 清掉残留尸体，最终画面只显示存活者（与引擎的最终队伍一致）
   if (v) {
@@ -585,11 +598,11 @@ function applyEventSilent(ev) {
   switch (ev.e) {
     case 'attack': {
       const A = findView(ev.a), B = findView(ev.b);
-      if (A) A.pet.hp -= ev.dmgA;
-      if (B) B.pet.hp -= ev.dmgB;
+      if (A) { A.pet.hp -= ev.dmgA; markDeadIfZero(A.pet); }
+      if (B) { B.pet.hp -= ev.dmgB; markDeadIfZero(B.pet); }
       break;
     }
-    case 'dmg': { const t = findView(ev.t); if (t) t.pet.hp -= ev.n; break; }
+    case 'dmg': { const t = findView(ev.t); if (t) { t.pet.hp -= ev.n; markDeadIfZero(t.pet); } break; }
     case 'buff': { const t = findView(ev.t); if (t) { t.pet.atk += ev.atk; t.pet.hp += ev.hp; } break; }
     case 'perk': { const t = findView(ev.t); if (t) t.pet.perks = [{ id: ev.id, uses: 1 }]; break; }
     case 'faint': { const t = findView(ev.t); if (t) t.pet.hp = 0; break; }
