@@ -38,9 +38,11 @@
       </div>
       <div class="howto-tabs" id="howtoTabs">
         <span class="howto-tab on" data-htab="basic">基础流程</span>
+        <span class="howto-tab" data-htab="ui">界面怎么看</span>
         <span class="howto-tab" data-htab="pet">宠物与合成</span>
         <span class="howto-tab" data-htab="shop">商店与等级</span>
         <span class="howto-tab" data-htab="food">道具与标记</span>
+        <span class="howto-tab" data-htab="relic">遗物</span>
         <span class="howto-tab" data-htab="battle">战斗机制</span>
         <span class="howto-tab" data-htab="faction">阵营羁绊</span>
         <span class="howto-tab" data-htab="mode">四个模式</span>
@@ -67,6 +69,40 @@
           <p>经典模式每回合固定发 <b>10 金</b>，而且<b>回合结束就清零、不累积</b> ——
             所以「攒钱」没有意义，能花就花。<br>
             8 人混战是另一种经济（TFT 式）：金币<b>会累积</b>，还有<b>利息</b>和连胜/连败奖励。</p>
+        </div>
+
+        <div class="howto-pane" data-hpane="ui">
+          <h4>宠物卡片上的每个东西是什么</h4>
+          <table class="hp-table">
+            <tr><th>长这样</th><th>意思</th></tr>
+            <tr><td><b style="color:#ff7a6b">红色数字</b></td><td><b>攻击力</b> —— 每次互殴打掉对方多少血</td></tr>
+            <tr><td><b style="color:#6bd47f">绿色数字</b></td><td><b>生命值</b> —— 掉到 0 就阵亡</td></tr>
+            <tr><td>左下的大 emoji</td><td>是哪种动物（纯装饰，不影响数值）</td></tr>
+            <tr><td>右上角 <b>1级 1/2</b></td><td>等级 + <b>升级进度</b>：分子是当前经验，分母是升下一级需要的。
+              满级显示 <b>3级 MAX</b></td></tr>
+            <tr><td>名字下面的小徽章 <b>🐾 小兽</b></td><td>它属于哪个<b>阵营</b>（羁绊）。点它会弹出羁绊详情</td></tr>
+            <tr><td>底部那行小字</td><td>它的<b>技能</b>（按当前等级显示，鼠标悬停能看全文）</td></tr>
+            <tr><td>卡片周围的<b>边框颜色</b></td><td>星级（T1 灰 → T6 金）</td></tr>
+            <tr><td>名字旁的 🍉 / 🥜 等</td><td>身上带的<b>道具标记</b>（一只宠物同时只能带 1 个）</td></tr>
+          </table>
+          <p class="hp-note">商店里如果某只宠物的卡片有<b>绿色边框 + ⬆ 角标</b>，
+            说明队伍里有同名且没满级的宠物 —— <b>买它就能给那只加 1 经验</b>。</p>
+          <h4>商店的价格</h4>
+          <p>卡片下面的价格就是<b>实际要付的钱</b>（遗物折扣已经算进去了）。
+            钱不够时会显示成灰色。</p>
+          <h4>顶部那一条</h4>
+          <p>从左到右依次是：<b>回合数</b> · <b>金币</b> · <b>商店等级</b>（T1~T6）·
+            <b>本次运行的种子</b>（同一局分享给别人可以复现）·
+            <b>阵营羁绊条</b>（点任意阵营看详情）。</p>
+          <h4>怎么操作</h4>
+          <ul>
+            <li><b>买</b>：点商店里的宠物。</li>
+            <li><b>摆位</b>：把商店宠物<b>拖</b>到队伍里想放的位置；或者点选一只队伍宠物，
+              再点另一只 / 空位来交换。</li>
+            <li><b>卖</b>：<b>连点两次</b>队伍里的同一只宠物（第一次选中，第二次卖出）。</li>
+            <li><b>用道具</b>：先买道具，再点一只宠物。想取消就再点一次道具。</li>
+            <li><b>冻结</b>：点格子上的 <b>❄ 冻结</b> 把它留到下一回合。</li>
+          </ul>
         </div>
 
         <div class="howto-pane" data-hpane="pet">
@@ -120,6 +156,28 @@
           <p>商店只有 2 个食物位。像「3 级鸽子库存 3 个免费苹果」这种多出来的，
             会进到 <b>🎒 待用</b> 里（显示在食物区下面），
             食物位一空出来就<b>自动补上</b>，一个都不会浪费。</p>
+        </div>
+
+        <div class="howto-pane" data-hpane="relic">
+          <p class="hp-lead">遗物是<b>永久生效的全局加成</b>，和宠物 / 道具都不冲突，一局能拿好几个。</p>
+          <h4>怎么拿</h4>
+          <p>第 <b>3 / 6 / 9 / 12 …</b> 回合（每 3 回合）自动弹一次<b>三选一</b>，
+            选中就永久保留。三选一没选完之前不能结束回合。</p>
+          <h4>都有哪些</h4>
+          <table class="hp-table">
+            <tr><th>类别</th><th>例子</th></tr>
+            <tr><td>💰 经济</td><td>金库（每回合 +3 金）、批发商（买宠物便宜 1 金）、
+              当铺（出售多得 1 金）、营养师（道具便宜 1 金）</td></tr>
+            <tr><td>🏋️ 成长</td><td>训练场（每回合最前排 +1/+1）、急救包（每回合全体 +1 生命）、
+              孵化器（升星时多刷 1 只）、星探（商店等级提前 1 回合）</td></tr>
+            <tr><td>⚔️ 战斗</td><td>战旗（开战全体 +4 生命）、獠牙（开战全体 +2 攻击）、
+              铁甲（开战全体椰子）、猎杀标记（开战打敌方最前排 3 点）</td></tr>
+          </table>
+          <p class="hp-note">⚠️ <b>「钱庄（利息上限 +3）」只在 8 人混战里出现</b> ——
+            经典模式是 SAP 经济、<b>没有利息</b>，抽到它就是白占一个遗物位，
+            所以已经在经典模式的池子里过滤掉了。</p>
+          <p>拿到什么遗物是随机的<b>三选一</b>，不是白给 —— 所以选择本身也是一部分策略。
+            想查全部遗物可以点游戏里的 <b>📖 图鉴</b>。</p>
         </div>
 
         <div class="howto-pane" data-hpane="battle">

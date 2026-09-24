@@ -177,7 +177,8 @@ function mRenderShop() {
       slotAttr: 'mShopPet', slotIndex: i,
       freezeAttr: 'mFreezePet',
       cost: cost, affordable: g.gold >= cost,
-      draggable: true
+      draggable: true,
+      upgradable: canUpgradeFrom(p, g.team)
     }));
   }
 

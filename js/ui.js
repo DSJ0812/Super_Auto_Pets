@@ -98,17 +98,18 @@ function renderShop() {
   for (let i = 0; i < CFG.SHOP_PET_SLOTS; i++) {
     const p = g.shopPets[i];
     if (!p) { sr.appendChild(el('div', 'shop-slot empty')); continue; }
-    const wrap = el('div', 'shop-slot');
-    if (g.frozenPets[i]) wrap.classList.add('frozen');
-    const c = petCard(p);
-    c.dataset.shopPet = i;
-    c.draggable = true;          // 可拖到队伍指定位置购买
-    wrap.appendChild(c);
-    wrap.appendChild(el('div', 'price', g.gold >= CFG.PET_COST ? '3 金' : '<span class="no">3 金</span>'));
-    const fz = el('button', 'freeze', g.frozenPets[i] ? '❄ 已冻结' : '❄ 冻结');
-    fz.dataset.freezePet = i;
-    wrap.appendChild(fz);
-    sr.appendChild(wrap);
+    // ⚠️ 这里以前是经典模式【自己手写】的一份商店卡片，价格硬编码成「3 金」——
+    //    抽到遗物「批发商」（宠物便宜 1 金）时，界面显示 3 金、实际只收 2 金，
+    //    玩家会以为扣错了钱。现在统一复用 shopPetSlot()，价格走 petCostOf(defId, g)。
+    const cost = petCostOf(p.defId, g);
+    sr.appendChild(shopPetSlot(p, {
+      frozen: g.frozenPets[i],
+      slotAttr: 'shopPet', slotIndex: i,
+      freezeAttr: 'freezePet',
+      cost: cost, affordable: g.gold >= cost,
+      draggable: true,
+      upgradable: canUpgradeFrom(p, g.team)
+    }));
   }
 
   // ---- 商店食物 ----

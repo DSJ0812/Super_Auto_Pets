@@ -486,6 +486,26 @@ function skillTextOf(def, lvl) {
   return def.texts[i] || def.texts[0] || '';
 }
 
+/* 升级进度文字：1 级 1/2 · 2 级 3/5 · 3 级 MAX
+ * 官方只显示等级徽章、要玩家自己数；这里直接写出「还差多少经验」，
+ * 省得玩家去记「升 2 级要 2 点、升 3 级要 5 点」。 */
+function lvlTextOf(p) {
+  const lvl = Math.min(Math.max(p.lvl || 1, 1), 3);
+  if (lvl >= 3) return '3级 MAX';
+  const need = (typeof EXP_BONUS !== 'undefined' && EXP_BONUS[lvl + 1]) || 2;
+  const cur = Math.min(p.exp || 0, need);
+  return lvl + '级 ' + cur + '/' + need;
+}
+
+/* 队伍里有没有「同名且没满级」的宠物 —— 有的话商店里那只买了就能升级，
+ * 卡片上会打一个 ⬆ 角标提醒。 */
+function canUpgradeFrom(p, team) {
+  if (!p || !team) return false;
+  return team.some(function (q) {
+    return q && q.defId === p.defId && (q.lvl || 1) < 3;
+  });
+}
+
 function petCard(p, opts) {
   opts = opts || {};
   const def = p.def || PETS[p.defId] || { name: p.defId, cn: '', tier: 0 };
@@ -493,6 +513,10 @@ function petCard(p, opts) {
   card.dataset.uid = p.uid;
   card.dataset.side = p.side;
   card.dataset.tier = def.tier || 0;
+  if (opts.upgradable) {
+    card.classList.add('upgradable');
+    card.title = '买下它能给队伍里的同名宠物 +1 经验';
+  }
 
   if (opts.selectable) card.classList.add('selectable');
   if (opts.selected) card.classList.add('selected');
@@ -520,7 +544,7 @@ function petCard(p, opts) {
     // 星级只用边框颜色表达（data-tier 驱动 CSS），不显示文字徽章
     '<div class="pet-top">' +
       '<span class="pet-emoji">' + (PET_EMOJI[p.defId] || '🐾') + '</span>' +
-      '<span class="pet-lvl">' + p.lvl + '级</span>' +
+      '<span class="pet-lvl">' + esc(lvlTextOf(p)) + '</span>' +
     '</div>' +
     '<div class="pet-name">' + esc(petName(def)) + '</div>' +
     (facHtml ? '<div class="pet-fac-row">' + facHtml + '</div>' : '') +
@@ -540,7 +564,7 @@ function shopPetSlot(p, opts) {
   const wrap = el('div', 'shop-slot');
   if (opts.frozen) wrap.classList.add('frozen');
   if (opts.selected) wrap.classList.add('selected');
-  const c = petCard(p);
+  const c = petCard(p, { upgradable: opts.upgradable });
   if (opts.slotAttr != null) c.dataset[opts.slotAttr] = opts.slotIndex;
   c.draggable = !!opts.draggable;
   wrap.appendChild(c);

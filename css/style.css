@@ -157,6 +157,16 @@ html, body {
   border-radius: 5px; padding: 1px 5px; font-weight: 700;
   white-space: nowrap;
 }
+/* 商店里「买了就能给同名宠物升级」的角标 */
+.pet.upgradable { box-shadow: 0 0 0 2px rgba(120,220,140,.75) inset; }
+.pet.upgradable::after {
+  content: '⬆';
+  position: absolute;
+  top: 2px; right: 3px;
+  font-size: 11px;
+  color: #78dc8c;
+}
+.pet { position: relative; }
 .pet-name {
   font-size: 12px; margin: 3px 0 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

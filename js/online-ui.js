@@ -226,7 +226,8 @@ function oRenderShop() {
       slotAttr: 'oShopPet', slotIndex: i,
       freezeAttr: 'oFreezePet',
       cost: cost, affordable: g.gold >= cost,
-      draggable: true
+      draggable: true,
+      upgradable: canUpgradeFrom(p, g.team)
     }));
   }
 

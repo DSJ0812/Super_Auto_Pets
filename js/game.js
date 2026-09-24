@@ -32,7 +32,7 @@ const CFG = {
    * tft：金币累积 + 利息 + 连胜奖励、宠物按星级定价        （8 人混战） */
   ECONOMY: 'sap',
   TFT_BASE_GOLD: 5,        // 每回合基础金币
-  TFT_INTEREST_PER: 10,    // 每存满 10 金吃 1 点利息
+  TFT_INTEREST_PER: 5,     // 每存满 5 金吃 1 点利息（原来 10 金才 1 点，攒钱太不划算）
   TFT_INTEREST_MAX: 5,     // 利息上限
   TFT_STREAK_CAP: 3,       // 连胜/连败奖励上限
   TFT_ROLL_COST: 2,        // 刷新费用
@@ -846,7 +846,12 @@ Game.prototype.sellPet = function (teamIdx) {
   }
   envS.actor = null;
   for (const ev of envS.events) env.events.push(ev);
-  const sellGain = CFG.SELL_GAIN + relicSum(this, 'sellBonus') + petBonus;   // 遗物「当铺」
+  // 售价 = 宠物等级（1/2/3 级分别卖 1/2/3 金）。官方原文：
+  // "Pets will sell for one at level 1, for 2 at level 2, and 3 at level three"。
+  // ⚠️ 以前这里是固定的 CFG.SELL_GAIN（1 金），所以 2 级 / 3 级宠物卖掉也只给 1 金，
+  //    和官方不符，玩起来也会觉得「合了半天卖出去不值」。
+  const sellGain = Math.max(1, pet.lvl || 1) +
+                   relicSum(this, 'sellBonus') + petBonus;   // 遗物「当铺」/ 星包麋鹿
   this.gold += sellGain;
   return { ok: true, msg: '卖掉了 ' + petName(pet.def) + '，+' + sellGain + ' 金'
            + (notes.length ? ' · ' + notes.join(' · ') : '') };

@@ -70,6 +70,18 @@ BattlePlayer.prototype.speed = function () {
   return (typeof v === 'number' && v > 0) ? v : 1;
 };
 
+/* 血量归零就立刻标记阵亡。
+ * ⚠️ 为什么需要这个：引擎的 attack 事件【自带伤害】，所以回放里血量在这一步
+ *    就掉到 0 了，但 _dead 要等好几条事件之后的 faint 才标记 —— 中间那些
+ *    ability（遗言 / 受伤 / 击倒触发）步骤里，这具 0 血的"尸体"还留在场上，
+ *    看起来就是「宠物已经死了还站着打 / 挨打」。实测最长停留 30 步（约 12 秒）。
+ *    这里只是【提前打标记】，真正移出数组仍在下一步开头做 ——
+ *    所以 summon 的插入位置依然和引擎对齐。
+ * 注意：阵亡后它自己的遗言还要播，所以不能直接从 view 里删掉，只能标记。 */
+function markDeadIfZero(pet) {
+  if (pet && pet.hp <= 0) pet._dead = true;
+}
+
 /* 开始回放
  *  state  各界面自己的状态对象（会被写入 view / log / idx / timer / mySide）
  *  log    引擎事件日志
@@ -128,15 +140,19 @@ BattlePlayer.prototype.step = function () {
 
     case 'attack': {
       const A = battleFind(state.view, ev.a), B = battleFind(state.view, ev.b);
-      if (A) A.pet.hp -= ev.dmgA;
-      if (B) B.pet.hp -= ev.dmgB;
+      if (A) { A.pet.hp -= ev.dmgA; markDeadIfZero(A.pet); }
+      if (B) { B.pet.hp -= ev.dmgB; markDeadIfZero(B.pet); }
       label = (A ? petName(A.pet.def) : '?') + ' ⚔ ' + (B ? petName(B.pet.def) : '?');
       this._hi = [ev.a, ev.b];
       break;
     }
     case 'dmg': {
       const t = battleFind(state.view, ev.t);
-      if (t) { t.pet.hp -= ev.n; label = petName(t.pet.def) + ' 受到 ' + ev.n + ' 伤害'; }
+      if (t) {
+        t.pet.hp -= ev.n;
+        markDeadIfZero(t.pet);
+        label = petName(t.pet.def) + ' 受到 ' + ev.n + ' 伤害';
+      }
       this._hi = [ev.t];
       break;
     }
@@ -245,11 +261,15 @@ BattlePlayer.prototype.apply = function (ev) {
   switch (ev.e) {
     case 'attack': {
       const A = battleFind(state.view, ev.a), B = battleFind(state.view, ev.b);
-      if (A) A.pet.hp -= ev.dmgA;
-      if (B) B.pet.hp -= ev.dmgB;
+      if (A) { A.pet.hp -= ev.dmgA; markDeadIfZero(A.pet); }
+      if (B) { B.pet.hp -= ev.dmgB; markDeadIfZero(B.pet); }
       break;
     }
-    case 'dmg':  { const t = battleFind(state.view, ev.t); if (t) t.pet.hp -= ev.n; break; }
+    case 'dmg':  {
+      const t = battleFind(state.view, ev.t);
+      if (t) { t.pet.hp -= ev.n; markDeadIfZero(t.pet); }
+      break;
+    }
     case 'buff': { const t = battleFind(state.view, ev.t); if (t) { t.pet.atk += ev.atk; t.pet.hp += ev.hp; } break; }
     case 'perk': { const t = battleFind(state.view, ev.t); if (t) t.pet.perks = [{ id: ev.id, uses: 1 }]; break; }
     case 'perkUsed': {
