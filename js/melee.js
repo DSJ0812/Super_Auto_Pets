@@ -23,7 +23,13 @@ const MELEE_CFG = {
   dmgPerUnit: 1,
 
   /* AI 性格：0 = 稳健攒钱，1 = 激进花钱（随机分配，制造强弱差异） */
-  AI_GREED_RANGE: [0.55, 0.95]   // 每回合愿意花掉存款的比例
+  AI_GREED_RANGE: [0.45, 0.85],  // 每回合愿意花掉存款的比例
+  /* AI 凑羁绊的权重：越高 → AI 越强 → 玩家吃鸡率越低。
+   * 实测（每档 800 局，两个独立种子组取平均），目标是玩家吃鸡率 5-10%：
+   *   权重 4 → 5.0%    权重 3 → 6.3%    权重 2 → 5.4%
+   * （差异已在噪声量级内，取 3 —— 落在区间中部、给真人留了余量）
+   */
+  AI_FACTION_W: 3
 };
 
 /* ------------------------------------------------------------
@@ -119,6 +125,26 @@ Melee.prototype.aiShop = function (f) {
 
   const affordable = function () { return g.gold > budgetFloor; };
 
+  /* 这只宠物值不值得买：星级 + 阵营协同 + 能不能合成。
+   * ⚠️ 以前只看星级，所以 AI 完全不凑羁绊、也不会优先拿同名去合成升级 ——
+   *    比玩家明显弱，导致 8 人混战的吃鸡率偏高（实测 17%）。
+   *    现在改成和「普通玩家」差不多的判断。 */
+  const factionKinds = function (defId) {
+    if (typeof factionOf !== 'function') return 0;
+    const fa = factionOf(defId);
+    if (!fa) return 0;
+    const seen = {};
+    for (const p of g.team) if (factionOf(p.defId) === fa) seen[p.defId] = 1;
+    return Object.keys(seen).length;
+  };
+  const scoreOf = function (defId) {
+    const t = (PETS[defId] || {}).tier || 0;
+    let s = t * 10;
+    s += factionKinds(defId) * (MELEE_CFG.AI_FACTION_W || 0);   // 凑羁绊
+    if (g.team.some(function (p) { return p.defId === defId && p.lvl < 3; })) s += 40;  // 能合成
+    return s;
+  };
+
   while (guard++ < 60) {
     let acted = false;
 
@@ -133,42 +159,61 @@ Melee.prototype.aiShop = function (f) {
     }
     if (acted) continue;
 
-    // 2) 队伍没满 → 买场上星级最高的
+    // 2) 队伍没满 → 买「评分最高」的（星级 + 阵营 + 能否合成）
     if (g.team.length < g.getTeamMax()) {
-      let best = -1, bestTier = -1;
+      let best = -1, bestScore = -1;
       for (let i = 0; i < g.shopPets.length; i++) {
         const sp = g.shopPets[i];
         if (!sp) continue;
         if (!affordable() || g.gold < petCostOf(sp.defId, g)) continue;
-        const t = (PETS[sp.defId] || {}).tier || 0;
-        if (t > bestTier) { bestTier = t; best = i; }
+        const s = scoreOf(sp.defId);
+        if (s > bestScore) { bestScore = s; best = i; }
       }
       if (best >= 0 && g.buyPet(best).ok) continue;
     }
 
-    // 3) 队伍满了 → 用高星换掉最低星
+    // 3) 队伍满了 → 用评分明显更高的换掉最弱的
     if (g.team.length >= g.getTeamMax() && rolls < 2) {
-      let best = -1, bestTier = 0;
+      let best = -1, bestScore = 0;
       for (let i = 0; i < g.shopPets.length; i++) {
         const sp = g.shopPets[i];
         if (!sp) continue;
         if (g.gold < petCostOf(sp.defId, g)) continue;
-        const t = (PETS[sp.defId] || {}).tier || 0;
-        if (t > bestTier) { bestTier = t; best = i; }
+        const s = scoreOf(sp.defId);
+        if (s > bestScore) { bestScore = s; best = i; }
       }
-      let worst = 0, worstTier = 99;
+      let worst = 0, worstScore = 1e9;
       g.team.forEach(function (p, i) {
-        const t = (PETS[p.defId] || {}).tier || 0;
-        if (t < worstTier) { worstTier = t; worst = i; }
+        const s = scoreOf(p.defId) + p.lvl * 8;
+        if (s < worstScore) { worstScore = s; worst = i; }
       });
-      if (best >= 0 && bestTier > worstTier) {
+      if (best >= 0 && bestScore > worstScore + 15) {
         g.sellPet(worst);
         if (g.buyPet(best).ok) continue;
       }
     }
 
+    // 3.5) 买食物喂宠物 —— 以前 AI 完全不买道具，白送玩家一大截强度。
+    //      喂给「攻击最高的那只」（当主输出）。
+    if (affordable() && g.team.length && g.gold >= 3) {
+      const fi = g.shopFoods.findIndex(function (fd) {
+        return fd && g.foodCost(fd) <= g.gold && !FOODS[fd.id].faint;
+      });
+      if (fi >= 0) {
+        const r0 = g.buyFood(fi);
+        if (r0 && r0.ok && r0.needTarget) {
+          let ti = 0, ta = -1;
+          for (let i = 0; i < g.team.length; i++) {
+            if (g.team[i].atk > ta) { ta = g.team[i].atk; ti = i; }
+          }
+          g.applyFood(ti);
+          continue;
+        }
+      }
+    }
+
     // 4) 花点钱刷新找更好的
-    if (rolls < 2 && affordable() && g.gold >= rollCostOf() + petCostOf('Ant', g) + budgetFloor) {
+    if (rolls < 3 && affordable() && g.gold >= rollCostOf() + petCostOf('Ant', g) + budgetFloor) {
       if (g.roll().ok) { rolls++; continue; }
     }
     break;

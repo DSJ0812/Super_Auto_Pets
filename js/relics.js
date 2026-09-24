@@ -46,7 +46,11 @@ const RELICS = {
     name: 'Gym', cn: '训练场', icon: '🏋️', tag: '成长',
     desc: '每回合开始，给最前排的友方 +1/+1',
     onTurnStart: function (g) {
-      if (g.team.length) g.buff(g.team[0], 1, 1);
+      // ⚠️ 这里收到的 g 是 ShopEnv（不是 Game）—— ShopEnv.team 是个【方法】，
+      //    队伍要从 g.game.team 拿。以前写成 g.team[0] 拿到的是 undefined，
+      //    于是「训练场」在三个模式里一直是个白板遗物（buff 静默 return）。
+      const team = relicTeamOf(g);
+      if (team.length) g.buff(team[0], 1, 1);
     }
   },
   incubator: {
@@ -92,14 +96,28 @@ const RELICS = {
     }
   },
   medic: {
-    name: 'Medic', cn: '急救包', icon: '💊', tag: '战斗',
-    desc: '每场战斗结束后，你的宠物回复 2 生命（不会超过战斗前的值）',
-    // 说明：本作战斗不保留属性变化，这条实际效果是「战斗中的友方 +2 生命」
-    onBattleStart: function (team) {
-      for (const p of team) { p.hp += 2; }
+    name: 'Medic', cn: '急救包', icon: '💊', tag: '成长',
+    // ⚠️ 以前这条写的是「每场战斗结束后回复 2 生命」，但本作战斗跑在队伍副本上，
+    //    战斗内的属性变化根本不回写商店 —— 所以那句话是不可能实现的，
+    //    实现上退化成了「开战时全队 +2 生命」，**和「战旗」完全重复**（只是弱化版）。
+    //    现在改成一条真正独立、且两种经济模式都有效的成长效果。
+    desc: '每回合开始，全体友方 +1 生命（永久；和训练场「只加最前排」互补）',
+    onTurnStart: function (g) {
+      const team = relicTeamOf(g);
+      for (const p of team) g.buff(p, 0, 1);
     }
   }
 };
+
+/* 遗物的「回合开始」钩子收到的是 ShopEnv，不是 Game。
+ * ShopEnv.team 是个方法（team(side) 返回队伍数组），所以不能直接 g.team[0]。
+ * 这里统一取出队伍，避免每个遗物各写一遍、再踩同一个坑。 */
+function relicTeamOf(g) {
+  if (!g) return [];
+  if (g.game && Array.isArray(g.game.team)) return g.game.team;
+  if (Array.isArray(g.team)) return g.team;
+  return [];
+}
 
 /* 可以抽到的遗物 id 列表 */
 const RELIC_IDS = Object.keys(RELICS);

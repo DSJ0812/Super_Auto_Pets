@@ -18,9 +18,14 @@ const CFG = {
   LOSE_MAX: 3,          // 3 败结束
   SHOP_PET_SLOTS: 5,
   SHOP_FOOD_SLOTS: 2,
-  AP_SCALE: 0.4,        // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
-                        // 本作只有 Turtle Pack 62 只、对手全是幽灵，按原版会碾压玩家。
-                        // 实测：0.40→约 46%，0.35→53%（测试 AI 是下限，真人会更高）
+  AP_SCALE: 0.60,       // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
+                        // 本作只有 Turtle Pack 61 只、对手全是幽灵，按原版会碾压玩家。
+                        // ⚠️ 这个值对【羁绊强度】很敏感 —— 每次改羁绊都要重测。
+                        //    加进 8 阵营 + 调强数值之后，同样的 0.42 从 22% 涨到了 34%
+                        //    （因为玩家会主动凑羁绊，而幽灵只是随机生成）。
+                        // 实测（每档 500 局、固定种子，AI 是「会同名合成 + 买食物 + 凑阵营」的普通水平）：
+                        //    0.55 → 28%   0.58 → 25%   0.60 → 23%   0.65 → 21%   0.85 → 16%
+                        // 目标：把「普通玩家」的通关率压在 20-25%。
 
   /* ---- 经济模式（8 人混战会切成 'tft'）----
    * sap：每回合固定 10 金、不累积、宠物统一 3 金          （经典模式）
@@ -531,6 +536,7 @@ Game.prototype.reset = function () {
   this.phase = 'shop';           // shop | battle | gameover
   this.lastResult = null;
   this.pendingFood = null;       // 待选目标的食物索引
+  this.pendingFoods = [];        // 待用库存：商店摆不下的道具先攒着，空位出现时自动补上
   this.history = [];
   this.shopNotes = [];           // 商店阶段技能触发的汇总提示（方案 B）
   this.foodDiscount = 0;         // 本回合的食物折扣（Squirrel）
@@ -577,6 +583,8 @@ Game.prototype.rollShop = function (isInitial) {
     this.shopFoods[i] = this.makeShopFood();
     this.frozenFoods[i] = false;
   }
+  // 待用库存里攒着的道具（3 级鸽子的第 3 个苹果之类）补进空位
+  this.fillFoodsFromPending();
 };
 
 /* ---- 队伍上限：官方规则是随回合增长的 3 → 4 → 5 ---- */
@@ -625,14 +633,27 @@ Game.prototype.stockFood = function (foodId, cost) {
     this.shopFoods[i] = item;
     return true;
   }
-  // 3) 只剩同类可放（两个槽位都是同一个道具）—— 位置不变，数量上也确实放不下了
-  for (let i = 0; i < this.shopFoods.length; i++) {
-    if (!this.frozenFoods[i]) { this.shopFoods[i] = item; return false; }
+  // 3) 两个食物位都占着（而且都是同一种道具）—— 商店确实摆不下了。
+  //    ⚠️ 以前这里是「覆盖掉一个」，等于凭空丢东西：3 级鸽子说的
+  //       「库存 3 个苹果」实际只能拿到 2 个。现在改成放进【待用库存】，
+  //       等食物位空出来（用掉 / 刷新）时自动补上，一个都不会丢。
+  if (!this.pendingFoods) this.pendingFoods = [];
+  this.pendingFoods.push(item);
+  return false;
+};
+
+/* 把「待用库存」里攒着的道具补进空着的食物位。
+ * 每次刷新商店、以及用掉一个食物之后都会调一次。 */
+Game.prototype.fillFoodsFromPending = function () {
+  if (!this.pendingFoods || !this.pendingFoods.length) return 0;
+  let n = 0;
+  for (let i = 0; i < this.shopFoods.length && this.pendingFoods.length; i++) {
+    if (this.shopFoods[i]) continue;
+    this.shopFoods[i] = this.pendingFoods.shift();
+    this.frozenFoods[i] = false;
+    n++;
   }
-  // 4) 全被冻结了，才覆盖第一个
-  this.shopFoods[0] = item;
-  this.frozenFoods[0] = false;
-  return true;
+  return n;
 };
 
 /* 取某个道具槽的实际价格（0 表示免费；Squirrel 折扣与遗物「营养师」在这里生效） */
@@ -745,10 +766,16 @@ Game.prototype.tierUpReward = function () {
     const j = RNG.int(i + 1);
     const tmp = idxs[i]; idxs[i] = idxs[j]; idxs[j] = tmp;
   }
-  for (let k = 0; k < want && k < idxs.length; k++) {
-    const slot = idxs[k];
+  // ⚠️ 优先用「没被冻结」的格子（空格也算），只有不够时才动冻结的。
+  //    以前是纯随机挑，会把玩家特意冻住、想留到下一回合的宠物直接冲掉，
+  //    而且还会把冻结标记一并清掉 —— 玩家会莫名其妙丢东西。
+  const freeSlots = idxs.filter(function (i) { return !(this.frozenPets[i] && this.shopPets[i]); }, this);
+  const frozenSlots = idxs.filter(function (i) { return (this.frozenPets[i] && this.shopPets[i]); }, this);
+  const order = freeSlots.concat(frozenSlots);
+  for (let k = 0; k < want && k < order.length; k++) {
+    const slot = order[k];
     this.shopPets[slot] = this.makeShopPet(RNG.pick(pool));
-    this.frozenPets[slot] = false;
+    this.frozenPets[slot] = false;      // 这格的商品换了，冻结标记跟着清掉
   }
 };
 
@@ -860,6 +887,7 @@ Game.prototype.applyFood = function (teamIdx) {
     this.shopFoods[this.pendingFood] = null;
     this.frozenFoods[this.pendingFood] = false;
     this.pendingFood = null;
+    this.fillFoodsFromPending();               // 待用库存补进刚空出来的位置
     return {
       ok: true,
       msg: '安眠药让 ' + petName(def ? pet.def : null) + ' 阵亡了'
@@ -896,6 +924,7 @@ Game.prototype.applyFood = function (teamIdx) {
   this.shopFoods[this.pendingFood] = null;
   this.frozenFoods[this.pendingFood] = false;   // 道具没了，冻结标记也要清掉
   this.pendingFood = null;
+  this.fillFoodsFromPending();                  // 待用库存补进刚空出来的位置
 
   // 「友方吃食物」触发（Rabbit）
   const env = new ShopEnv(this);

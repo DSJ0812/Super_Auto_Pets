@@ -553,9 +553,43 @@ function shopPetSlot(p, opts) {
   return wrap;
 }
 
+/* ------------------------------------------------------------
+ *  待用库存
+ *  商店只有 2 个食物位，但像「3 级鸽子库存 3 个免费苹果」这种会多出来。
+ *  放不下的会攒在 game.pendingFoods 里、等食物位空出来自动补上。
+ *  这里把它显示在食物区下面 —— 不显示的话玩家会以为东西丢了。
+ *  ⚠️ 容器是动态插到食物区后面的，所以三个页面都不用改 HTML。
+ * ---------------------------------------------------------- */
+function renderPendingFoods(foodBox, g) {
+  if (typeof document === 'undefined' || !foodBox || !foodBox.parentNode) return;
+  let box = document.getElementById('pendingFoods');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'pendingFoods';
+    box.className = 'pending-foods';
+    foodBox.parentNode.insertBefore(box, foodBox.nextSibling);
+  }
+  const list = (g && g.pendingFoods) || [];
+  if (!list.length) {
+    box.innerHTML = '';
+    box.style.display = 'none';
+    return;
+  }
+  const cnt = {};
+  for (const f of list) cnt[f.id] = (cnt[f.id] || 0) + 1;
+  let h = '<span class="pf-label">🎒 待用</span>';
+  for (const id of Object.keys(cnt)) {
+    const d = FOODS[id] || {};
+    h += '<span class="pf-item" title="' +
+         esc((d.cn || id) + ' ×' + cnt[id] + '：商店的食物位一空出来就会自动补上') + '">' +
+         (FOOD_EMOJI[id] || '🎁') + ' ' + esc(d.cn || id) + ' ×' + cnt[id] + '</span>';
+  }
+  box.innerHTML = h;
+  box.style.display = '';
+}
+
 /* 道具槽 */
-function foodSlot(f, g, opts) {  opts = opts || {};
-  if (!f) return el('div', 'shop-slot empty');
+function foodSlot(f, g, opts) {  opts = opts || {};  if (!f) return el('div', 'shop-slot empty');
   const d = FOODS[f.id];
   const wrap = el('div', 'shop-slot food');
   if (opts.frozen) wrap.classList.add('frozen');

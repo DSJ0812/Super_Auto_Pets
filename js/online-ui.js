@@ -240,6 +240,7 @@ function oRenderShop() {
       freezeAttr: 'oFreezeFood'
     }));
   }
+  renderPendingFoods(fr, g);
 
   const notesBox = $('#mShopNotes');
   const notes = g.shopNotes || [];

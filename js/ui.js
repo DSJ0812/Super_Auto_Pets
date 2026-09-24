@@ -126,6 +126,7 @@ function renderShop() {
       freezeAttr: 'freezeFood'
     }));
   }
+  renderPendingFoods(fr, g);
 
   // ---- 按钮状态 ----
   $('#btnRoll').textContent = '🎲 刷新（1 金）';

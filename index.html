@@ -23,34 +23,170 @@
     <span class="pp-note" id="packNote">经典 Turtle Pack</span>
   </div>
 
-  <!-- 玩法说明。刻意写得很短 —— 长篇大论没人看，但完全不给第一次玩的人会懵。
-       用原生 <details> 折叠，不需要 JS。 -->
-  <details class="howto" open>
-    <summary>🎮 第一次玩？30 秒看懂</summary>
-    <div class="howto-body">
-      <p class="howto-lead">
-        每回合在商店<b>买宠物、喂道具、摆好队形</b>，然后自动打一场。
-        <b>同名宠物会合成升级</b>（2 级、3 级），所以「反复买同一只」是变强的主要方式。
-      </p>
-      <ol class="howto-steps">
-        <li><b>买</b>　花金币把宠物买进队伍（最多 5 只）。买同名宠物会合成 → 升到 2 级、3 级。</li>
-        <li><b>摆</b>　<b>左边的先挨打</b>。肉盾放前面，靠技能吃饭的放后面。</li>
-        <li><b>喂</b>　道具给宠物加属性或挂标记。⚠️ 一只宠物同时<b>只能带 1 个道具</b>，新的会顶掉旧的。</li>
-        <li><b>打</b>　点「结束回合，开打！」。双方最前排<b>同时</b>互殴，伤害 = 攻击力，最低 1 点。</li>
-        <li><b>赢</b>　经典：10 胜通关 / 3 败出局。8 人混战：每回合两两配对，输的扣血，<b>活到最后</b>就是赢家。</li>
-      </ol>
-      <p class="howto-tip">
-        💡 <b>新人最容易忽略的 3 件事</b>：
-        刷新商店要花钱（不是免费）；
-        商店等级会<b>按回合自动提升</b>（第 1/3/5/7/9/11 回合），等级越高越容易刷出强宠物；
-        点 ❄ 可以把商店里的宠物<b>冻结</b>留到下一回合。
-      </p>
-      <p class="howto-tip">
-        🧬 队伍里凑够<b>同一个阵营</b>的【不同】宠物会激活羁绊加成 ——
-        游戏里点顶部阵营条上任意一个阵营就能看它有什么用、包含谁。这是本作自创的机制，官方没有。
-      </p>
+  <!-- 玩法说明：收进一个按钮里，点开是带分模块的弹层（和图鉴一个思路）。
+       里面就可以写详细一点了，不用挤在主页上。 -->
+  <div class="howto-entry">
+    <button class="howto-btn" id="howtoBtn">📖 怎么玩？（第一次玩点这里）</button>
+    <span class="howto-hint">30 秒看懂基础流程 · 想看细节再翻标签页</span>
+  </div>
+
+  <div id="howto" class="howto-modal">
+    <div class="howto-box">
+      <div class="howto-head">
+        <span class="howto-title">📖 怎么玩</span>
+        <span class="howto-close" id="howtoClose">✕</span>
+      </div>
+      <div class="howto-tabs" id="howtoTabs">
+        <span class="howto-tab on" data-htab="basic">基础流程</span>
+        <span class="howto-tab" data-htab="pet">宠物与合成</span>
+        <span class="howto-tab" data-htab="shop">商店与等级</span>
+        <span class="howto-tab" data-htab="food">道具与标记</span>
+        <span class="howto-tab" data-htab="battle">战斗机制</span>
+        <span class="howto-tab" data-htab="faction">阵营羁绊</span>
+        <span class="howto-tab" data-htab="mode">四个模式</span>
+      </div>
+      <div class="howto-panes" id="howtoPanes">
+
+        <div class="howto-pane on" data-hpane="basic">
+          <p class="hp-lead">每回合在商店<b>买宠物、喂道具、摆好队形</b>，然后自动打一场。
+            谁先凑出更强的阵容，谁就赢。</p>
+          <h4>一回合的四步</h4>
+          <ol>
+            <li><b>回合开始</b>　发钱、刷新商店、触发所有宠物的「回合开始」技能。</li>
+            <li><b>商店阶段</b>　买宠物 / 买道具 / 刷新 / 冻结 —— 随便折腾，不点结束就不会打。</li>
+            <li><b>开打</b>　点「结束回合，开打！」，双方队伍<b>自动</b>打完，不用操作。</li>
+            <li><b>结算</b>　看战报，然后进入下一回合。</li>
+          </ol>
+          <h4>怎么算赢</h4>
+          <ul>
+            <li><b>经典模式</b>：先拿到 <b>10 胜</b>通关；输 <b>3</b> 场出局。</li>
+            <li><b>8 人混战</b>：每回合两两配对打，输的按对方存活宠物数扣血，
+              <b>活到最后</b>就是赢家。</li>
+          </ul>
+          <h4>金币</h4>
+          <p>经典模式每回合固定发 <b>10 金</b>，而且<b>回合结束就清零、不累积</b> ——
+            所以「攒钱」没有意义，能花就花。<br>
+            8 人混战是另一种经济（TFT 式）：金币<b>会累积</b>，还有<b>利息</b>和连胜/连败奖励。</p>
+        </div>
+
+        <div class="howto-pane" data-hpane="pet">
+          <h4>队伍上限是「慢慢放开」的</h4>
+          <p>回合 1–2 只能带 <b>3 只</b>，回合 3–4 是 <b>4 只</b>，第 5 回合起才能带满 <b>5 只</b>。</p>
+          <h4>同名宠物会合成</h4>
+          <p>买一只队伍里已经有的同名宠物，它不会变成第 2 只，而是给那只<b>加 1 点经验</b>。
+            所以「反复买同一只」是变强的主要方式。</p>
+          <table class="hp-table">
+            <tr><th>等级</th><th>需要的总经验</th><th>额外属性</th></tr>
+            <tr><td>1 级</td><td>0</td><td>—</td></tr>
+            <tr><td>2 级</td><td>2</td><td>+2/+2</td></tr>
+            <tr><td>3 级</td><td>5</td><td>+5/+5</td></tr>
+          </table>
+          <p class="hp-note">也就是<b>每 1 点经验 = +1/+1</b>，3 级封顶（再吃经验也不涨）。
+            技能强度也随等级提升，卡片上写了 1/2/3 级分别是多少。</p>
+          <h4>站位很关键</h4>
+          <p>队伍是<b>从左到右</b>的，<b>最左边的先挨打</b>。
+            肉盾放前面，靠技能吃饭的（比如遗言类）放后面，才活得久。</p>
+        </div>
+
+        <div class="howto-pane" data-hpane="shop">
+          <h4>商店有什么</h4>
+          <p><b>5 个宠物位</b> + <b>2 个食物位</b>。宠物按固定价买（龟包/星包都是 3 金）。</p>
+          <h4>刷新与冻结</h4>
+          <ul>
+            <li><b>刷新</b>　花金币把非冻结的格子全部换新。不是免费的，别乱点。</li>
+            <li><b>❄ 冻结</b>　点格子上的冻结按钮，可以把宠物或道具<b>留到下一回合</b>。
+              买掉之后冻结标记会自动清掉。</li>
+          </ul>
+          <h4>商店等级（越往后越强）</h4>
+          <table class="hp-table">
+            <tr><th>回合</th><td>1</td><td>3</td><td>5</td><td>7</td><td>9</td><td>11+</td></tr>
+            <tr><th>商店等级</th><td>T1</td><td>T2</td><td>T3</td><td>T4</td><td>T5</td><td>T6</td></tr>
+          </table>
+          <p class="hp-note">商店只会刷出「已解锁」的宠物 —— 所以第 2 回合刷不出 6 星怪。</p>
+          <h4>升星奖励</h4>
+          <p>商店等级提升的那一回合，会<b>免费刷出 2 个「下一星级」的宠物</b>放进商店
+            （遗物「孵化器」能变成 3 个）。它会<b>优先占用没被冻结的格子</b>，你冻住的东西不会被冲掉。</p>
+        </div>
+
+        <div class="howto-pane" data-hpane="food">
+          <h4>道具（食物）怎么起作用</h4>
+          <p>买道具 → 再点一只宠物就能用上。效果分两种：<b>直接加属性</b>（苹果、牛奶）
+            和 <b>挂一个标记</b>（Food Perk，比如西瓜减伤、辣椒溅射、花生秒杀）。</p>
+          <p class="hp-warn">⚠️ <b>一只宠物同时只能带 1 个标记</b>，新的会直接顶掉旧的。
+            所以别在同一个宠物身上叠道具。</p>
+          <p>有些标记是<b>一次性</b>的（比如西瓜「减 20 伤害，生效 1 次」），用掉就没了；
+            标记会显示在宠物卡片上。</p>
+          <h4>商店摆不下的道具不会丢</h4>
+          <p>商店只有 2 个食物位。像「3 级鸽子库存 3 个免费苹果」这种多出来的，
+            会进到 <b>🎒 待用</b> 里（显示在食物区下面），
+            食物位一空出来就<b>自动补上</b>，一个都不会浪费。</p>
+        </div>
+
+        <div class="howto-pane" data-hpane="battle">
+          <h4>伤害怎么算</h4>
+          <p>每个战斗回合，双方<b>最前排同时</b>互殴：<b>伤害 = 攻击力</b>，最低 1 点
+            （被西瓜之类的减伤挡掉时可以是 0）。血扣到 0 就阵亡、从队伍移出，后排补位。</p>
+          <h4>触发顺序</h4>
+          <p>一个战斗回合里，各时机的先后是：</p>
+          <ol>
+            <li><b>开战</b>（Start of battle）</li>
+            <li>攻击前（Before attack）</li>
+            <li>互殴（伤害结算）</li>
+            <li>受伤 / 阵亡 / 攻击后</li>
+            <li>前排见证（前方友方阵亡时）</li>
+          </ol>
+          <p class="hp-note">同一个时机里，技能按队伍<b>从前到后</b>依次触发。
+            阵亡触发的遗言可以连锁（一只死了召唤另一只，另一只再死再召唤）。</p>
+          <h4>战斗中召唤可以超过 5 只</h4>
+          <p>「最多 5 只」说的是<b>商店队伍</b>。战斗中召唤物<b>没有上限</b> ——
+            所以一只食蚁兽阵亡召唤 3 只蚂蚁，队伍会临时变成 6、7 只，这是正常的。</p>
+        </div>
+
+        <div class="howto-pane" data-hpane="faction">
+          <p class="hp-warn">🧬 <b>这是本作自创的机制，官方没有</b>。不喜欢可以无视，不影响原有玩法。</p>
+          <p>每只宠物属于一个<b>阵营</b>（宠物卡片上有徽章）。队伍里凑够<b>同一个阵营的「不同」宠物</b>
+            就激活加成。一共 8 个阵营：</p>
+          <table class="hp-table">
+            <tr><th>阵营</th><th>成员</th><th>2 只</th><th>第 2 档</th></tr>
+            <tr><td>🐜 虫豸</td><td>14</td><td>开战全体 +3 生命</td><td>4 只：全体 +7 生命</td></tr>
+            <tr><td>🐟 水生</td><td>21</td><td>开战<b>最前排</b> +3/+3</td><td>4 只：全体 +3/+3</td></tr>
+            <tr><td>🐦 飞禽</td><td>26</td><td>回合开始随机 2 个 +2/+2</td><td>3 只：全体 +2/+2</td></tr>
+            <tr><td>🐘 巨兽</td><td>27</td><td>开战全体 +2 攻击</td><td>4 只：全体 +5 攻击</td></tr>
+            <tr><td>🐾 小兽</td><td>25</td><td>开战<b>最前排</b>获得西瓜</td><td>4 只：全体获得西瓜</td></tr>
+            <tr><td>🦎 爬行</td><td>9</td><td>开战<b>最前排</b>获得辣椒</td><td>4 只：全体获得辣椒</td></tr>
+            <tr><td>🦴 史前</td><td>11</td><td>开战全体 +4 攻击、−2 生命</td><td>4 只：+8 攻击、−3 生命</td></tr>
+            <tr><td>🐒 灵长</td><td>5</td><td>开战全体 +等级/+等级</td><td>3 只：+（等级×2）</td></tr>
+          </table>
+          <p class="hp-note"><b>数值是按「凑齐难度」定的</b>：成员越少越难凑，效果就给得越强
+            （所以成员只有 5 只的灵长、14 只的虫豸最强，成员 27 只的巨兽最弱）。<br>
+            「不同」是<b>按宠物种类去重</b> —— 3 只同名蚂蚁只算 1 只，不然凑羁绊太容易了。</p>
+          <p>⚠️ <b>小兽和爬行的第 1 档只保护最前排</b>（不是全队），想要全队得凑到 4 只 ——
+            这是为了压住它们之前的超模强度。</p>
+          <p>游戏里点顶部<b>阵营条</b>上任意一个阵营（或宠物卡上的徽章），
+            就能看到它的每档效果、包含哪些宠物、你队里现在凑了几个。</p>
+        </div>
+
+        <div class="howto-pane" data-hpane="mode">
+          <h4>🎯 经典模式</h4>
+          <p>单人闯关，对手按回合强度生成。<b>10 胜通关 / 3 败出局</b>，经济是官方 SAP 那套。</p>
+          <h4>⚔️ 8 人混战</h4>
+          <p>你和 7 个人机同场。每回合两两配对，输的按对方存活宠物数扣血，<b>活到最后</b>就是赢家。
+            经济是 TFT 式（金币累积 + 利息 + 连胜奖励），所以「攒钱吃利息」在这里才有意义。</p>
+          <h4>🌐 联机混战</h4>
+          <p>和朋友的 8 人混战，人不够电脑补位，同一个 WiFi 就能玩。
+            需要有一台机器双击 <b>开服.bat</b>，其他人用它显示的地址打开本页。</p>
+          <h4>📅 每日挑战</h4>
+          <p>经典模式的「每日固定种子」：同一天所有人拿到的是<b>同一局</b>（同样的商店、同样的对手）。
+            可以反复重玩刷最好成绩，成绩存在本机。</p>
+          <h4>🐢 龟包 / ⭐ 星包</h4>
+          <p>主页顶部可以选用哪个宠物包。官方每个包是<b>独立的宠物池和食物池</b>，
+            而且<b>一局只用一个包</b> —— 两个包混在一起会让同名宠物出现率减半，
+            合成升级会变得几乎不可能。</p>
+        </div>
+
+      </div>
     </div>
-  </details>
+  </div>
 
   <div class="mode-grid">
 
@@ -187,6 +323,41 @@
       }
     })
     .catch(function () { foot.innerHTML = offlineFoot; });
+})();
+
+/* 「怎么玩」弹层：按钮打开、标签切换、点空白 / ✕ / Esc 关闭。
+ * 内容全是静态 HTML，这里只负责显示与切换，所以不依赖任何游戏脚本。 */
+(function () {
+  var modal = document.getElementById('howto');
+  var btn   = document.getElementById('howtoBtn');
+  var close = document.getElementById('howtoClose');
+  var tabs  = document.getElementById('howtoTabs');
+  if (!modal || !btn) return;
+
+  function show(on) { modal.style.display = on ? 'flex' : 'none'; }
+  btn.addEventListener('click', function () { show(true); });
+  if (close) close.addEventListener('click', function () { show(false); });
+  // 点遮罩空白处关闭（点内容不关）
+  modal.addEventListener('click', function (e) { if (e.target === modal) show(false); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') show(false);
+  });
+  // 标签切换
+  if (tabs) {
+    tabs.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target.closest('.howto-tab') : null;
+      if (!t) return;
+      var id = t.dataset.htab;
+      var all = tabs.querySelectorAll('.howto-tab');
+      for (var i = 0; i < all.length; i++) all[i].classList.toggle('on', all[i] === t);
+      var panes = modal.querySelectorAll('.howto-pane');
+      for (var k = 0; k < panes.length; k++) {
+        panes[k].classList.toggle('on', panes[k].dataset.hpane === id);
+      }
+      var box = modal.querySelector('.howto-box');
+      if (box) box.scrollTop = 0;
+    });
+  }
 })();
 </script>
 </body>

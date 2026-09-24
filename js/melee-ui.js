@@ -192,6 +192,7 @@ function mRenderShop() {
       freezeAttr: 'mFreezeFood'
     }));
   }
+  renderPendingFoods(fr, g);
 
   // 技能汇总
   const notesBox = $('#mShopNotes');
