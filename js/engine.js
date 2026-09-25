@@ -24,6 +24,17 @@
  * （来源：官方规则 —— 3 只合成到 2 级，再 3 只到 3 级） */
 const EXP_BONUS = { 1: 0, 2: 2, 3: 5 };
 
+/* 战斗中队伍上限 —— 【固定 5】，不随回合增长。
+ *
+ * 官方原文（wiki.gg /Pets）："The player's team can only have 5 pets at once."
+ * 关键细节：这条对【战斗中】同样成立，召唤必须有空位，没有空位就不会发生、
+ * 这次的召唤就白费了（官方 /Fly 页原话：other summoners can "accidentally
+ * waste by running out of space"；/Sheep 页也提到 "not having enough space
+ * for the 2 Rams to spawn"）。
+ *   · 注意和商店的 getTeamMax() 区分：那个是 3→4→5 随回合解锁的。
+ *   · 召唤物填的是"阵亡腾出来的位置"，所以场面总数不会超过 5。 */
+const BATTLE_TEAM_MAX = 5;
+
 let __uid = 0;
 
 /* ------------------------------------------------------------
@@ -278,6 +289,19 @@ Battle.prototype.removePerk = function (pet, id) {
 // 召唤：index 为插入位置
 Battle.prototype.summon = function (side, index, defId, opts) {
   opts = opts || {};
+  // ⚠️ 官方规则：战斗队伍上限 5，没有空位时【召唤不生效】——这次召唤就白费了。
+  //    返回 null 让调用方知道没召唤出来。调用方一般不用特判：
+  //    像 Sheep「召唤 2 只」在只有 1 个空位时只出来 1 只，正是官方行为。
+  //
+  //    ⚠️ 这里必须数【还活着】的宠物，不能直接数数组长度：
+  //       遗言是在 resolveDeaths 里、宠物被 splice 移除【之前】触发的，
+  //       所以阵亡的那只此刻还留在数组里。如果按长度判断，满队时任何遗言召唤
+  //       都会被误判成「没位置」而全军覆没（实测 Sheep 放最前排时一只都召不出来）。
+  let alive = 0;
+  for (let i = 0; i < this.sides[side].length; i++) {
+    if (this.sides[side][i].hp > 0) alive++;
+  }
+  if (alive >= BATTLE_TEAM_MAX) return null;
   const pet = makePet(defId, opts.lvl || 1, { atk: opts.atk, hp: opts.hp });
   pet.side = side;
   const team = this.sides[side];
@@ -530,9 +554,12 @@ Battle.prototype.resolveDeaths = function () {
     }
 
     // 6) 全体友方见证：有同伴阵亡（Shark / Fly 用）
+    //    ⚠️ 必须把【阵亡位置】一起传下去：官方 Fly 是「在它倒下的位置召唤」
+    //       （in its place / where that pet fainted）。而 dead 到这一步已经被
+    //       从数组里移除了，hook 里再想算它的位置就晚了（只能拿到队伍末尾）。
     const rest = this.sides[side].slice();
     for (let k = 0; k < rest.length; k++) {
-      if (rest[k].hp > 0) this.triggerOn('friendFaints', rest[k], { dead: dead });
+      if (rest[k].hp > 0) this.triggerOn('friendFaints', rest[k], { dead: dead, deadPos: pos });
     }
   }
 };

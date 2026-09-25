@@ -741,10 +741,20 @@ const PETS = {
             '友方阵亡时：在原地召唤 1 个 12/12 僵尸苍蝇，每场 3 次'],
     hooks: {
       friendFaints: function (g, c) {
+        // 官方原文：「When a Zombie Fly faints, it will not trigger Fly's ability.」
+        // 不排除的话，召唤出来的僵尸苍蝇一死就再召一只，3 次触发全被自己的
+        // 召唤物吃掉，实际永远召不满 3 只。
+        if (c.dead && c.dead.defId === 'ZombieFly') return;
         c.self._fly = (c.self._fly || 0) + 1;
         if (c.self._fly > 3) return;
-        const team = g.team(c.self.side);
-        g.summon(c.self.side, team.length, 'ZombieFly',
+        // 官方原文：「Summon one 4/4 Zombie Fly **in its place**」
+        //          「it will summon a Zombie Fly **where that pet fainted**」
+        // 所以要插在【阵亡宠物的原位】，不是队伍末尾。
+        // deadPos 由 engine.js 的 resolveDeaths 传进来（dead 那时已被移出数组）。
+        const idx = (c.deadPos != null && c.deadPos >= 0)
+          ? c.deadPos
+          : g.team(c.self.side).length;
+        g.summon(c.self.side, idx, 'ZombieFly',
           { atk: 4 * c.lvl, hp: 4 * c.lvl, lvl: c.lvl });
       }
     }
