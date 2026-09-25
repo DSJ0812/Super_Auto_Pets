@@ -462,13 +462,15 @@ Battle.prototype.triggerOn = function (hook, pet, ctx) {
   this.emit({ e: 'ability', t: pet.uid, hook: hook });
   def.hooks[hook](this, ctx);
 
-  // Tiger：「紧邻后方有老虎」时，这只宠物的技能会额外重复一次（按 1 级结算）
+  // Tiger：「紧邻后方有老虎」时，这只宠物的技能会额外重复一次。
+  // 官方原文：repeats their ability as if they were level 1/2/3
+  //   → 重复时【按老虎自己的等级】结算（以前写死 1 级，3 级老虎也按 1 级重复）
   // 排除 faint 避免遗言链出现意外重复
   if (hook !== 'faint') {
     const behind = this.sides[pet.side][this.sides[pet.side].indexOf(pet) + 1];
     if (behind && behind.defId === 'Tiger' && behind.hp > 0) {
       this.emit({ e: 'ability', t: pet.uid, hook: hook });
-      def.hooks[hook](this, Object.assign({}, ctx, { lvl: 1 }));
+      def.hooks[hook](this, Object.assign({}, ctx, { lvl: behind.lvl }));
     }
   }
 };
@@ -615,14 +617,20 @@ Battle.prototype.exchange = function (a, b) {
   if (b.hp <= 0) this.triggerOn('knockOut', a, { target: b });
   if (a.hp <= 0) this.triggerOn('knockOut', b, { target: a });
 
+  // ⚠️ 「紧邻后方」必须在这里先取好，不能等到 resolveDeaths 之后！
+  //    前排攻击后如果阵亡，resolveDeaths 会把它从数组里移除、数组随之缩短，
+  //    这时 sides[side][1] 已经不是原来那只了 ——
+  //    表现就是【蛇这类「前方友方攻击时」的技能漏触发】
+  //    （实测：Ant 攻击后当场阵亡 → Snake 完全不触发）。
+  const behindA = this.sides[a.side][1];
+  const behindB = this.sides[b.side][1];
+
   // 死亡（含遗言链）
   this.resolveDeaths();
 
   // 后排见证：前排攻击过了
-  const behindA = this.sides[a.side][1];
-  if (behindA) this.triggerOn('aheadAttack', behindA, { ahead: a });
-  const behindB = this.sides[b.side][1];
-  if (behindB) this.triggerOn('aheadAttack', behindB, { ahead: b });
+  if (behindA && behindA.hp > 0) this.triggerOn('aheadAttack', behindA, { ahead: a });
+  if (behindB && behindB.hp > 0) this.triggerOn('aheadAttack', behindB, { ahead: b });
 
   // 攻击后（如 Elephant）
   if (a.hp > 0) this.triggerOn('afterAttack', a, {});

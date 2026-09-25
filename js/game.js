@@ -901,13 +901,13 @@ Game.prototype.applyFood = function (teamIdx) {
   }
 
   if (def.buff) {
-    // Cat：食物效果翻倍，每回合最多 2 次
+    // Cat：食物效果 ×2/×3/×4（按猫自己的等级），每回合最多 2 次
     let mul = 1;
     const cat = this.team.find(function (p) {
       return p.defId === 'Cat' && p !== pet && (p._catUsed || 0) < 2;
     });
     if (cat) {
-      mul = 2;
+      mul = 1 + cat.lvl;
       cat._catUsed = (cat._catUsed || 0) + 1;
     }
     pet.atk += def.buff[0] * mul;

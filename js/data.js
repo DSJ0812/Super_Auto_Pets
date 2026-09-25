@@ -438,21 +438,27 @@ const PETS = {
 
   Blowfish: {
     name: 'Blowfish', cn: '河豚', tier: 4, atk: 3, hp: 6,
-    texts: ['受伤时：对随机 1 个敌人造成 3 伤害', '受伤时：对随机 1 个敌人造成 3 伤害', '受伤时：对随机 1 个敌人造成 3 伤害'],
+    texts: ['受伤时：对随机 1 个敌人造成 3 伤害',
+            '受伤时：对随机 1 个敌人造成 6 伤害',
+            '受伤时：对随机 1 个敌人造成 9 伤害'],
     hooks: {
       hurt: function (g, c) {
         const t = g.random(g.foes(c.self).filter(function (p) { return p.hp > 0; }), 1);
-        if (t[0]) g.hit(t[0], 3);
+        if (t[0]) g.hit(t[0], 3 * c.lvl);
       }
     }
   },
 
   Deer: {
     name: 'Deer', cn: '鹿', tier: 4, atk: 2, hp: 2,
-    texts: ['阵亡：召唤 1 个带辣椒的 5/3 巴士', '阵亡：召唤 1 个带辣椒的 5/3 巴士', '阵亡：召唤 1 个带辣椒的 5/3 巴士'],
+    texts: ['阵亡：召唤 1 个带辣椒的 5/3 巴士',
+            '阵亡：召唤 1 个带辣椒的 10/6 巴士',
+            '阵亡：召唤 1 个带辣椒的 15/9 巴士'],
     hooks: {
       faint: function (g, c) {
-        g.summon(c.self.side, g.indexOf(c.self), 'Bus', { atk: 5, hp: 3, lvl: 1 });
+        // 巴士自带辣椒（见 TOKEN_PETS.Bus 的 perk，makePet 会自动装上）
+        g.summon(c.self.side, g.indexOf(c.self), 'Bus',
+          { atk: 5 * c.lvl, hp: 3 * c.lvl, lvl: c.lvl });
       }
     }
   },
@@ -467,39 +473,46 @@ const PETS = {
 
   Parrot: {
     name: 'Parrot', cn: '鹦鹉', tier: 4, atk: 4, hp: 2,
-    texts: ['回合结束：复制前方最近友方的技能（按 1 级），持续到本场战斗结束',
-            '回合结束：复制前方最近友方的技能（按 1 级），持续到本场战斗结束',
-            '回合结束：复制前方最近友方的技能（按 1 级），持续到本场战斗结束'],
+    texts: ['回合结束：复制前方最近友方的技能（按 1 级生效），持续到本场战斗结束',
+            '回合结束：复制前方最近友方的技能（按 2 级生效），持续到本场战斗结束',
+            '回合结束：复制前方最近友方的技能（按 3 级生效），持续到本场战斗结束'],
     hooks: {
       endTurn: function (g, c) {
         const a = g.ahead(c.self, 1)[0];
-        if (a) c.self.copyDefId = a.defId;   // 战斗中以它的技能行动
+        // 官方：复制来的技能按【鹦鹉自己的等级】结算（cloneTeam 里换 def、保留 lvl）
+        if (a) c.self.copyDefId = a.defId;
       }
     }
   },
 
   Penguin: {
     name: 'Penguin', cn: '企鹅', tier: 4, atk: 1, hp: 3,
-    texts: ['回合结束：给 2 个 2 级或以上的友方 +1/+1', '回合结束：给 2 个 2 级或以上的友方 +1/+1', '回合结束：给 2 个 2 级或以上的友方 +1/+1'],
+    texts: ['回合结束：给 2 个 2 级或以上的友方 +1/+1',
+            '回合结束：给 2 个 2 级或以上的友方 +2/+2',
+            '回合结束：给 2 个 2 级或以上的友方 +3/+3'],
     hooks: {
       endTurn: function (g, c) {
         const cands = g.friends(c.self).filter(function (p) { return p.lvl >= 2; });
         const t = g.random(cands, 2);
-        for (const p of t) g.buff(p, 1, 1);
+        for (const p of t) g.buff(p, c.lvl, c.lvl);
       }
     }
   },
 
   Skunk: {
     name: 'Skunk', cn: '臭鼬', tier: 4, atk: 3, hp: 5,
-    texts: ['开战：把生命最高的敌人生命削减 33%', '开战：把生命最高的敌人生命削减 33%', '开战：把生命最高的敌人生命削减 33%'],
+    texts: ['开战：把生命最高的敌人生命削减 33%',
+            '开战：把生命最高的敌人生命削减 66%',
+            '开战：把生命最高的敌人生命削减 99%'],
     hooks: {
       startOfBattle: function (g, c) {
         const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
         if (!foes.length) return;
         foes.sort(function (x, y) { return y.hp - x.hp; });
         const target = foes[0];
-        const cut = Math.floor(target.hp / 3);
+        // 官方三级是 33% / 66% / 99%（不是 100%），所以永远削不到 0、不会秒杀
+        const pct = [0, 33, 66, 99][c.lvl] || 33;
+        const cut = Math.floor(target.hp * pct / 100);
         if (cut > 0) g.hit(target, cut);
       }
     }
@@ -507,19 +520,24 @@ const PETS = {
 
   Squirrel: {
     name: 'Squirrel', cn: '松鼠', tier: 4, atk: 2, hp: 5,
-    texts: ['回合开始：本回合商店食物打 1 折（便宜 1 金）', '回合开始：本回合商店食物打 1 折（便宜 1 金）', '回合开始：本回合商店食物打 1 折（便宜 1 金）'],
+    texts: ['回合开始：本回合商店食物便宜 1 金',
+            '回合开始：本回合商店食物便宜 2 金',
+            '回合开始：本回合商店食物便宜 3 金'],
     hooks: {
-      startTurn: function (g, c) { g.discountFood(1); }
+      startTurn: function (g, c) { g.discountFood(c.lvl); }
     }
   },
 
   Turtle: {
     name: 'Turtle', cn: '乌龟', tier: 4, atk: 2, hp: 5,
-    texts: ['阵亡：给后方最近的友方西瓜', '阵亡：给后方最近的友方西瓜', '阵亡：给后方最近的友方西瓜'],
+    texts: ['阵亡：给后方最近的 1 个友方西瓜',
+            '阵亡：给后方最近的 2 个友方西瓜',
+            '阵亡：给后方最近的 3 个友方西瓜'],
     hooks: {
       faint: function (g, c) {
-        const b = g.behind(c.self, 1)[0];
-        if (b && b.hp > 0) g.givePerk(b, 'Melon', 1);
+        for (const b of g.behind(c.self, c.lvl)) {
+          if (b && b.hp > 0) g.givePerk(b, 'Melon', 1);
+        }
       }
     }
   },
@@ -562,11 +580,13 @@ const PETS = {
 
   Armadillo: {
     name: 'Armadillo', cn: '犰狳', tier: 5, atk: 2, hp: 6,
-    texts: ['开战：给所有宠物 +8 生命', '开战：给所有宠物 +8 生命', '开战：给所有宠物 +8 生命'],
+    texts: ['开战：给所有宠物 +8 生命',
+            '开战：给所有宠物 +16 生命',
+            '开战：给所有宠物 +24 生命'],
     hooks: {
       startOfBattle: function (g, c) {
         const all = g.allPets().filter(function (p) { return p.hp > 0; });
-        for (const p of all) g.buff(p, 0, 8);
+        for (const p of all) g.buff(p, 0, 8 * c.lvl);
       }
     }
   },
@@ -584,23 +604,29 @@ const PETS = {
 
   Crocodile: {
     name: 'Crocodile', cn: '鳄鱼', tier: 5, atk: 8, hp: 4,
-    texts: ['开战：对最后一名敌人造成 8 伤害', '开战：对最后一名敌人造成 8 伤害', '开战：对最后一名敌人造成 8 伤害'],
+    texts: ['开战：对最后一名敌人造成 8 伤害',
+            '开战：对最后一名敌人造成 8 伤害，触发 2 次',
+            '开战：对最后一名敌人造成 8 伤害，触发 3 次'],
     hooks: {
       startOfBattle: function (g, c) {
-        const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
-        if (!foes.length) return;
-        g.hit(foes[foes.length - 1], 8);
+        for (let i = 0; i < c.lvl; i++) {
+          const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
+          if (!foes.length) return;
+          g.hit(foes[foes.length - 1], 8);
+        }
       }
     }
   },
 
   Monkey: {
     name: 'Monkey', cn: '猴子', tier: 5, atk: 1, hp: 2,
-    texts: ['回合结束：给最前排的友方 +2/+2', '回合结束：给最前排的友方 +2/+2', '回合结束：给最前排的友方 +2/+2'],
+    texts: ['回合结束：给最前排的友方 +2/+2',
+            '回合结束：给最前排的友方 +4/+4',
+            '回合结束：给最前排的友方 +6/+6'],
     hooks: {
       endTurn: function (g, c) {
         const team = g.team(c.self.side);
-        if (team.length) g.buff(team[0], 2, 2);
+        if (team.length) g.buff(team[0], 2 * c.lvl, 2 * c.lvl);
       }
     }
   },
@@ -608,14 +634,15 @@ const PETS = {
   Rhino: {
     name: 'Rhino', cn: '犀牛', tier: 5, atk: 6, hp: 9,
     texts: ['击倒敌人时：对第一名敌人造成 4 伤害（对 1 级宠物翻倍）',
-            '击倒敌人时：对第一名敌人造成 4 伤害（对 1 级宠物翻倍）',
-            '击倒敌人时：对第一名敌人造成 4 伤害（对 1 级宠物翻倍）'],
+            '击倒敌人时：对第一名敌人造成 8 伤害（对 1 级宠物翻倍）',
+            '击倒敌人时：对第一名敌人造成 12 伤害（对 1 级宠物翻倍）'],
     hooks: {
       knockOut: function (g, c) {
         const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
         if (!foes.length) return;
         const t = foes[0];
-        g.hit(t, t.lvl === 1 ? 8 : 4);
+        const dmg = 4 * c.lvl;
+        g.hit(t, t.lvl === 1 ? dmg * 2 : dmg);
       }
     }
   },
@@ -623,12 +650,16 @@ const PETS = {
   Rooster: {
     name: 'Rooster', cn: '公鸡', tier: 5, atk: 6, hp: 4,
     texts: ['阵亡：召唤 1 只小鸡（1 血，攻击为自身的 50%）',
-            '阵亡：召唤 1 只小鸡（1 血，攻击为自身的 50%）',
-            '阵亡：召唤 1 只小鸡（1 血，攻击为自身的 50%）'],
+            '阵亡：召唤 2 只小鸡（1 血，攻击为自身的 50%）',
+            '阵亡：召唤 3 只小鸡（1 血，攻击为自身的 50%）'],
     hooks: {
       faint: function (g, c) {
         const atk = Math.max(1, Math.floor(c.self.atk / 2));
-        g.summon(c.self.side, g.indexOf(c.self), 'Chick', { atk: atk, hp: 1, lvl: 1 });
+        let idx = g.indexOf(c.self);
+        for (let i = 0; i < c.lvl; i++) {
+          g.summon(c.self.side, idx, 'Chick', { atk: atk, hp: 1, lvl: 1 });
+          idx++;
+        }
       }
     }
   },
@@ -643,11 +674,13 @@ const PETS = {
 
   Seal: {
     name: 'Seal', cn: '海豹', tier: 5, atk: 3, hp: 8,
-    texts: ['友方吃食物时：给随机 3 个友方 +1 攻击', '友方吃食物时：给随机 3 个友方 +1 攻击', '友方吃食物时：给随机 3 个友方 +1 攻击'],
+    texts: ['友方吃食物时：给随机 3 个友方 +1 攻击',
+            '友方吃食物时：给随机 3 个友方 +2 攻击',
+            '友方吃食物时：给随机 3 个友方 +3 攻击'],
     hooks: {
       friendlyAteFood: function (g, c) {
         const t = g.random(g.friends(c.self), 3);
-        for (const p of t) g.buff(p, 1, 0);
+        for (const p of t) g.buff(p, c.lvl, 0);
       }
     }
   },
@@ -662,9 +695,11 @@ const PETS = {
 
   Turkey: {
     name: 'Turkey', cn: '火鸡', tier: 5, atk: 3, hp: 4,
-    texts: ['友方被召唤时：给它 +3/+1', '友方被召唤时：给它 +3/+1', '友方被召唤时：给它 +3/+1'],
+    texts: ['友方被召唤时：给它 +3/+1',
+            '友方被召唤时：给它 +6/+2',
+            '友方被召唤时：给它 +9/+3'],
     hooks: {
-      friendSummoned: function (g, c) { g.buff(c.target, 3, 1); }
+      friendSummoned: function (g, c) { g.buff(c.target, 3 * c.lvl, c.lvl); }
     }
   },
 
@@ -680,9 +715,12 @@ const PETS = {
 
   Cat: {
     name: 'Cat', cn: '猫', tier: 6, atk: 4, hp: 5,
-    texts: ['食物效果翻倍，每回合 2 次', '食物效果翻倍，每回合 2 次', '食物效果翻倍，每回合 2 次'],
+    texts: ['食物效果 ×2，每回合 2 次',
+            '食物效果 ×3，每回合 2 次',
+            '食物效果 ×4，每回合 2 次'],
     hooks: {}
   },
+  /* ⚠️ Cat 的实现在 game.js 的 applyFood 里（食物结算时找队伍里的猫） */
 
   Dragon: {
     name: 'Dragon', cn: '龙', tier: 6, atk: 6, hp: 8,
@@ -699,25 +737,29 @@ const PETS = {
   Fly: {
     name: 'Fly', cn: '苍蝇', tier: 6, atk: 5, hp: 5,
     texts: ['友方阵亡时：在原地召唤 1 个 4/4 僵尸苍蝇，每场 3 次',
-            '友方阵亡时：在原地召唤 1 个 4/4 僵尸苍蝇，每场 3 次',
-            '友方阵亡时：在原地召唤 1 个 4/4 僵尸苍蝇，每场 3 次'],
+            '友方阵亡时：在原地召唤 1 个 8/8 僵尸苍蝇，每场 3 次',
+            '友方阵亡时：在原地召唤 1 个 12/12 僵尸苍蝇，每场 3 次'],
     hooks: {
       friendFaints: function (g, c) {
         c.self._fly = (c.self._fly || 0) + 1;
         if (c.self._fly > 3) return;
         const team = g.team(c.self.side);
-        g.summon(c.self.side, team.length, 'ZombieFly', { atk: 4, hp: 4, lvl: 1 });
+        g.summon(c.self.side, team.length, 'ZombieFly',
+          { atk: 4 * c.lvl, hp: 4 * c.lvl, lvl: c.lvl });
       }
     }
   },
 
   Gorilla: {
     name: 'Gorilla', cn: '大猩猩', tier: 6, atk: 7, hp: 10,
-    texts: ['受伤时：获得椰子（每场战斗 1 次）', '受伤时：获得椰子（每场战斗 1 次）', '受伤时：获得椰子（每场战斗 1 次）'],
+    texts: ['受伤时：获得椰子（每场战斗 1 次）',
+            '受伤时：获得椰子（每场战斗 2 次）',
+            '受伤时：获得椰子（每场战斗 3 次）'],
     hooks: {
       hurt: function (g, c) {
-        if (c.self._gorilla) return;
-        c.self._gorilla = 1;
+        const used = c.self._gorilla || 0;
+        if (used >= c.lvl) return;
+        c.self._gorilla = used + 1;
         g.givePerk(c.self, 'Coconut', 1);
       }
     }
@@ -726,12 +768,12 @@ const PETS = {
   Leopard: {
     name: 'Leopard', cn: '豹', tier: 6, atk: 10, hp: 4,
     texts: ['开战：对随机 1 个敌人造成自身攻击力 50% 的伤害',
-            '开战：对随机 1 个敌人造成自身攻击力 50% 的伤害',
-            '开战：对随机 1 个敌人造成自身攻击力 50% 的伤害'],
+            '开战：对随机 2 个敌人造成自身攻击力 50% 的伤害',
+            '开战：对随机 3 个敌人造成自身攻击力 50% 的伤害'],
     hooks: {
       startOfBattle: function (g, c) {
-        const t = g.random(g.foes(c.self).filter(function (p) { return p.hp > 0; }), 1);
-        if (t[0]) g.hit(t[0], Math.floor(c.self.atk / 2));
+        const t = g.random(g.foes(c.self).filter(function (p) { return p.hp > 0; }), c.lvl);
+        for (const p of t) g.hit(p, Math.floor(c.self.atk / 2));
       }
     }
   },
@@ -750,33 +792,36 @@ const PETS = {
   Snake: {
     name: 'Snake', cn: '蛇', tier: 6, atk: 6, hp: 6,
     texts: ['前方友方攻击时：对随机 1 个敌人造成 5 伤害',
-            '前方友方攻击时：对随机 1 个敌人造成 5 伤害',
-            '前方友方攻击时：对随机 1 个敌人造成 5 伤害'],
+            '前方友方攻击时：对随机 1 个敌人造成 10 伤害',
+            '前方友方攻击时：对随机 1 个敌人造成 15 伤害'],
     hooks: {
       aheadAttack: function (g, c) {
         const t = g.random(g.foes(c.self).filter(function (p) { return p.hp > 0; }), 1);
-        if (t[0]) g.hit(t[0], 5);
+        if (t[0]) g.hit(t[0], 5 * c.lvl);
       }
     }
   },
 
   Tiger: {
     name: 'Tiger', cn: '老虎', tier: 6, atk: 6, hp: 4,
-    texts: ['前方友方的技能在战斗中会重复触发一次（按 1 级）',
-            '前方友方的技能在战斗中会重复触发一次（按 1 级）',
-            '前方友方的技能在战斗中会重复触发一次（按 1 级）'],
+    texts: ['前方友方的技能在战斗中会重复触发一次（按 1 级结算）',
+            '前方友方的技能在战斗中会重复触发一次（按 2 级结算）',
+            '前方友方的技能在战斗中会重复触发一次（按 3 级结算）'],
     hooks: {}
   },
+  /* ⚠️ Tiger 的实现在 engine.js 的 triggerOn 里（检测身后是否站着老虎） */
 
   Wolverine: {
     name: 'Wolverine', cn: '狼獾', tier: 6, atk: 5, hp: 4,
-    texts: ['每有 4 个友方受伤：所有敌人 -2 生命', '每有 4 个友方受伤：所有敌人 -2 生命', '每有 4 个友方受伤：所有敌人 -2 生命'],
+    texts: ['每有 4 个友方受伤：所有敌人 -2 生命',
+            '每有 4 个友方受伤：所有敌人 -4 生命',
+            '每有 4 个友方受伤：所有敌人 -6 生命'],
     hooks: {
       friendHurt: function (g, c) {
         c.self._wolv = (c.self._wolv || 0) + 1;
         if (c.self._wolv % 4 !== 0) return;
         const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; });
-        for (const p of foes) g.hit(p, 2);
+        for (const p of foes) g.hit(p, 2 * c.lvl);
       }
     }
   },
