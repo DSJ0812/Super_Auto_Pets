@@ -47,6 +47,12 @@ function Seat(idx) {
  * ---------------------------------------------------------- */
 function OnlineGame() {
   CFG.ECONOMY = 'tft';                       // 联机走 8 人混战那套经济
+  /* 房间配置在【开房这一刻快照】，之后不再变。
+   *
+   * ⚠️ 不要写成每次动态读 CFG：那样任何人在同进程里改了 CFG（比如本地
+   *    切到别的模式），这个房间报出去的配置就会跟着漂移，而客户端的价格
+   *    显示是拿它算的。房间一旦建好，经济模式和宠物包就该是固定的。 */
+  this.cfg = { economy: CFG.ECONOMY, pack: (typeof activePack === 'function' ? activePack() : 'turtle') };
   this.seats = [];
   for (let i = 0; i < MELEE_CFG.COUNT; i++) this.seats.push(new Seat(i));
   this.turn = 1;
@@ -135,7 +141,8 @@ OnlineGame.prototype.addPlayer = function (wantName) {
   seat.ready = false;
 
   this.pushLobby();
-  return { ok: true, token: seat.token, seat: seat.idx, name: seat.name };
+  return { ok: true, token: seat.token, seat: seat.idx, name: seat.name,
+           config: this.roomConfig() };
 };
 
 /* 刷新页面 / 掉线重连：凭证在 localStorage，服务器保留座位 */
@@ -144,7 +151,8 @@ OnlineGame.prototype.rejoin = function (token) {
   if (!seat || seat.kind !== 'remote') return { ok: false, msg: '找不到你的座位（可能房间已重置）' };
   seat.connected = true;
   this.pushLobby();
-  return { ok: true, seat: seat.idx, name: seat.name, snapshot: this.snapshot(seat) };
+  return { ok: true, seat: seat.idx, name: seat.name,
+           snapshot: this.snapshot(seat), config: this.roomConfig() };
 };
 
 OnlineGame.prototype.setConnected = function (token, v) {
@@ -504,8 +512,28 @@ OnlineGame.prototype.snapshot = function (seat) {
     roster: this.roster(),
     you: seat.game ? packSelf(seat.game, seat) : null,
     lastBattle: this.lastBattleBySeat[seat.idx] || null,
-    lobby: this.lobbyState()
+    lobby: this.lobbyState(),
+    config: this.roomConfig()
   };
+};
+
+/* ------------------------------------------------------------
+ *  房间配置 —— 客户端【必须】和服务端用同一套
+ *
+ *  为什么要有这个东西：
+ *    联机是「服务端结算 + 客户端显示」，而价格这类东西是【客户端本地算出来
+ *    给人看的】（petCostOf / rollCostOf 都读全局 CFG）。只要有一边没同步，
+ *    就会出现「界面显示 3 金、实际扣 2 金」这种事。
+ *
+ *  ⚠️ 以前 CFG.ECONOMY 写在 melee.js / online.js 两处、CFG.PACK 写在
+ *     server.js，而联机客户端【一处都没写】—— 结果联机商店显示
+ *     「宠物 3 金、刷新 1 金」，服务端却按 TFT 实扣「按星级、刷新 2 金」。
+ *
+ *  现在改成【服务端是唯一事实来源】：每次握手和快照都带上这份配置，
+ *  客户端收到就应用（见 net.js 的 applyRoomConfig）。
+ *  以后新增任何影响显示的配置项，只要加到这里就不会漏。 */
+OnlineGame.prototype.roomConfig = function () {
+  return this.cfg;
 };
 
 if (typeof module !== 'undefined' && module.exports) {

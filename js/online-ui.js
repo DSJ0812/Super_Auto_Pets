@@ -446,9 +446,14 @@ function oOnBattle(d) {
   const y = d.you;
   if (!y || y.bye) {
     if (y && y.out) { oShowOut(d); return; }
+    // 轮空：没有战斗可播，但【必须】给玩家一个「进入下一回合」的入口。
+    // ⚠️ 以前这里只切回商店就 return 了 —— 而上面刚把 OUI.phase 设成
+    //    'battle'，界面却停在商店：玩家点「结束回合」会被服务端的 phase
+    //    检查挡回去，提示「战斗结算中，等回放结束」，就此卡死。
+    //    （8 人混战踩过一模一样的坑，见 melee-ui.js 里那段注释。
+    //      教训：修完一个模式一定要回头看看另外几个。）
     say('本回合轮空，不掉血');
-    oShowShop();
-    oRenderAll();
+    oShowBattlePlaceholder('本回合轮空（不掉血，也不算连胜）', 'draw', d);
     return;
   }
   // ⚠️ 日志里的 uid 是按 uid 索引的，所以必须先解包出 def 再交给回放器
@@ -463,21 +468,29 @@ function oOnBattle(d) {
 }
 
 /* 出局后的观战画面：没有自己的战斗可看，但还能看战报、能推进 */
-function oShowOut(d) {
+/* 轮空 / 已出局：没有自己的战斗可播，但【都必须】给玩家一个
+ * 「进入下一回合」的按钮 —— 否则 OUI.phase 会永远停在 'battle'
+ * （服务端 endTurn 结尾把它设成 'battle'，靠客户端 ackBattle 才推进）。
+ * 两种情况的界面只差一句文案，所以合成一份实现，避免只改一边。 */
+function oShowBattlePlaceholder(label, cls, d) {
   $('#mShopView').style.display = 'none';
   $('#mbattle').style.display = '';
   $('#mFoeRow').innerHTML = '';
   $('#mMyBattleRow').innerHTML = '';
   const lb = $('#mBattleLabel');
-  if (lb) {
-    lb.textContent = '💀 你已出局，正在观战';
-    lb.className = 'battle-label lose';
-  }
-  $('#mBtnSkip').style.display = 'none';
+  if (lb) { lb.textContent = label; lb.className = 'battle-label ' + cls; }
+  const sk = $('#mBtnSkip'); if (sk) sk.style.display = 'none';
   const nx = $('#mBtnNext');
-  nx.style.display = '';
-  nx.disabled = false;
-  nx.textContent = d.over ? '📊 查看最终结果' : '➡️ 进入第 ' + (d.turn + 1) + ' 回合';
+  if (nx) {
+    nx.style.display = '';
+    nx.disabled = false;
+    nx.textContent = d.over ? '📊 查看最终结果' : '➡️ 进入第 ' + (d.turn + 1) + ' 回合';
+  }
+}
+
+/* 出局后的观战画面：没有自己的战斗可看，但还能看战报、能推进 */
+function oShowOut(d) {
+  oShowBattlePlaceholder('💀 你已出局，正在观战', 'lose', d);
 }
 
 function oApplySnapshot(s) {

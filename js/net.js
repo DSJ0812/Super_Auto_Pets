@@ -52,6 +52,24 @@ NET.post = function (path, body) {
     .catch(function () { return { ok: false, msg: '连不上服务器' }; });
 };
 
+/* ---- 房间配置：服务端是唯一事实来源 ----
+ *
+ * 经济模式 / 宠物包这类配置【必须】和服务端一致：价格是客户端本地算出来
+ * 给人看的（petCostOf / rollCostOf 都读全局 CFG），一旦不一致，玩家看到的
+ * 价格就不是实际扣的钱。
+ *
+ * ⚠️ 以前这些配置各写各的（melee.js / online.js / server.js 三处），
+ *    而联机客户端【一处都没写】—— 结果联机商店显示「宠物 3 金、刷新 1 金」，
+ *    服务端却按 TFT 实扣「按星级、刷新 2 金」。
+ *
+ * 放在 net.js 而不是各个页面，是因为握手是 NET 的职责：
+ * 只要连上服务器就一定会走到这里，不会再出现「某个页面忘了调」。 */
+NET.applyRoomConfig = function (cfg) {
+  if (!cfg) return;
+  if (cfg.economy) CFG.ECONOMY = cfg.economy;
+  if (cfg.pack && typeof PACKS !== 'undefined' && PACKS[cfg.pack]) CFG.PACK = cfg.pack;
+};
+
 /* ---- 加入房间 ---- */
 NET.join = function (name) {
   return NET.post('api/join', { name: name }).then(function (r) {
@@ -59,6 +77,7 @@ NET.join = function (name) {
       NET.token = r.token;
       NET.seat = r.seat;
       NET.name = r.name;
+      NET.applyRoomConfig(r.config);
       try { localStorage.setItem(NET_LS_KEY, r.token); } catch (e) {}
     }
     return r;
@@ -72,7 +91,10 @@ NET.rejoin = function () {
   if (!token) return Promise.resolve({ ok: false, msg: '没有保存的凭证' });
   NET.token = token;
   return NET.post('api/rejoin', { token: token }).then(function (r) {
-    if (r.ok) { NET.seat = r.seat; NET.name = r.name; }
+    if (r.ok) {
+      NET.seat = r.seat; NET.name = r.name;
+      NET.applyRoomConfig(r.config);
+    }
     else { NET.token = null; try { localStorage.removeItem(NET_LS_KEY); } catch (e) {} }
     return r;
   });

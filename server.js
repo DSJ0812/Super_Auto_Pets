@@ -131,14 +131,36 @@ function readBody(req, cb) {
   req.on('error', function () { cb(new Error('request error')); });
 }
 
+/* 真正的局域网地址。
+ *
+ * ⚠️ 必须过滤掉【虚拟网卡】：WSL / Hyper-V / VMware / VirtualBox / Docker /
+ *    蓝牙 这些网卡同样有 IPv4 地址，但**局域网里别人连不上** ——
+ *    它们只在本机内部有意义。
+ *    以前只排除了 internal，结果开服时第一个打印的往往是 WSL 的 172.x，
+ *    玩家照着输就以为「联机坏了」（实测反馈）。
+ *    顺带排掉 169.254.x.x（APIPA，说明没拿到 DHCP 地址，同样连不上）。 */
+const VIRTUAL_IFACE = /vEthernet|WSL|Hyper-?V|VMware|VirtualBox|Docker|Loopback|Bluetooth|蓝牙|本地连接\s*\*|TAP-|TUN|Tailscale|ZeroTier|Radmin|Npcap/i;
+
+/* 家用/办公网段优先：192.168 > 10. > 172.16-31 > 其它 */
+function ipRank(ip) {
+  if (/^192\.168\./.test(ip)) return 0;
+  if (/^10\./.test(ip)) return 1;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return 2;
+  return 3;
+}
+
 function lanAddresses() {
   const out = [];
   const ifaces = os.networkInterfaces();
   for (const name of Object.keys(ifaces)) {
+    if (VIRTUAL_IFACE.test(name)) continue;
     for (const a of ifaces[name] || []) {
-      if (a.family === 'IPv4' && !a.internal) out.push({ name: name, ip: a.address });
+      if (a.family !== 'IPv4' || a.internal) continue;
+      if (/^169\.254\./.test(a.address)) continue;
+      out.push({ name: name, ip: a.address });
     }
   }
+  out.sort(function (x, y) { return ipRank(x.ip) - ipRank(y.ip); });
   return out;
 }
 
@@ -294,14 +316,19 @@ server.listen(PORT, '0.0.0.0', function () {
   const lan = lanAddresses();
   if (lan.length) {
     lines.push('  发给朋友（局域网）:');
-    for (const a of lan) lines.push('      http://' + a.ip + ':' + PORT + '   [' + a.name + ']');
+    for (let i = 0; i < lan.length; i++) {
+      lines.push('      http://' + lan[i].ip + ':' + PORT + '   [' + lan[i].name + ']' +
+                 (i === 0 && lan.length > 1 ? '  👈 用这个' : ''));
+    }
+    if (lan.length > 1) lines.push('      （这几个都是可用地址，哪个都行）');
+    lines.push('  别人打开上面的地址，输入昵称即可加入房间。');
   } else {
-    lines.push('  ⚠️  没检测到局域网 IP，确认一下网络连接');
+    lines.push('  ⚠️  没检测到可用的局域网 IP，确认一下网络连接');
+    lines.push('      （已自动跳过 WSL / 虚拟机这类虚拟网卡 —— 它们的地址别人连不上）');
   }
   lines.push('  ' + '-'.repeat(46));
   lines.push('  宠物包: ' + CORE.activePack() + '（' + CORE.PACKS[CORE.activePack()].cn + '，' +
              CORE.buyablePool().length + ' 只）');
-  lines.push('  别人打开上面任意一个地址，输入昵称即可加入房间。');
   lines.push('  人不够时剩下的座位会自动由电脑补位。');
   lines.push('  关掉这个窗口 = 服务器停止，大家都会掉线。');
   lines.push('');
