@@ -371,11 +371,34 @@ function finishBattle(winner) {
       ? '🏆 ' + g.wins + ' 胜达成 —— 再来一局'
       : '☠️ ' + g.losses + ' 败 —— 再来一局';
     $('#btnNext').dataset.restart = '1';
+    /* 通关了就给一次挑战排行榜的机会（失败出局不给） */
+    if (g.wins >= CFG.WIN_TARGET) offerBoardChallenge(g);
   } else {
     $('#btnNext').style.display = '';
     $('#btnNext').textContent = '➡️ 进入第 ' + (g.turn + 1) + ' 回合';
     $('#btnNext').dataset.restart = '';
   }
+}
+
+/* 通关 → 问玩家要不要挑战排行榜
+ * ⚠️ 用 UI.boardOffered 去重：gameover 之后界面会反复重绘，
+ *    不加这个标记会弹出好几次。 */
+function offerBoardChallenge(g) {
+  if (UI.boardOffered) return;
+  if (typeof boardOfferChallenge !== 'function') return;   // 没加载排行榜脚本就跳过
+  UI.boardOffered = true;
+
+  const isDaily = !!(UI.seedInfo && UI.seedInfo.daily);
+  const mode = isDaily ? 'daily' : 'classic';
+  const dateKey = isDaily ? UI.seedInfo.dateKey : null;
+
+  boardOfferChallenge(
+    mode,
+    g.team,                                  // 用通关时的这套阵容去挑战
+    boardScoreOf(mode, g),
+    dateKey,
+    function () { /* 挑战结束（上榜或放弃），界面保持原样即可 */ }
+  );
 }
 
 /* 每日挑战：一局结束时记成绩（同一局只记一次） */
@@ -422,6 +445,12 @@ function bind() {
     // 图鉴：打开 / 关闭 / 点遮罩关闭（面板内点击不关）
     if (e.target.closest('#btnCodex')) { openCodexPanel(); return; }
     if (e.target.closest('#btnCodexClose')) { closeCodexPanel(); return; }
+    if (e.target.closest('#btnBoard')) {
+      /* 每日挑战看每日榜，普通局看经典榜 */
+      const isDaily = !!(UI.seedInfo && UI.seedInfo.daily);
+      boardOpen(isDaily ? 'daily' : 'classic', isDaily ? UI.seedInfo.dateKey : null);
+      return;
+    }
     if (e.target.closest('#codex') && !e.target.closest('.codex-panel')) { closeCodexPanel(); return; }
 
     // 刷新
@@ -633,6 +662,7 @@ function boot() {
   // ⚠️ 种子必须在 new Game() 之前设好 —— 否则第一次 rollShop 已经用掉真随机了
   UI.seedInfo = initSeed();
   UI.dailyRecorded = false;
+  UI.boardOffered = false;      // 新一局：重新给一次挑战排行榜的机会
 
   UI.game = new Game();
   bind();

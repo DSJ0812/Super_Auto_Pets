@@ -30,12 +30,31 @@ const MPLAY = new BattlePlayer({
     if (m.phase === 'over') {
       btn.textContent = '📊 查看最终结果';
       btn.dataset.mrestart = '1';
+      offerMeleeBoard(m);
     } else {
       btn.textContent = '➡️ 进入第 ' + (m.turn + 1) + ' 回合';
       btn.dataset.mrestart = '';
     }
   }
 });
+
+/* 整局结束 → 吃鸡的话给一次挑战排行榜的机会
+ * ⚠️ onFinish 每场战斗都会调用，所以用 MUI.boardOffered 去重，
+ *    并且只有 rank === 1（冠军）才触发。 */
+function offerMeleeBoard(m) {
+  if (MUI.boardOffered) return;
+  MUI.boardOffered = true;
+  if (!m || !m.human) return;
+  if (m.human.rank !== 1) return;                    // 没吃鸡就不上榜
+  if (typeof boardOfferChallenge !== 'function') return;
+  boardOfferChallenge(
+    'melee',
+    m.human.game.team,
+    boardScoreOf('melee', { hp: m.human.hp, turn: m.turn }),
+    null,
+    function () { /* 结束后界面保持不变 */ }
+  );
+}
 
 /* ------------------------------------------------------------
  *  顶栏
@@ -318,6 +337,7 @@ function mRestart() {
   MUI.view = null; MUI.log = []; MUI.idx = 0;
   clearTimeout(MUI.timer);
   MUI.selTeam = -1;
+  MUI.boardOffered = false;        // 新一局：重新给一次挑战排行榜的机会
   $('#mbattle').style.display = 'none';
   $('#mShopView').style.display = '';
   mRenderAll();
@@ -515,6 +535,7 @@ function mBoot() {
   // ⚠️ 种子必须在 new Melee() 之前设好 —— 否则开局那批随机数已经用掉真随机了
   MUI.seedInfo = initSeed();
   MUI.m = new Melee();
+  MUI.boardOffered = false;
   mBind();
   mRenderAll();
   renderSeedBar($('#seedBar'), MUI.seedInfo, '');

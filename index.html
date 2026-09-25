@@ -27,6 +27,7 @@
        里面就可以写详细一点了，不用挤在主页上。 -->
   <div class="howto-entry">
     <button class="howto-btn" id="howtoBtn">📖 怎么玩？（第一次玩点这里）</button>
+    <button class="howto-btn" id="boardBtn">🏆 排行榜</button>
     <span class="howto-hint">30 秒看懂基础流程 · 想看细节再翻标签页</span>
   </div>
 
@@ -302,6 +303,9 @@
 </div>
 
 <script src="js/rng.js"></script>
+<script src="js/badwords.js"></script>
+<script src="js/board.js"></script>
+<script src="js/board-ui.js"></script>
 <script>
 /* 宠物包选择：选中的包会写进三个模式卡片的链接（?pack=xxx）。
  * 一局只用一个包 —— 两个包混进同一个池子会把重复率砍半，
@@ -381,6 +385,17 @@
       }
     })
     .catch(function () { foot.innerHTML = offlineFoot; });
+})();
+
+/* 排行榜入口：三个模式共用同一个弹层，用标签切换。
+ * 弹层的 DOM 由 board-ui.js 动态创建，所以这里只负责打开它。 */
+(function () {
+  var btn = document.getElementById('boardBtn');
+  if (!btn || typeof boardOpen !== 'function') return;
+  btn.addEventListener('click', function () { boardOpen('classic'); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') boardClose();
+  });
 })();
 
 /* 「怎么玩」弹层：按钮打开、标签切换、点空白 / ✕ / Esc 关闭。
