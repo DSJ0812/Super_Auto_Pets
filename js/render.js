@@ -9,87 +9,15 @@
  *  依赖：data.js（PETS / petName）
  * ============================================================ */
 
-/* 宠物表情（纯装饰）
- * ⚠️ 每只宠物都必须在这里有一条 —— 否则卡片会 fallback 成 🐾（两个爪爪），
- *    星包刚加进来时就是这样，整包宠物长得一模一样。
- *    有一条测试（emoji.js）会检查「所有宠物/食物都有 emoji」，别再漏了。 */
-const PET_EMOJI = {
-  /* ---- 龟包 Tier 1 ---- */
-  Ant: '🐜', Beaver: '🦫', Cricket: '🦗', Duck: '🦆', Fish: '🐟', Horse: '🐴',
-  Mosquito: '🦟', Otter: '🦦', Pig: '🐷', Pigeon: '🐦', Sloth: '🦥',
-  /* ---- 龟包 Tier 2 ---- */
-  Crab: '🦀', Flamingo: '🦩', Hedgehog: '🦔', Kangaroo: '🦘', Peacock: '🦚',
-  Rat: '🐀', Snail: '🐌', Spider: '🕷️', Swan: '🦢', Worm: '🪱',
-  /* ---- 龟包 Tier 3 ---- */
-  Badger: '🦡', Camel: '🐫', Dodo: '🦤', Dog: '🐕', Dolphin: '🐬',
-  Elephant: '🐘', Giraffe: '🦒', Ox: '🐂', Rabbit: '🐰', Sheep: '🐑',
-  /* ---- 龟包 Tier 4 ---- */
-  Bison: '🦬', Blowfish: '🐡', Deer: '🦌', Hippo: '🦛', Parrot: '🦜',
-  Penguin: '🐧', Skunk: '🦨', Squirrel: '🐿️', Turtle: '🐢', Whale: '🐋',
-  /* ---- 龟包 Tier 5 ---- */
-  Armadillo: '🦔', Cow: '🐄', Crocodile: '🐊', Monkey: '🐒', Rhino: '🦏',
-  Rooster: '🐓', Scorpion: '🦂', Seal: '🦭', Shark: '🦈', Turkey: '🦃',
-  /* ---- 龟包 Tier 6 ---- */
-  Boar: '🐗', Cat: '🐈', Dragon: '🐉', Fly: '🪰', Gorilla: '🦍',
-  Leopard: '🐆', Mammoth: '🦣', Snake: '🐍', Tiger: '🐅', Wolverine: '🐺',
+/* 宠物图标（PET_EMOJI / PET_ART / petArtHtml）已移到 petart.js。
+ * ⚠️ 那个文件是自包含的 —— 主页这类不加载 render.js 的页面也要用它。
+ *    加载顺序：petart.js 必须在 render.js 之前。 */
+;
 
-  /* ---- 星包 Tier 1 ---- */
-  Pillbug: '🪲', Chihuahua: '🐕', Cockroach: '🪳', Duckling: '🐤', Firefly: '✨',
-  Frog: '🐸', Gibbon: '🐒', Hummingbird: '🐦', Kiwi: '🥝', Marmoset: '🐒',
-  Mouse: '🐭', Termite: '🐜',
-  /* ---- 星包 Tier 2 ---- */
-  AtlanticPuffin: '🐧', Bass: '🐟', Dove: '🕊️', GuineaPig: '🐹', Iguana: '🦎',
-  Jellyfish: '🪼', Panda: '🐼', Salamander: '🦎', Seahorse: '🐠', Stork: '🐦',
-  Yak: '🐂', Roadrunner: '🐦', Koala: '🐨',
-  /* ---- 星包 Tier 3 ---- */
-  Anteater: '🐜', Capybara: '🐹', Cardinal: '🐦', Cassowary: '🦤', Eel: '🐍',
-  Leech: '🪱', Okapi: '🦓', Orangutan: '🦧', Pug: '🐕', Toad: '🐸', Tuna: '🐟',
-  /* ---- 星包 Tier 4 ---- */
-  Clownfish: '🐠', Crow: '🐦', Donkey: '🫏', Elk: '🦌', Fossa: '🐆',
-  Hawk: '🦅', Platypus: '🦫', SeaAnemone: '🪸', Sparrow: '🐦', PrayingMantis: '🦗',
-  RacketTail: '🐦', FairyArmadillo: '🦔',
-  /* ---- 星包 Tier 5 ---- */
-  Ibex: '🐐', Blobfish: '🐡', Fox: '🦊', Hamster: '🐹', Lion: '🦁',
-  PolarBear: '🐻', Shoebill: '🐦', SiberianHusky: '🐕', Starfish: '⭐',
-  Triceratops: '🦕', Vulture: '🦅', Woodpecker: '🐦', Zebra: '🦓',
-  /* ---- 星包 Tier 6 ---- */
-  Alpaca: '🦙', HammerheadShark: '🦈', HarpyEagle: '🦅', Komodo: '🦎',
-  Orca: '🐋', Ostrich: '🦤', Piranha: '🐟', RealVelociraptor: '🦖',
-  Reindeer: '🦌', SabertoothTiger: '🐯', Spinosaurus: '🦖', Stegosaurus: '🦕',
-  Velociraptor: '🦖', TerrorBird: '🦤', Therizinosaurus: '🦖', Ammonite: '🐚',
 
-  /* ---- 召唤物 ---- */
-  ZombieCricket: '🧟', DirtyRat: '🐭', Ram: '🐏', Bee: '🐝',
-  Bus: '🚌', Chick: '🐤', ZombieFly: '🪳', CookedRoach: '🪳',
-  FairyBall: '🔮', MimicOctopus: '🐙'
-};
+;
 
-/* ------------------------------------------------------------
- *  宠物图片接口（预留）
- *
- *  现在用 emoji 顶着，但整套渲染都走 petArtHtml()，所以以后要换成真图
- *  只需要在这里加一行、把图片丢进 assets/pets/ 就行 —— 三种模式、
- *  商店、队伍、战斗、图鉴会一起生效，不用改任何别的地方。
- *
- *  用法（示例，注释掉的那行就是格式）：
- *      const PET_ART = {
- *        Ant: 'assets/pets/ant.png',
- *        Beaver: 'assets/pets/beaver.png',
- *      };
- *  没在这里登记的宠物会自动退回 emoji，所以可以一张一张慢慢加。
- * ---------------------------------------------------------- */
-const PET_ART = {
-  // Ant: 'assets/pets/ant.png',
-};
 
-function petArtHtml(defId) {
-  const src = PET_ART[defId];
-  if (src) {
-    return '<img class="pet-img" src="' + esc(src) + '" alt="' +
-           esc((PETS[defId] && PETS[defId].cn) || defId) + '">';
-  }
-  return PET_EMOJI[defId] || '🐾';
-}
 
 const PERK_EMOJI = {  Melon: '🍉', Honey: '🍯', Garlic: '🧄',
   Chili: '🌶️', Peanut: '🥜', Coconut: '🥥',
