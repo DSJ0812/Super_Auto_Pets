@@ -303,7 +303,12 @@
 </div>
 
 <script src="js/rng.js"></script>
+<!-- ⚠️ data.js / relics.js：主页要显示排行榜的「阵容详情」（宠物中文名、技能、
+     道具名、遗物），这些数据都在它们里面。两个文件都是纯数据，能独立加载
+     （不依赖 render.js / game.js），所以主页加这两行就够，不用把整个游戏拖进来。 -->
+<script src="js/data.js"></script>
 <script src="js/petart.js"></script>
+<script src="js/relics.js"></script>
 <script src="js/badwords.js"></script>
 <script src="js/board.js"></script>
 <script src="js/board-ui.js"></script>
@@ -319,6 +324,10 @@
   var cur = 'turtle';
   var btns = document.querySelectorAll('.pp-btn');
 
+  /* 给外面用：排行榜要在主页打开时，默认看【当前选的这个包】的榜。
+   * 主页不加载 game.js，所以没有 activePack()，这里自己暴露一个。 */
+  window.currentPack = function () { return cur; };
+
   function apply() {
     var q = cur === 'turtle' ? '' : ('?pack=' + cur);
     document.getElementById('cardSolo').href = 'solo.html' + q;
@@ -328,6 +337,11 @@
     document.getElementById('packNote').textContent = PACKS[cur].note;
     for (var i = 0; i < btns.length; i++) {
       btns[i].classList.toggle('active', btns[i].dataset.pack === cur);
+    }
+    /* 排行榜弹层要是正开着，跟着切到新包的榜（不然会看到「明明换了包、榜没变」） */
+    if (typeof boardSwitchPack === 'function') {
+      var bm = document.getElementById('boardModal');
+      if (bm && bm.style.display !== 'none') boardSwitchPack(cur);
     }
   }
   for (var i = 0; i < btns.length; i++) {
@@ -389,11 +403,16 @@
 })();
 
 /* 排行榜入口：三个模式共用同一个弹层，用标签切换。
- * 弹层的 DOM 由 board-ui.js 动态创建，所以这里只负责打开它。 */
+ * 弹层的 DOM 由 board-ui.js 动态创建，所以这里只负责打开它。
+ * ⚠️ 第三个参数是宠物包 —— 不传的话 boardOpen 会跟 activePack() 走；
+ *    主页没有 activePack（那份逻辑在 game.js），所以直接把当前选的包传进去。 */
 (function () {
   var btn = document.getElementById('boardBtn');
   if (!btn || typeof boardOpen !== 'function') return;
-  btn.addEventListener('click', function () { boardOpen('classic'); });
+  btn.addEventListener('click', function () {
+    var pack = (typeof currentPack === 'function') ? currentPack() : 'turtle';
+    boardOpen('classic', null, pack);
+  });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') boardClose();
   });

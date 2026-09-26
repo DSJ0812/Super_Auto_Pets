@@ -19,12 +19,9 @@
 
 
 
-const PERK_EMOJI = {  Melon: '🍉', Honey: '🍯', Garlic: '🧄',
-  Chili: '🌶️', Peanut: '🥜', Coconut: '🥥',
-  /* 星包 */
-  Strawberry: '🍓', Cucumber: '🥒', Cheese: '🧀', Grapes: '🍇',
-  Carrot: '🥕', Pepper: '🧂', Popcorn: '🍿', Eucalyptus: '🌿'
-};
+/* ⚠️ PERK_EMOJI（道具图标）已经搬到 petart.js —— 那是自包含的图标表，
+ *    所有页面（含不加载 render.js 的 index.html）都要用。
+ *    petart.js 在本文件之前加载，所以这里可以直接用。 */
 
 const FOOD_EMOJI = {
   Apple: '🍎', BetterApple: '🍎', BestApple: '🍎',
@@ -292,8 +289,9 @@ function initSeed() {
   let seed = p ? p.get('seed') : null;
   let dateKey = null;
 
-  // 宠物包：?pack=star。⚠️ 目前只在地址栏生效，主页还没放选择入口 ——
-  // 星包只做到 T1，选了会是个残包，等 6 个星级都齐了再开放。
+  /* 宠物包：?pack=star（主页的模式卡片会带上这个参数）。
+   * 一局只用【一个】包 —— 两个包混进同一个池子会把重复率砍半，
+   * 而合成升级完全依赖反复出现同名宠物。排行榜也按包分开，见 board.js。 */
   const pack = p ? p.get('pack') : null;
   if (pack && typeof PACKS !== 'undefined' && PACKS[pack]) CFG.PACK = pack;
 

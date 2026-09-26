@@ -19,6 +19,7 @@
 const BUI = {
   mode: 'classic',
   dateKey: null,
+  pack: 'turtle',      // 看哪个包的榜（两个包宠物池不相交，榜必须分开）
   entries: null,
   loading: false,
   err: '',
@@ -30,6 +31,17 @@ const BUI = {
 /* 模式显示名 */
 const BOARD_MODE_CN = { classic: '经典模式', melee: '8 人混战', daily: '每日挑战' };
 const BOARD_MODE_ICON = { classic: '🎯', melee: '⚔️', daily: '📅' };
+/* 包名和图标在 board.js 里（BOARD_PACK_CN / BOARD_PACK_ICON / BOARD_PACKS） */
+
+/* 包开关按钮 */
+function boardPackTabsHtml() {
+  let s = '';
+  for (const p of BOARD_PACKS) {
+    s += '<span class="bp-btn' + (p === BUI.pack ? ' on' : '') + '" data-bpack="' + p + '">' +
+         BOARD_PACK_ICON[p] + ' ' + BOARD_PACK_CN[p] + '</span>';
+  }
+  return s;
+}
 
 /* HTML 转义
  * ⚠️ 不复用 render.js 的 esc()：主页（index.html）只加载了排行榜要用的脚本，
@@ -65,6 +77,13 @@ function boardEnsureDom() {
         '<span class="howto-tab" data-btab="melee">⚔️ 8 人混战</span>' +
         '<span class="howto-tab" data-btab="daily">📅 每日挑战</span>' +
       '</div>' +
+      /* 宠物包：一局只能用【一个】包，两个包的宠物池完全不相交（龟 61 / 星 77），
+       * 强度基准不同 —— 混在一张榜上比名次没有意义，所以榜也按包分开。 */
+      '<div class="board-packs" id="boardPacks">' +
+        '<span class="bp-label">宠物包</span>' +
+        boardPackTabsHtml() +
+        '<span class="bp-hint">两个包的宠物池不一样，分开排名</span>' +
+      '</div>' +
       '<div class="board-body" id="boardBody"></div>' +
     '</div>';
   document.body.appendChild(wrap);
@@ -73,6 +92,10 @@ function boardEnsureDom() {
     if (e.target === wrap) boardClose();
     const tab = e.target.closest ? e.target.closest('.howto-tab') : null;
     if (tab && tab.dataset.btab) boardSwitch(tab.dataset.btab);
+    const pk = e.target.closest ? e.target.closest('.bp-btn') : null;
+    if (pk && pk.dataset.bpack) boardSwitchPack(pk.dataset.bpack);
+    const row = e.target.closest ? e.target.closest('[data-brow]') : null;
+    if (row && row.dataset.brow !== undefined) boardShowDetail(Number(row.dataset.brow));
   });
   document.getElementById('boardClose').addEventListener('click', boardClose);
 
@@ -111,6 +134,102 @@ function boardEnsureDom() {
   cw.addEventListener('click', function (e) {
     if (e.target === cw && BUI.ch && !BUI.ch.busy) chalFinish(false);
   });
+
+  /* 阵容详情弹层：榜单上点一行就打开
+   * ⚠️ 这里【不复用】render.js 的 petCard —— 主页（index.html）不加载 render.js。
+   *    详情只依赖 petart.js（图标）+ data.js（名字/技能）+ relics.js（遗物），
+   *    这三个文件三个页面都加载了，所以一份实现到处都能用。 */
+  const dw = document.createElement('div');
+  dw.id = 'bdModal';
+  dw.className = 'howto-modal';
+  dw.style.zIndex = '960';                 // 盖在榜单弹层上面
+  dw.innerHTML =
+    '<div class="howto-box bd-box">' +
+      '<div class="howto-head">' +
+        '<span class="howto-title" id="bdTitle">阵容详情</span>' +
+        '<span class="howto-close" id="bdClose">✕</span>' +
+      '</div>' +
+      '<div class="bd-body" id="bdBody"></div>' +
+    '</div>';
+  document.body.appendChild(dw);
+  dw.addEventListener('click', function (e) { if (e.target === dw) boardCloseDetail(); });
+  document.getElementById('bdClose').addEventListener('click', boardCloseDetail);
+}
+
+/* ------------------------------------------------------------
+ *  阵容详情
+ * ---------------------------------------------------------- */
+
+/* 单只宠物：图标 / 中文名 / 等级 / 攻血 / 道具 / 技能 */
+function boardDetailPetHtml(p) {
+  const def = (typeof PETS !== 'undefined' && PETS[p.defId]) ? PETS[p.defId] : null;
+  const lvl = p.lvl || 1;
+  const name = def ? (def.cn || def.name || p.defId) : p.defId;
+  const skill = (def && def.texts) ? (def.texts[lvl - 1] || def.texts[0] || '') : '';
+  let perks = '';
+  for (const pk of (p.perks || [])) {
+    if (pk.uses > 0) {
+      perks += '<span class="bd-perk" title="' + boardEsc(perkCn(pk.id)) + '">' +
+               perkIcon(pk.id) + '</span>';
+    }
+  }
+  return '<div class="bd-pet" data-tier="' + ((def && def.tier) || 0) + '">' +
+    '<div class="bd-pet-top">' +
+      '<span class="bd-emoji">' + petArtHtml(p.defId) + '</span>' +
+      '<span class="bd-lvl">' + lvl + ' 级</span>' +
+    '</div>' +
+    '<div class="bd-name">' + boardEsc(name) + '</div>' +
+    '<div class="bd-stats"><b class="atk">' + p.atk + '</b><i>/</i><b class="hp">' + p.hp + '</b></div>' +
+    (perks ? '<div class="bd-perks">' + perks + '</div>' : '') +
+    (skill ? '<div class="bd-skill" title="' + boardEsc(skill) + '">' + boardEsc(skill) + '</div>' : '') +
+  '</div>';
+}
+
+/* 遗物一行 */
+function boardDetailRelicsHtml(ids) {
+  if (!ids || !ids.length) return '<span class="bd-none">这一局没有遗物</span>';
+  let s = '';
+  for (const id of ids) {
+    const r = (typeof RELICS !== 'undefined' && RELICS[id]) ? RELICS[id] : null;
+    if (!r) { s += '<span class="bd-relic" title="' + boardEsc(id) + '">❔</span>'; continue; }
+    s += '<span class="bd-relic" title="' + boardEsc(r.cn + '：' + r.desc) + '">' +
+         r.icon + '<b>' + boardEsc(r.cn) + '</b></span>';
+  }
+  return s;
+}
+
+function boardDetailHtml(e) {
+  const team = e.team || [];
+  const relics = e.relics || [];
+  let pets = '';
+  for (const p of team) pets += boardDetailPetHtml(p);
+  return '<div class="bd-head">' +
+      '<span class="bd-mode">' + BOARD_MODE_ICON[BUI.mode] + ' ' + BOARD_MODE_CN[BUI.mode] + '</span>' +
+      '<span class="bd-pack">' + BOARD_PACK_ICON[BUI.pack] + ' ' + BOARD_PACK_CN[BUI.pack] + '</span>' +
+      '<span class="bd-score">' + boardEsc(boardScoreText(BUI.mode, e.score)) + '</span>' +
+    '</div>' +
+    '<div class="bd-sec"><span class="bd-sec-t">遗物</span>' + boardDetailRelicsHtml(relics) + '</div>' +
+    '<div class="bd-sec"><span class="bd-sec-t">阵容</span></div>' +
+    '<div class="bd-team">' + (pets || '<span class="bd-none">没有阵容数据</span>') + '</div>' +
+    '<div class="bd-foot">阵容、等级、道具、遗物都是通关那一刻的快照' +
+      '；挑战时会按这份快照完整还原（含遗物和阵营羁绊）。</div>';
+}
+
+function boardShowDetail(idx) {
+  const e = (BUI.entries || [])[idx];
+  if (!e) return;
+  boardEnsureDom();
+  const t = document.getElementById('bdTitle');
+  if (t) t.textContent = '第 ' + (e.rank || (idx + 1)) + ' 名 · ' + (e.name || '无名');
+  const b = document.getElementById('bdBody');
+  if (b) b.innerHTML = boardDetailHtml(e);
+  const m = document.getElementById('bdModal');
+  if (m) m.style.display = 'flex';
+}
+
+function boardCloseDetail() {
+  const m = document.getElementById('bdModal');
+  if (m) m.style.display = 'none';
 }
 
 function boardClose() {
@@ -125,25 +244,39 @@ function boardShow() {
 /* ------------------------------------------------------------
  *  打开榜单
  * ---------------------------------------------------------- */
-function boardOpen(mode, dateKey) {
+function boardOpen(mode, dateKey, pack) {
   boardEnsureDom();
   BUI.mode = mode || 'classic';
   BUI.dateKey = dateKey || null;
-  /* tab 高亮 */
-  const tabs = document.querySelectorAll('#boardTabs .howto-tab');
-  for (let i = 0; i < tabs.length; i++) {
-    tabs[i].classList.toggle('on', tabs[i].dataset.btab === BUI.mode);
-  }
+  /* 没指定包就跟主页当前选的包走（玩家在主页选了星包，进来看的自然是星包榜） */
+  BUI.pack = boardPackKey(pack || (typeof activePack === 'function' ? activePack() : 'turtle'));
+  boardSyncTabs();
   boardShow();
   boardLoad();
 }
 
-function boardSwitch(mode) {
-  BUI.mode = mode;
+/* tab 和包开关的高亮同步（两处都要，别只更新一边） */
+function boardSyncTabs() {
   const tabs = document.querySelectorAll('#boardTabs .howto-tab');
   for (let i = 0; i < tabs.length; i++) {
-    tabs[i].classList.toggle('on', tabs[i].dataset.btab === mode);
+    tabs[i].classList.toggle('on', tabs[i].dataset.btab === BUI.mode);
   }
+  const pks = document.querySelectorAll('#boardPacks .bp-btn');
+  for (let i = 0; i < pks.length; i++) {
+    pks[i].classList.toggle('on', pks[i].dataset.bpack === BUI.pack);
+  }
+}
+
+function boardSwitch(mode) {
+  BUI.mode = mode;
+  boardSyncTabs();
+  boardLoad();
+}
+
+/* 切换宠物包 —— 换的是另一张榜，不是同一张榜的过滤 */
+function boardSwitchPack(pack) {
+  BUI.pack = boardPackKey(pack);
+  boardSyncTabs();
   boardLoad();
 }
 
@@ -168,7 +301,7 @@ function boardLoad() {
     body.innerHTML = '<div class="board-msg">正在连接排行榜…</div>';
   }
 
-  Board.fetch(BUI.mode, dateKey, function (entries, err) {
+  Board.fetch(BUI.mode, dateKey, BUI.pack, function (entries, err) {
     if (entries == null) {
       body.innerHTML = '<div class="board-msg bad">😕 排行榜暂时连不上<br>' +
         '<span class="board-sub">' + boardEsc(err || '') + '</span><br>' +
@@ -195,21 +328,25 @@ function boardRenderList(entries) {
 
   const head = '<div class="board-head">' +
     '<span class="bh-mode">' + BOARD_MODE_ICON[BUI.mode] + ' ' + BOARD_MODE_CN[BUI.mode] + '</span>' +
+    '<span class="bh-pack">' + BOARD_PACK_ICON[BUI.pack] + ' ' + BOARD_PACK_CN[BUI.pack] + '专属榜</span>' +
     (BUI.mode === 'daily'
-      ? '<span class="bh-date">' + boardEsc(String(BUI.dateKey).replace('daily-', '')) + ' · 每天一个榜</span>'
+      ? '<span class="bh-date">' + boardEsc(String(BUI.dateKey).replace('daily-', '').replace('-' + BUI.pack, '')) + ' · 每天一个榜</span>'
       : '<span class="bh-date">累计榜，不按天清空</span>') +
     '</div>';
 
   if (!entries.length) {
-    body.innerHTML = head + '<div class="board-msg">榜上还没有人<br>' +
+    body.innerHTML = head + '<div class="board-msg">这个榜上还没有人<br>' +
       '<span class="board-sub">' + boardHowToGetOn() + '</span></div>';
     return;
   }
 
   let html = head + '<div class="board-list">';
-  for (const e of entries) {
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
     const medal = e.rank === 1 ? '🥇' : (e.rank === 2 ? '🥈' : (e.rank === 3 ? '🥉' : ''));
-    html += '<div class="board-row' + (e.rank <= 3 ? ' top' + e.rank : '') + '">' +
+    /* 整行可点 → 打开阵容详情（道具 / 遗物 / 技能都在详情里看） */
+    html += '<div class="board-row clickable' + (e.rank <= 3 ? ' top' + e.rank : '') +
+      '" data-brow="' + i + '" title="点开看这套阵容的详细资料">' +
       '<span class="br-rank">' + (medal || ('#' + e.rank)) + '</span>' +
       '<span class="br-name">' + boardEsc(e.name || '') + '</span>' +
       '<span class="br-score">' + boardEsc(boardScoreText(BUI.mode, e.score)) + '</span>' +
@@ -217,7 +354,8 @@ function boardRenderList(entries) {
       '</div>';
   }
   html += '</div>';
-  html += '<div class="board-foot">' + boardHowToGetOn() + '</div>';
+  html += '<div class="board-foot">' + boardHowToGetOn() +
+    '<br><span class="board-sub">点榜单上的任意一行，可以看那套阵容的完整资料（等级 / 道具 / 遗物 / 技能）</span></div>';
   body.innerHTML = html;
 }
 
@@ -234,31 +372,64 @@ function boardTeamIcons(team) {
 }
 
 function boardHowToGetOn() {
-  if (BUI.mode === 'melee') return '8 人混战吃鸡后，就有机会上榜';
-  if (BUI.mode === 'daily') return '当天通关（10 胜）后，就有机会上榜';
-  return '经典模式通关（10 胜）后，就有机会上榜';
+  const pk = BOARD_PACK_CN[BUI.pack] || '';
+  if (BUI.mode === 'melee') return '用' + pk + '打 8 人混战，吃鸡后就有机会上榜';
+  if (BUI.mode === 'daily') return '用' + pk + '完成当天的每日挑战（10 胜）后，就有机会上榜';
+  return '用' + pk + '通关经典模式（10 胜）后，就有机会上榜';
 }
 
 /* ------------------------------------------------------------
  *  挑战流程
  * ---------------------------------------------------------- */
 
-/* 达成条件后调用：mode / game（当前这局）/ 阵容 / 回调 */
-function boardOfferChallenge(mode, myTeam, score, dateKey, onDone) {
+/* 达成条件后调用。
+ * ⚠️ 参数是【一个对象】而不是一长串位置参数：这里要带的东西越来越多
+ *    （模式 / 阵容 / 成绩 / 日期 / 宠物包 / 遗物），位置参数太容易传错顺序，
+ *    而传错顺序的后果是「默默记到别的榜上」或者「阵容少一半」。
+ *
+ * opts = { mode, team, relics, score, dateKey, pack, onDone }
+ *
+ * ⚠️ 【立刻快照】：team / relics 传进来的是活引用（g.team / g.relics），
+ *    这里马上用 petToJSON 拍成纯数据。之后不管游戏对象怎么变，
+ *    挑战用的始终是「通关那一刻」的阵容。
+ *    以前传的就是活引用，靠「通关后玩家没得操作」这个巧合才没出错；
+ *    而 board-ui.js 里那个 c.teamJson 字段当初就是为此预留的，一直空着没人写。 */
+function boardOfferChallenge(opts) {
+  opts = opts || {};
   boardEnsureDom();
+  const pack = boardPackKey(opts.pack || (typeof activePack === 'function' ? activePack() : 'turtle'));
   BUI.ch = {
-    mode: mode,
-    dateKey: dateKey || null,
-    myTeam: myTeam,
-    score: score,
+    mode: opts.mode || 'classic',
+    dateKey: opts.dateKey || null,
+    pack: pack,
+    /* 纯数据快照 —— 挑战全程只读这一份 */
+    teamJson: (opts.team || []).map(function (p) {
+      if (typeof petToJSON !== 'function') return p;
+      return (p && p.defId !== undefined && p.hp !== undefined) ? petToJSON(p) : p;
+    }),
+    /* 遗物也要快照：遗物 id 是字符串，直接复制数组即可 */
+    relics: (opts.relics || []).slice(),
+    score: opts.score || {},
     entries: null,
     won: 0,
+    /* ⚠️ 名字叫 foeIdx 而不是 idx：回放器会往它自己的 state 上写 idx（回放进度），
+     *    以前两边共用一个字段，打赢一场之后这个「打第几名」就被回放进度覆盖了。 */
+    foeIdx: 0,
     busy: false,
-    onDone: onDone || function () {}
+    fightOver: false,          // 这一场是否已经收尾过（防重复推进，见 chalAfterFight）
+    play: null,                // 回放器自己的状态（view / log / idx / timer / mySide）
+    onDone: opts.onDone || function () {}
   };
   const cw = document.getElementById('chalModal');
   cw.style.display = 'flex';
   chalRenderIntro();
+}
+
+/* 挑战用的我方阵容（每次开打都从快照重建 → 一次性道具一定回到「有的时候」） */
+function chalMyTeam() {
+  const c = BUI.ch;
+  if (!c) return [];
+  return (c.teamJson || []).map(petFromJSON);
 }
 
 function chalSetBody(html) {
@@ -292,7 +463,7 @@ function chalBegin() {
   c.busy = true;
   chalSetBody('<div class="chal-msg">正在读取排行榜…</div>');
 
-  Board.fetch(c.mode, c.dateKey, function (entries, err) {
+  Board.fetch(c.mode, c.dateKey, c.pack, function (entries, err) {
     c.busy = false;
     if (entries == null) {
       chalSetBody('<div class="chal-msg bad">😕 连不上排行榜<br>' +
@@ -308,7 +479,7 @@ function chalBegin() {
       chalRenderDone(true);
       return;
     }
-    c.idx = entries.length - 1;      // 从最后一名开始
+    c.foeIdx = entries.length - 1;    // 从最后一名开始
     c.won = 0;
     chalRenderNext();
   });
@@ -323,7 +494,7 @@ function chalRenderIntro2() {
 /* 显示当前对手 */
 function chalRenderNext() {
   const c = BUI.ch;
-  const foe = c.entries[c.idx];
+  const foe = c.entries[c.foeIdx];
   if (!foe) { chalRenderDone(true); return; }
 
   chalSetBody(
@@ -332,12 +503,17 @@ function chalRenderNext() {
         '<span class="dim">（榜上共 ' + c.entries.length + ' 人）</span></div>' +
       '<div class="chal-vs">' +
         '<div class="chal-side"><div class="cs-label">你的阵容</div>' +
-          '<div class="cs-team">' + boardTeamIcons(c.myTeam) + '</div></div>' +
+          '<div class="cs-team">' + boardTeamIcons(c.teamJson) + '</div>' +
+          (c.relics && c.relics.length
+            ? '<div class="cs-relics">' + boardDetailRelicsHtml(c.relics) + '</div>' : '') +
+        '</div>' +
         '<div class="chal-vsmark">VS</div>' +
         '<div class="chal-side"><div class="cs-label">' + boardEsc(foe.name || '') + '</div>' +
           '<div class="cs-team">' + boardTeamIcons(foe.team) + '</div>' +
           '<div class="cs-score">' + boardEsc(boardScoreText(c.mode, foe.score)) + '</div></div>' +
       '</div>' +
+      '<div class="chal-line dim">双方都按通关时的完整阵容打：等级、道具、遗物、阵营羁绊全都在，' +
+        '每一场开打前都会恢复到完整状态。</div>' +
       '<div class="chal-btns"><button class="btn primary" id="chalFight">⚔️ 开打</button></div>' +
       '<div class="chal-err" id="chalErr"></div>' +
     '</div>');
@@ -349,8 +525,26 @@ function chalRenderNext() {
 function chalDoFight() {
   const c = BUI.ch;
   if (!c || c.busy) return;
-  const foe = c.entries[c.idx];
-  const r = boardFight(c.myTeam, foe.team);
+  c.fightOver = false;              // 新一场开打：允许收尾（见 chalAfterFight）
+  const foe = c.entries[c.foeIdx];
+
+  /* ⚠️ 每一场都从【纯数据快照】重建双方的完整阵容，然后重新套遗物和阵营羁绊：
+   *    · 我方：c.teamJson（通关那一刻拍的快照）→ petFromJSON
+   *    · 对手：榜条目里的 team（本来就是纯数据）→ petFromJSON
+   *    · prepareBattleTeams(c.relics, mine, foe.relics, foePets)
+   *    这样一次性道具（辣椒 / 大蒜）在上一场用掉之后，打下一个人的时候
+   *    又回到「有的时候」—— 双方都是。
+   *    （引擎内部还会 cloneTeam，所以这里改的是「这一场专用」的副本。） */
+  const mine = chalMyTeam();
+  const foePets = (foe.team || []).map(petFromJSON);
+  if (typeof prepareBattleTeams === 'function') {
+    prepareBattleTeams(c.relics, mine, foe.relics, foePets);
+  }
+
+  /* ⚠️ 把【已经套好加成】的双方交给 boardFight。
+   *    boardFight 对「已经是宠物对象」的输入会直接使用，不会再重建一遍 ——
+   *    如果这里传的还是原始 JSON，上面那两行就白套了。 */
+  const r = boardFight(mine, foePets);
   if (!r) {
     chalSetBody('<div class="chal-msg bad">😕 这场打不起来（阵容数据有问题）</div>' +
       '<div class="chal-btns"><button class="btn" id="chalEnd2">结束挑战</button></div>');
@@ -364,9 +558,6 @@ function chalDoFight() {
   /* 没有回放器（理论上不会）就直接出结果，不能让玩家卡住 */
   if (typeof BattlePlayer !== 'function') { chalAfterFight(); return; }
 
-  const mine = (c.myTeam || []).map(petFromJSON);
-  const foePets = (foe.team || []).map(petFromJSON);
-
   chalSetBody('');
   chalShowArena(foe);
   const player = new BattlePlayer({
@@ -378,13 +569,28 @@ function chalDoFight() {
   });
   c.player = player;
   const sk = document.getElementById('chalArenaSkip');
-  if (sk) sk.addEventListener('click', function () { player.skip(); });
-  player.start(c, r.log, mine, foePets, '挑战：' + (foe.name || ''), { mySide: 0, winner: r.winner });
+  /* ⚠️ 用 onclick 赋值而不是 addEventListener：这个按钮是【静态元素】
+   *    （建弹层时创建一次，不在 innerHTML 里重建），每开打一场都会走到这里。
+   *    用 addEventListener 的话 handler 会一场一场地累积，玩家点一次
+   *    「跳过动画」会被触发 N 次。 */
+  if (sk) sk.onclick = function () { player.skip(); };
+
+  /* ⚠️ 回放器要一个【自己的】状态对象，不能把挑战流程的 c 直接交给它。
+   *    BattlePlayer.start 会写 state.idx（回放进度）—— 而挑战流程的 c 上
+   *    原本也有一个 idx（打第几名），两边含义完全不同，会互相覆盖：
+   *    实测症状是「打赢第一个对手之后，第二个对手直接找不到，挑战崩掉」。
+   *    混战（MUI）和联机（OUI）的 idx 本来就只给回放用，所以只有这里会撞。
+   *    （挑战流程的字段也已经改名成 foeIdx，两道保险。） */
+  c.play = {};
+  player.start(c.play, r.log, mine, foePets, '挑战：' + (foe.name || ''), { mySide: 0, winner: r.winner });
 }
 
 function chalShowArena(foe) {
   const a = document.getElementById('chalArena');
   if (a) a.style.display = '';
+  /* 战斗阶段把弹层盒子撑到和正式战斗一样的宽度（见 css .chal-box.fighting） */
+  const box = document.querySelector('#chalModal .chal-box');
+  if (box) box.classList.add('fighting');
   const fl = document.getElementById('chalFoeLabel');
   if (fl) fl.textContent = '对手 · 第 ' + foe.rank + ' 名「' + (foe.name || '') + '」';
   const al = document.getElementById('chalArenaLabel');
@@ -393,26 +599,31 @@ function chalShowArena(foe) {
 function chalHideArena() {
   const a = document.getElementById('chalArena');
   if (a) a.style.display = 'none';
+  const box = document.querySelector('#chalModal .chal-box');
+  if (box) box.classList.remove('fighting');
   const fr = document.getElementById('chalFoeRow'); if (fr) fr.innerHTML = '';
   const mr = document.getElementById('chalMyRow'); if (mr) mr.innerHTML = '';
 }
 
-/* 回放播完（或被跳过）之后：判胜负、推进流程 */
+/* 回放播完（或被跳过）之后：判胜负、推进流程
+ * ⚠️ 用 fightOver 做「这一场已经收尾过」的守卫，并且【收尾后不重置】——
+ *    重置的动作放在 chalDoFight（每场开打时清一次）。
+ *    以前的写法是在推进分支里把 finished 设回 false，结果同一场只要收尾跑两遍
+ *    （回放器重复 finish、或玩家点「跳过动画」触发了多个累积的 handler），
+ *    c.idx 就会被减两次，挑战会莫名其妙跳过一个对手。 */
 function chalAfterFight() {
   const c = BUI.ch;
-  if (!c || c.finished) return;
-  c.finished = true;
+  if (!c || c.fightOver) return;
+  c.fightOver = true;
   chalHideArena();
   const foe = c.lastFoe;
 
   if (c.lastWin) {
     c.won++;
-    if (c.idx === 0) { c.finished = false; chalRenderDone(true); return; }   // 全赢
-    c.idx--;
-    c.finished = false;
+    if (c.foeIdx === 0) { chalRenderDone(true); return; }   // 全赢
+    c.foeIdx--;
     chalRenderWinThenNext(foe);
   } else {
-    c.finished = false;
     chalRenderDone(false);
   }
 }
@@ -500,14 +711,15 @@ function chalSubmit() {
     name: name.trim(),
     owner: myOwner,
     score: c.score || {},
-    team: (c.teamJson || c.myTeam || []).map(function (p) {
-      return (typeof petToJSON === 'function' && p && p.defId !== undefined && p.hp !== undefined)
-        ? petToJSON(p) : p;
-    }),
+    /* c.teamJson 已经是「通关那一刻」的纯数据快照（boardOfferChallenge 里拍的），
+     * 直接存。以前这里是在【提交的这一刻】才转换，中间队伍要是变了就记错了。 */
+    team: (c.teamJson || []).slice(),
+    /* 遗物也存下来 —— 挑战时对手要按这份列表还原它的开战效果 */
+    relics: (c.relics || []).slice(),
     at: Date.now()
   };
 
-  Board.applyResult(c.mode, c.dateKey, entry, c.won, function (ok, err) {
+  Board.applyResult(c.mode, c.dateKey, c.pack, entry, c.won, function (ok, err) {
     c.busy = false;
     if (!ok) {
       if (errBox) errBox.textContent = '❌ 上榜失败：' + (err || '未知错误');
@@ -521,7 +733,7 @@ function chalSubmit() {
         '<div class="chal-btns"><button class="btn primary" id="chalView">看看排行榜</button></div></div>';
       document.getElementById('chalView').addEventListener('click', function () {
         document.getElementById('chalModal').style.display = 'none';
-        boardOpen(c.mode, c.dateKey);
+        boardOpen(c.mode, c.dateKey, c.pack);
       });
     }
   });

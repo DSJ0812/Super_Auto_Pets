@@ -258,13 +258,10 @@ Melee.prototype.endTurn = function () {
 
   // 3) 打
   for (const [a, b] of pairing.pairs) {
-    // 各自应用自己的遗物开战效果（在副本上，不影响商店里的队伍）
+    // 各自应用自己的遗物开战效果 + 阵营羁绊（都在副本上，不影响商店里的队伍）
     const aTeam = a.game.team.map(clonePet);
     const bTeam = b.game.team.map(clonePet);
-    applyRelicBattleStart(a.game, aTeam, bTeam);
-    applySynergyBattleStart(a.game, aTeam);
-    applyRelicBattleStart(b.game, bTeam, aTeam);
-    applySynergyBattleStart(b.game, bTeam);
+    prepareBattleTeams(a.game.relics, aTeam, b.game.relics, bTeam);
     const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0, turn: a.game.turn });
     // 战斗里的「永久」加成回写到双方真实队伍（星包仙犰狳）
     applyPermBuffs([a.game.team, b.game.team], res.log);

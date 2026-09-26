@@ -47,13 +47,16 @@ function offerMeleeBoard(m) {
   if (!m || !m.human) return;
   if (m.human.rank !== 1) return;                    // 没吃鸡就不上榜
   if (typeof boardOfferChallenge !== 'function') return;
-  boardOfferChallenge(
-    'melee',
-    m.human.game.team,
-    boardScoreOf('melee', { hp: m.human.hp, turn: m.turn }),
-    null,
-    function () { /* 结束后界面保持不变 */ }
-  );
+  const g = m.human.game;
+  boardOfferChallenge({
+    mode: 'melee',
+    team: g.team,                                  // 吃鸡时的这套阵容
+    relics: g.relics || [],
+    score: boardScoreOf('melee', { hp: m.human.hp, turn: m.turn }),
+    dateKey: null,
+    pack: (typeof activePack === 'function') ? activePack() : 'turtle',
+    onDone: function () { /* 结束后界面保持不变 */ }
+  });
 }
 
 /* ------------------------------------------------------------
@@ -377,6 +380,13 @@ function mBind() {
     // 打开图鉴
     if (e.target.closest('#mBtnCodex')) {
       openCodex('#codex', '#codexBody');
+      return;
+    }
+
+    /* 排行榜入口 —— ⚠️ 这个按钮以前【根本没绑事件】（melee.html 里画了，
+     *    但 melee-ui.js 里没人接），点了没反应。这里补上。 */
+    if (e.target.closest('#mBtnBoard')) {
+      boardOpen('melee', null, (typeof activePack === 'function') ? activePack() : 'turtle');
       return;
     }
 

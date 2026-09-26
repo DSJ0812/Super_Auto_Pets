@@ -100,6 +100,31 @@ function petArtHtml(defId) {
   return PET_EMOJI[defId] || '🐾';
 }
 
+/* ------------------------------------------------------------
+ *  道具（Perk）图标
+ *
+ *  ⚠️ 原来在 render.js 里，主页（index.html）不加载 render.js，
+ *     而排行榜的「阵容详情」要在主页显示道具，所以和 PET_EMOJI 一样
+ *     归到本文件 —— 图标表就该和图标表在一起。
+ *     render.js 加载在本文件之后，petCard 里用的是同一个 PERK_EMOJI，只有一份。
+ * ---------------------------------------------------------- */
+const PERK_EMOJI = {
+  Melon: '🍉', Honey: '🍯', Garlic: '🧄',
+  Chili: '🌶️', Peanut: '🥜', Coconut: '🥥',
+  /* 星包 */
+  Strawberry: '🍓', Cucumber: '🥒', Cheese: '🧀', Grapes: '🍇',
+  Carrot: '🥕', Pepper: '🧂', Popcorn: '🍿', Eucalyptus: '🌿'
+};
+
+/* 道具的中文名直接取自 FOODS（data.js 里唯一的那份），
+ * 这里只做兜底 —— 不另存一份名字，免得改名要改两处。 */
+function perkCn(id) {
+  if (typeof FOODS !== 'undefined' && FOODS[id] && FOODS[id].cn) return FOODS[id].cn;
+  return String(id == null ? '' : id);
+}
+function perkIcon(id) { return PERK_EMOJI[id] || '🎁'; }
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { PET_EMOJI: PET_EMOJI, PET_ART: PET_ART, petArtHtml: petArtHtml };
+  module.exports = { PET_EMOJI: PET_EMOJI, PET_ART: PET_ART, petArtHtml: petArtHtml,
+                     PERK_EMOJI: PERK_EMOJI, perkCn: perkCn, perkIcon: perkIcon };
 }

@@ -165,7 +165,8 @@ function applyRelicTurnStart(game, env) {
   }
 }
 
-/* 战斗开始类效果（作用于传入的队伍副本，不影响商店里的原队伍） */
+/* 战斗开始类效果（作用于传入的队伍副本，不影响商店里的原队伍）
+ * ⚠️ game 只用来取 relics —— 所以也可以传一个 { relics: [...] } 的轻量对象。 */
 function applyRelicBattleStart(game, myTeam, foeTeam) {
   for (const id of (game.relics || [])) {
     const r = RELICS[id];
@@ -175,8 +176,37 @@ function applyRelicBattleStart(game, myTeam, foeTeam) {
   }
 }
 
+/* ------------------------------------------------------------
+ *  开战前的【统一准备】：双方各自的遗物 + 阵营羁绊
+ *
+ *  ⚠️ 为什么必须按「各自」的遗物列表分开套：
+ *     applyRelicBattleStart(game, myTeam, foeTeam) 的语义是
+ *     「这个 game 的遗物作用在 myTeam 上；其中 onBattleStartFoe 打 foeTeam」。
+ *     所以对手的遗物要用【对手的】列表、作用在【对手的队伍】上，
+ *     它的 onBattleStartFoe（例如猎杀标记）才是打我方。
+ *
+ *  ⚠️ 为什么每场都要重新调一次：
+ *     Battle 构造会 cloneTeam，所以这些加成只加在副本上、不会写回商店队伍。
+ *     反过来说——副本是用完就丢的，一次性道具（辣椒 / 大蒜）在上一场消耗掉之后，
+ *     下一场如果不重新套一遍，打的就是一副残缺阵容。
+ *     排行榜挑战要「每打一个人都恢复成通关时的完整状态」，靠的就是这里每次重套。
+ *
+ *  三处调用点必须都走这个函数，否则规则又会分叉：
+ *     game.js endTurn（经典/每日）· melee.js（8 人混战）· online.js（联机）
+ *     board-ui.js（排行榜挑战）
+ * ---------------------------------------------------------- */
+function prepareBattleTeams(myRelics, myTeam, foeRelics, foeTeam) {
+  applyRelicBattleStart({ relics: myRelics || [] }, myTeam, foeTeam);
+  applyRelicBattleStart({ relics: foeRelics || [] }, foeTeam, myTeam);
+  if (typeof applySynergyBattleStart === 'function') {
+    applySynergyBattleStart(null, myTeam);
+    applySynergyBattleStart(null, foeTeam);
+  }
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { RELICS: RELICS, RELIC_IDS: RELIC_IDS, rollRelics: rollRelics,
                      relicSum: relicSum, applyRelicTurnStart: applyRelicTurnStart,
-                     applyRelicBattleStart: applyRelicBattleStart };
+                     applyRelicBattleStart: applyRelicBattleStart,
+                     prepareBattleTeams: prepareBattleTeams };
 }

@@ -392,13 +392,19 @@ function offerBoardChallenge(g) {
   const mode = isDaily ? 'daily' : 'classic';
   const dateKey = isDaily ? UI.seedInfo.dateKey : null;
 
-  boardOfferChallenge(
-    mode,
-    g.team,                                  // 用通关时的这套阵容去挑战
-    boardScoreOf(mode, g),
-    dateKey,
-    function () { /* 挑战结束（上榜或放弃），界面保持原样即可 */ }
-  );
+  /* ⚠️ 用【对象】传参：要带的东西越来越多（模式/阵容/遗物/成绩/日期/宠物包），
+   *    位置参数太容易传错顺序，而传错的后果是「默默记到别的榜上」。
+   *    传进去的是活引用，boardOfferChallenge 会立刻拍成纯数据快照 —
+   *    所以这里不需要自己先复制一份。 */
+  boardOfferChallenge({
+    mode: mode,
+    team: g.team,                                  // 通关时的这套阵容
+    relics: g.relics || [],                        // 遗物也一起带上
+    score: boardScoreOf(mode, g),
+    dateKey: dateKey,
+    pack: (typeof activePack === 'function') ? activePack() : 'turtle',
+    onDone: function () { /* 挑战结束（上榜或放弃），界面保持原样即可 */ }
+  });
 }
 
 /* 每日挑战：一局结束时记成绩（同一局只记一次） */
@@ -446,9 +452,11 @@ function bind() {
     if (e.target.closest('#btnCodex')) { openCodexPanel(); return; }
     if (e.target.closest('#btnCodexClose')) { closeCodexPanel(); return; }
     if (e.target.closest('#btnBoard')) {
-      /* 每日挑战看每日榜，普通局看经典榜 */
+      /* 每日挑战看每日榜，普通局看经典榜；榜按宠物包分开，所以包要一起传 */
       const isDaily = !!(UI.seedInfo && UI.seedInfo.daily);
-      boardOpen(isDaily ? 'daily' : 'classic', isDaily ? UI.seedInfo.dateKey : null);
+      boardOpen(isDaily ? 'daily' : 'classic',
+                isDaily ? UI.seedInfo.dateKey : null,
+                (typeof activePack === 'function') ? activePack() : 'turtle');
       return;
     }
     if (e.target.closest('#codex') && !e.target.closest('.codex-panel')) { closeCodexPanel(); return; }

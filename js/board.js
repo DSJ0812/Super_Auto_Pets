@@ -44,15 +44,39 @@ const BOARD_MAX = 10;
  *  一、纯逻辑（不碰网络，可以单独测）
  * ============================================================ */
 
-/* 榜单文档 id
+/* 宠物包：两个包【各一张榜】。
+ * ⚠️ 为什么必须按包分：一局只能用【一个】包（pack.js 的铁律），两个包混进同一个
+ *    池子会把重复率砍半、合成升级几乎不可能。所以龟包和星包玩家打的根本不是
+ *    同一个游戏 —— 宠物池完全不相交（龟 61 / 星 77）、强度基准不同，
+ *    混在一张榜上比名次没有意义。
+ *    每日挑战更明显：同一天、两个包的每日内容完全不同，却挤在同一张 daily-xxx 上。 */
+const BOARD_PACKS = ['turtle', 'star'];
+const BOARD_PACK_CN = { turtle: '龟包', star: '星包' };
+const BOARD_PACK_ICON = { turtle: '🐢', star: '⭐' };
+
+/* 包名归一化：认不出来的（没传 / 拼错）一律当龟包 —— 龟包是本作默认包 */
+function boardPackKey(pack) {
+  const p = String(pack == null ? '' : pack).trim();
+  return BOARD_PACKS.indexOf(p) >= 0 ? p : 'turtle';
+}
+
+/* 榜单文档 id：模式 + 日期（每日）+ 宠物包
+ *   classic-turtle   · classic-star
+ *   melee-turtle     · melee-star
+ *   daily-2026-09-25-turtle · daily-2026-09-25-star
+ *
+ * ⚠️ 这一版把宠物包加进了 id，所以旧的 classic / melee / daily-xxx 文档不会再被读到。
+ *    那批文档上没有包信息，没法判断每条记录属于哪个包，迁移不了 —— 直接废弃。
+ *
  * ⚠️ 每日挑战的 dateKey 来自 RNG.dailySeed()，它【本身就带 'daily-' 前缀】
  *    （形如 daily-2026-09-25）。这里要兼容"带前缀"和"不带前缀"两种传法，
  *    否则会拼成 daily-daily-2026-09-25。 */
-function boardKey(mode, dateKey) {
-  if (mode !== 'daily') return mode;
+function boardKey(mode, dateKey, pack) {
+  const p = boardPackKey(pack);
+  if (mode !== 'daily') return mode + '-' + p;
   const d = String(dateKey == null ? '' : dateKey).trim();
-  if (!d) return 'daily-unknown';
-  return d.indexOf('daily-') === 0 ? d : ('daily-' + d);
+  if (!d) return 'daily-unknown-' + p;
+  return (d.indexOf('daily-') === 0 ? d : ('daily-' + d)) + '-' + p;
 }
 
 /* 挑战完榜上 N 个人、赢了 won 场之后，我排第几？
@@ -235,11 +259,12 @@ const Board = {
     }
   },
 
-  /* 读一个榜 → cb(entries 或 null, err) */
-  fetch: function (mode, dateKey, cb) {
+  /* 读一个榜 → cb(entries 或 null, err)
+   * ⚠️ pack 要和 boardKey 的参数顺序保持一致，否则很容易漏传成「读错榜」 */
+  fetch: function (mode, dateKey, pack, cb) {
     Board.init(function (ok) {
       if (!ok) { cb(null, Board.error || '排行榜不可用'); return; }
-      Board.db.collection(BOARD_COLLECTION).doc(boardKey(mode, dateKey)).get()
+      Board.db.collection(BOARD_COLLECTION).doc(boardKey(mode, dateKey, pack)).get()
         .then(function (doc) {
           const d = doc && doc.exists ? doc.data() : null;
           cb((d && d.entries) || [], '');
@@ -249,11 +274,11 @@ const Board = {
   },
 
   /* 整份写入 → cb(ok, err) */
-  submit: function (mode, dateKey, entries, cb) {
+  submit: function (mode, dateKey, pack, entries, cb) {
     Board.init(function (ok) {
       if (!ok) { cb(false, Board.error || '排行榜不可用'); return; }
       const payload = boardCleanForStore(entries);
-      Board.db.collection(BOARD_COLLECTION).doc(boardKey(mode, dateKey))
+      Board.db.collection(BOARD_COLLECTION).doc(boardKey(mode, dateKey, pack))
         .set(payload)
         .then(function () { cb(true, ''); })
         .catch(function (e) { cb(false, boardFriendlyError(e)); });
@@ -261,13 +286,13 @@ const Board = {
   },
 
   /* 读 → 算 → 写（挑战流程用） */
-  applyResult: function (mode, dateKey, entry, won, cb) {
-    Board.fetch(mode, dateKey, function (entries, err) {
+  applyResult: function (mode, dateKey, pack, entry, won, cb) {
+    Board.fetch(mode, dateKey, pack, function (entries, err) {
       if (!entries) { cb(false, err); return; }
       const rank = boardRankAfter(entries.length, won);
       if (rank > BOARD_MAX) { cb(false, '没进前 ' + BOARD_MAX + ' 名'); return; }
       const next = boardInsert(entries, entry, rank);
-      Board.submit(mode, dateKey, next, cb);
+      Board.submit(mode, dateKey, pack, next, cb);
     });
   }
 };
@@ -278,6 +303,8 @@ if (typeof module !== 'undefined' && module.exports) {
     boardInsert: boardInsert, boardNameTaken: boardNameTaken,
     boardScoreOf: boardScoreOf, boardScoreText: boardScoreText, boardFight: boardFight,
     boardCleanForStore: boardCleanForStore, boardFriendlyError: boardFriendlyError,
+    boardPackKey: boardPackKey, BOARD_PACKS: BOARD_PACKS,
+    BOARD_PACK_CN: BOARD_PACK_CN, BOARD_PACK_ICON: BOARD_PACK_ICON,
     BOARD_MAX: BOARD_MAX
   };
 }

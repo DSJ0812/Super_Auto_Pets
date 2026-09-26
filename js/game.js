@@ -1203,11 +1203,12 @@ Game.prototype.endTurn = function () {
   // ⚠️ 战斗在队伍副本上进行，战斗内的属性变化不会带回商店
   const myTeam  = this.team.map(clonePet);
   const foeTeam = opponent.map(clonePet);
-  // 遗物的开战效果（战旗 / 獠牙 / 铁甲 / 猎杀标记）
-  applyRelicBattleStart(this, myTeam, foeTeam);
-  // 阵营羁绊（自创机制）：⚠️ 两边都要给 —— 只给玩家的话等于单方面降低难度
-  applySynergyBattleStart(this, myTeam);
-  applySynergyBattleStart(this, foeTeam);
+  /* 遗物的开战效果（战旗 / 獠牙 / 铁甲 / 猎杀标记）+ 阵营羁绊，
+   * 统一走 prepareBattleTeams（relics.js）—— 和混战 / 联机 / 排行榜挑战同一份实现，
+   * 免得规则在四个界面里各长一套（这正是排行榜挑战漏掉羁绊的原因）。
+   * ⚠️ 幽灵对手没有遗物，所以对手那边传空数组：这是本作的难度设定，不是漏了。
+   *    阵营羁绊则【双方都算】，只给玩家等于单方面降低难度。 */
+  prepareBattleTeams(this.relics, myTeam, [], foeTeam);
   const result = runBattle(myTeam, foeTeam, { tier: this.getShopTier(), rolls: this.rollsThisTurn || 0, turn: this.turn });
   // 战斗里的「永久」加成回写到真实队伍（星包仙犰狳）
   applyPermBuffs(this.team, result.log);

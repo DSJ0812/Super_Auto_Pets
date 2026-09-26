@@ -86,6 +86,7 @@ BattlePlayer.prototype.speed = function () {
  *                  胜负判定（winner 0/1）也会反过来说。 */
 BattlePlayer.prototype.start = function (state, log, mine, foe, label, opts) {
   this.state = state;
+  this._done = false;                 // 新一场回放：把 finish 的幂等标志清掉
   const mySide = (opts && opts.mySide != null) ? opts.mySide : 0;
   state.mySide = mySide;
   state.log = log || [];
@@ -330,8 +331,18 @@ BattlePlayer.prototype.render = function (highlight, label) {
   if (lb && label != null) lb.textContent = label;
 };
 
-/* 收尾：清掉残留尸体、判定胜负、交给调用方收场 */
+/* 收尾：清掉残留尸体、判定胜负、交给调用方收场
+ * ⚠️ 幂等：一次回放只收尾一次。
+ *    收尾会调 onFinish，调用方靠它推进流程（例如排行榜挑战要 c.idx-- 换下一个对手）。
+ *    要是收尾跑两遍，流程就会连推两步 —— 实测症状是「点一下跳过动画，
+ *    挑战直接跳过一个对手」。
+ *    收尾能被触发两次的路径确实存在：
+ *      · step() 走到日志末尾调一次，排队的 timer 又跑一次（clearTimeout 没拦住时）
+ *      · 玩家点了「跳过动画」调 skip()，而 skip() 里也会 finish()
+ *    所以这里必须自己挡住，不能指望调用方。 */
 BattlePlayer.prototype.finish = function (winner) {
+  if (this._done) return;
+  this._done = true;
   const state = this.state;
   clearTimeout(this.timer);
   this._fx = null;                    // 结束画面不要再飘扣血数字
