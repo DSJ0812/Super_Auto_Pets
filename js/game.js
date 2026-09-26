@@ -680,9 +680,28 @@ Game.prototype.buyPet = function (slotIdx, teamIdx) {
     this.frozenPets[slotIdx] = false;      // 商品没了，冻结标记也要清掉
     const before = same.lvl;
     this.addExp(same, 1);
+
+    /* ⚠️ 合并【也必须】触发「购买时」技能。
+     *    官方（Otter 页）："Like all Buy pets, the Otter's ability will also
+     *    activate when an Otter from the shop is merged with an existing Otter,
+     *    which is the only way to activate the Level 2 and Level 3 effects."
+     *    而且合并是升到 2/3 级的唯一途径 —— 不触发的话，2 级、3 级的
+     *    「购买时」效果永远拿不到。
+     *    以前这里只 addExp 就 return 了，症状就是「奶牛第二次买不刷新牛奶」。
+     *    等级要取【合并后】的 same.lvl（技能按新等级结算）。 */
+    const env = new ShopEnv(this);
+    env.lastBattleLost = this.lastBattleLost;
+    const md = same.def;
+    if (md && md.hooks && md.hooks.buy) {
+      env.actor = same;
+      md.hooks.buy(env, { self: same, lvl: same.lvl });
+    }
+    env.actor = null;
+    const mnotes = describeShopNotes(this, env.events);
     const bn = this.notifyFriendBought(same);
+    const mall = mnotes.concat(bn);
     return { ok: true, msg: petName(same.def) + ' 获得经验' + (same.lvl > before ? '，升到 ' + same.lvl + ' 级！' : '')
-             + (bn.length ? ' · ' + bn.join(' · ') : ''),
+             + (mall.length ? ' · ' + mall.join(' · ') : ''),
              merged: true, pet: same };
   }
 
@@ -752,14 +771,19 @@ Game.prototype.notifyFriendBought = function (bought) {
  *  → 升星时，商店里出现 2 个「下一星级」的宠物供玩家挑选（可以买，也可以不买） */
 Game.prototype.tierUpReward = function () {
   const cur = this.getShopTier();
-  if (cur >= 6) return;                      // 已是最高星级
+  /* ⚠️ 官方原文只说「下一星级」，而 6 级就是最高星级、没有 7 级 ——
+   *    所以「6 级给什么」官方没写。这里的选择是【封顶到 6】：
+   *    6 级升星仍然刷 2 个 6 级宠物，而不是什么都不给。
+   *    理由：升星有奖励是基础规则，打到后期升星反而没奖励会自相矛盾。
+   *    （若哪天查到官方在 6 级确实不给奖励，把 want 改回 return 即可。） */
+  const want = Math.min(cur + 1, 6);
   const pool = buyablePool().filter(function (id) {
-    return PETS[id].tier === cur + 1;
+    return PETS[id].tier === want;
   });
   if (!pool.length) return;
 
   // 随机挑 N 个格子替换（洗牌取前 N；遗物「孵化器」会让 N 变大）
-  const want = 2 + relicSum(this, 'tierRewardCount');
+  const cnt = 2 + relicSum(this, 'tierRewardCount');
   const idxs = [];
   for (let i = 0; i < this.shopPets.length; i++) idxs.push(i);
   for (let i = idxs.length - 1; i > 0; i--) {
@@ -772,7 +796,7 @@ Game.prototype.tierUpReward = function () {
   const freeSlots = idxs.filter(function (i) { return !(this.frozenPets[i] && this.shopPets[i]); }, this);
   const frozenSlots = idxs.filter(function (i) { return (this.frozenPets[i] && this.shopPets[i]); }, this);
   const order = freeSlots.concat(frozenSlots);
-  for (let k = 0; k < want && k < order.length; k++) {
+  for (let k = 0; k < cnt && k < order.length; k++) {
     const slot = order[k];
     this.shopPets[slot] = this.makeShopPet(RNG.pick(pool));
     this.frozenPets[slot] = false;      // 这格的商品换了，冻结标记跟着清掉

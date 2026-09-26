@@ -140,6 +140,10 @@
 <script src="js/factions.js"></script>
 <script src="js/petart.js"></script>
 <script src="js/render.js"></script>
+<!-- ⚠️ playback.js 提供 BattlePlayer，排行榜挑战弹层靠它播战斗动画。
+     少了这个文件，挑战会【静默跳过动画】直接出结果（board-ui.js 里有兜底判断，
+     不报错，所以非常难发现）。混战页本来就加载了，经典页以前漏了。 -->
+<script src="js/playback.js"></script>
 <script src="js/relics.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/game.js"></script>
