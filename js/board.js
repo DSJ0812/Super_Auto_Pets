@@ -153,6 +153,30 @@ function boardCleanForStore(entries) {
   }));
 }
 
+/* 把 Firestore 的错误翻译成人话。
+ *
+ * ⚠️ 实测反馈：玩家网络正常、却打不开排行榜，界面只显示
+ *    "Failed to get document because the client is offline."
+ *    —— 这是 SDK 的说法，玩家完全不知道什么意思，还会以为自己断网了。
+ *
+ *    真正的原因通常是 firestore.googleapis.com 访问不到：
+ *      · 国内直连普遍不通（这个最常见）
+ *      · 代理没开 / 代理规则没覆盖这个域名
+ *      · 被浏览器插件（广告拦截之类）拦了
+ *    所以这里翻译成能看懂、而且照着能做的事。 */
+function boardFriendlyError(e) {
+  const msg = String((e && e.message) || e || '');
+  if (/offline|unavailable|Failed to fetch|network|ECONN|timeout|deadline/i.test(msg)) {
+    return '连不上排行榜服务器。这个功能用的是 Google 的 Firestore' +
+           '（firestore.googleapis.com），国内直连通常访问不了 —— ' +
+           '开代理再试，或者换个网络。';
+  }
+  if (/permission|PERMISSION_DENIED|insufficient/i.test(msg)) {
+    return '排行榜服务器拒绝了这次请求（Firestore 安全规则的问题）。';
+  }
+  return msg || '未知错误';
+}
+
 /* ============================================================
  *  二、Firebase 层（懒加载 + 离线降级）
  * ============================================================ */
@@ -220,7 +244,7 @@ const Board = {
           const d = doc && doc.exists ? doc.data() : null;
           cb((d && d.entries) || [], '');
         })
-        .catch(function (e) { cb(null, e.message); });
+        .catch(function (e) { cb(null, boardFriendlyError(e)); });
     });
   },
 
@@ -232,7 +256,7 @@ const Board = {
       Board.db.collection(BOARD_COLLECTION).doc(boardKey(mode, dateKey))
         .set(payload)
         .then(function () { cb(true, ''); })
-        .catch(function (e) { cb(false, e.message); });
+        .catch(function (e) { cb(false, boardFriendlyError(e)); });
     });
   },
 
@@ -253,7 +277,7 @@ if (typeof module !== 'undefined' && module.exports) {
     Board: Board, boardKey: boardKey, boardRankAfter: boardRankAfter,
     boardInsert: boardInsert, boardNameTaken: boardNameTaken,
     boardScoreOf: boardScoreOf, boardScoreText: boardScoreText, boardFight: boardFight,
-    boardCleanForStore: boardCleanForStore,
+    boardCleanForStore: boardCleanForStore, boardFriendlyError: boardFriendlyError,
     BOARD_MAX: BOARD_MAX
   };
 }

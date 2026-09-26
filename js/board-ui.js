@@ -172,7 +172,16 @@ function boardLoad() {
     if (entries == null) {
       body.innerHTML = '<div class="board-msg bad">😕 排行榜暂时连不上<br>' +
         '<span class="board-sub">' + boardEsc(err || '') + '</span><br>' +
-        '<span class="board-sub">不影响你继续玩单机</span></div>';
+        '<span class="board-sub">不影响你继续玩单机</span><br>' +
+        '<button class="btn tiny" id="boardRetry" style="margin-top:12px">🔄 重试</button></div>';
+      const rb = document.getElementById('boardRetry');
+      if (rb) rb.addEventListener('click', function () {
+        /* 重试时把 SDK 状态也重置 —— 有时候是首次加载脚本就失败了 */
+        Board.ready = false;
+        Board.loading = false;
+        Board.error = '';
+        boardLoad();
+      });
       return;
     }
     BUI.entries = entries;
