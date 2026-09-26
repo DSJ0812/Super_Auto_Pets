@@ -678,6 +678,16 @@ Game.prototype.buyPet = function (slotIdx, teamIdx) {
     this.gold -= cost;
     this.shopPets[slotIdx] = null;
     this.frozenPets[slotIdx] = false;      // 商品没了，冻结标记也要清掉
+
+    /* 官方：合并时【取两者中更高的属性】，然后才吃经验带来的 +1/+1。
+     *   "Combining a pet that has higher stats with a pet that has lower stats will
+     *    result in the higher stats being chosen before applying the +1 attack and
+     *    +1 health boost(s)."
+     * 商店里的宠物可能被 Duck / Canned Food / 小鼠之类的技能加过属性，
+     * 以前合并分支把商店那只【整只丢掉】，玩家花同样的钱却亏掉那部分增益。 */
+    if (pet.atk > same.atk) same.atk = pet.atk;
+    if (pet.hp  > same.hp)  same.hp  = pet.hp;
+
     const before = same.lvl;
     this.addExp(same, 1);
 
@@ -722,7 +732,14 @@ Game.prototype.buyPet = function (slotIdx, teamIdx) {
     const at = Math.max(0, Math.min(teamIdx, this.team.length));
     this.team.splice(at, 0, np);
   }
-  this.applyPerksFromShop(pet, np);
+  /* ⚠️ 这里【不能】再补一次商店增益。
+   *    clonePet 已经把商店那只的 atk/hp 原样抄过来了，而商店增益（Duck /
+   *    Canned Food / buffShopAt）是直接写进 shopPets[i].atk/hp 的（见 ShopEnv.buffShop），
+   *    所以增益早就在 np 身上了。以前这里还会再 applyPerksFromShop 一次
+   *    （按「相对基础值的差值」再加一遍），结果是【算了两次】：
+   *    商店里 6/8 的水獭买回来变成 11/13。
+   *    参考实现（Rust sap_ref）也是同一个模型：商店刷新时就 pet.stats += perm_stats，
+   *    买到手就是商店里那副属性，没有第二步。 */
 
   // 购买触发（Otter）
   const env = new ShopEnv(this);
@@ -740,14 +757,12 @@ Game.prototype.buyPet = function (slotIdx, teamIdx) {
            + (allNotes.length ? ' · ' + allNotes.join(' · ') : ''), pet: np };
 };
 
-// 商店里被加过属性的宠物，购买时把差值带进队伍
-Game.prototype.applyPerksFromShop = function (shopPet, teamPet) {
-  const base = PETS[shopPet.defId];
-  const diffAtk = shopPet.atk - base.atk;
-  const diffHp  = shopPet.hp  - base.hp;
-  if (diffAtk > 0) teamPet.atk += diffAtk;
-  if (diffHp  > 0) teamPet.hp  += diffHp;
-};
+/* ⚠️ 以前这里有一个 applyPerksFromShop(shopPet, teamPet)：
+ *    按「商店宠物相对基础值的差值」再给队伍宠物补一次属性。
+ *    它是多余的，而且是错的 —— 商店增益本来就写在 shopPets[i].atk/hp 上，
+ *    clonePet 已经原样抄走了，再补一次就是【算两次】（商店 6/8 买回来 11/13）。
+ *    合并分支则相反，整只丢掉商店那只，增益全没了（现在也改成取两者较高值）。
+ *    所以这个函数直接删掉，别再被谁捡回来用。 */
 
 /* 购买后通知其他友方（Dragon「购买 1 级友方时」） */
 Game.prototype.notifyFriendBought = function (bought) {

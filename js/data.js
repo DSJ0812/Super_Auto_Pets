@@ -103,7 +103,10 @@ const PETS = {
     name: 'Duck', cn: '鸭子', tier: 1, atk: 2, hp: 3,
     texts: ['出售：给商店宠物 +1 生命', '出售：给商店宠物 +2 生命', '出售：给商店宠物 +3 生命'],
     hooks: {
-      sell: function (g, c) { g.buffShop(c.lvl, 0); }
+      /* ⚠️ buffShop 的参数顺序是 (攻击, 生命)。这里以前写成 buffShop(c.lvl, 0)，
+       *    变成了加【攻击力】—— 和它自己的文案、以及官方 wiki 都对不上。
+       *    官方（wiki Duck）："Sell → Give shop pets +1 health"。 */
+      sell: function (g, c) { g.buffShop(0, c.lvl); }
     }
   },
 
