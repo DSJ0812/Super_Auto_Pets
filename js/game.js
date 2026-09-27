@@ -95,10 +95,13 @@ function activePack() {
   return (CFG.PACK && PACKS[CFG.PACK]) ? CFG.PACK : 'turtle';
 }
 
-/* 可购买池：当前包里的全部非代币宠物（Tier 1-6）
- * 具体能买到几星由「商店等级」按回合决定，见 unlockedPool() */
-function buyablePool() {
-  const pack = activePack();
+/* 可购买池：某个包里的全部非代币宠物（Tier 1-6）
+ * 具体能买到几星由「商店等级」按回合决定，见 unlockedPool()
+ *
+ * ⚠️ 可以传包名。联机大厅要同时显示「龟包 61 只 / 星包 77 只」，
+ *    只算当前生效的那个包是不够的。不传就还是当前包。 */
+function buyablePool(pack) {
+  pack = pack || activePack();
   return Object.keys(PETS).filter(function (k) {
     return !PETS[k].token && PETS[k].tier >= 1 && packOf(k) === pack;
   });

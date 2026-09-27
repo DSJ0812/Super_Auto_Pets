@@ -106,12 +106,41 @@ OnlineGame.prototype.lobbyState = function () {
     t: 'lobby',
     phase: this.phase,
     seats: MELEE_CFG.COUNT,
+    /* ⚠️ 把房间配置也带上。
+     *    以前这里只有 players，客户端大厅只显示「房间种子」——
+     *    玩家进了星包房要等看到宠物才反应过来这一局用的是哪个包。 */
+    economy: this.cfg.economy,
+    pack: this.cfg.pack,
     players: this.remoteSeats().map(function (s) {
       return { seat: s.idx, name: s.name, connected: !!s.connected };
     })
   };
 };
 OnlineGame.prototype.pushLobby = function () { this.emitAll(this.lobbyState()); };
+
+/* 大厅里换宠物包：只有房主能改，而且只有【还没开局】时能改。
+ *
+ * ⚠️ 必须限制在大厅阶段：一局只用一个包，包决定商店的宠物池。
+ *    开局后再换，已经刷出来的商店和玩家已经买的宠物就对不上了。
+ *    「再开一局」（restart）会把房间换新、phase 回到 lobby，所以那时也能改。
+ *
+ * ⚠️ 同时要改服务端的全局 CFG.PACK。每个座位的 Game 实例是在 start()
+ *    那一刻创建的，它读的是全局值 —— 只改 this.cfg 不改变量的话，
+ *    会出现「大厅显示星包、开局却发龟包的宠物」这种事。 */
+OnlineGame.prototype.setPack = function (seat, pack) {
+  const host = this.remoteSeats()[0];
+  if (!host || host.idx !== seat.idx) return { ok: false, msg: '只有房主能换宠物包' };
+  if (this.phase !== 'lobby') return { ok: false, msg: '已经开局了 —— 换包要点「再开一局」' };
+  if (!PACKS[pack]) return { ok: false, msg: '没有这个宠物包' };
+  if (this.cfg.pack === pack) return { ok: true, msg: '这一局本来就是' + PACKS[pack].cn };
+
+  this.cfg.pack = pack;
+  CFG.PACK = pack;
+  this.pushLobby();                       // 广播：客户端收到会 applyRoomConfig
+  /* 只数动态算 —— PACKS 里没有 count，而且星包的只数改过好几次，
+   * 硬编码一个数字迟早会和实际对不上。 */
+  return { ok: true, msg: '这一局改用' + PACKS[pack].cn + '（' + buyablePool(pack).length + ' 只）' };
+};
 
 /* 名字去重：两个「小明」会变成「小明」和「小明(2)」 */
 function uniqueName(seats, want, selfIdx) {
@@ -248,6 +277,10 @@ OnlineGame.prototype.action = function (token, a) {
 
   // 房主强制推进：任何阶段都能用（包括自己已出局、纯观战时）
   if (type === 'forceResolve') return this.forceResolve(seat);
+  /* 大厅里换宠物包：也要放在下面那些守卫【之前】——
+   * 下面有 `if (this.phase !== 'shop') return { ok:false, msg:'现在不是商店阶段' }`，
+   * 而换包恰恰只能在大厅阶段做。 */
+  if (type === 'setPack') return this.setPack(seat, a.pack);
   // 战斗阶段只接受「进入下一回合」
   if (this.phase === 'battle') {
     if (type === 'nextTurn') return this.ackBattle(seat);

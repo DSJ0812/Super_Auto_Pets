@@ -383,6 +383,8 @@ function oOnEvent(d) {
   switch (d.t) {
     case 'lobby':
       OUI.lobbyPlayers = d.players || [];
+      /* 房主可能刚换过宠物包 —— 配置一律以服务器为准（换包后本机也要跟着变） */
+      if (d.pack) NET.applyRoomConfig({ economy: d.economy, pack: d.pack });
       oRenderLobby(d);
       break;
 
@@ -504,7 +506,13 @@ function oApplySnapshot(s) {
   OUI.lobbyPlayers = (s.lobby && s.lobby.players) || OUI.lobbyPlayers;
   if (s.you) oApplySelf(s.you);
 
-  if (s.phase === 'lobby') { oShowLobbyJoin(); return; }
+  if (s.phase === 'lobby') {
+    /* ⚠️ 已经有座位（刷新 / 重连回来的）就直接进大厅主面板。
+     *    以前这里一律走 oShowLobbyJoin()，于是刷新页面后会看到「输入昵称」，
+     *    再点一次「加入房间」就会【多占一个座位】—— 等于把原座位变成掉线。 */
+    if (NET.token) oRenderLobby(s.lobby || {}); else oShowLobbyJoin();
+    return;
+  }
   oHideLobby();
 
   if (s.phase === 'over') {
@@ -593,6 +601,29 @@ function oRenderLobby(d) {
     ? '人满了，可以开始了！'
     : '人不够没关系 —— 剩下的座位会由电脑补位，照样能玩。';
 
+  /* 宠物包：所有人都看得见当前用的是哪个；只有房主、且还没开局时能点着换。
+   * ⚠️ 包由【服务器】决定，所以这里以收到的 d.pack 为准，不看本机 CFG ——
+   *    不然拿 ?pack=star 打开页面的人会看到和实际不符的包。 */
+  const packBox = $('#lobbyPack');
+  if (packBox) {
+    const cur = d.pack || (typeof activePack === 'function' ? activePack() : 'turtle');
+    const canPick = oIsHost();
+    packBox.innerHTML = Object.keys(PACKS).map(function (id) {
+      const p = PACKS[id];
+      const on = (id === cur) ? ' on' : '';
+      const cls = 'lp-pack' + on + (canPick ? ' pick' : ' locked');
+      /* 只数动态算（PACKS 里没有 count，而且星包只数改过好几次） */
+      return '<span class="' + cls + '"' + (canPick ? ' data-pack="' + id + '"' : '') + '>' +
+             p.icon + ' ' + p.cn + '　' + buyablePool(id).length + ' 只</span>';
+    }).join('');
+    const note = $('#lobbyPackNote');
+    if (note) {
+      note.textContent = canPick
+        ? '（你是房主，可以点着换 —— 开局后就不能改了）'
+        : '（由房主决定，开局前可以改）';
+    }
+  }
+
   $('#btnStart').style.display = oIsHost() ? '' : 'none';
   $('#btnStart').disabled = players.length < 1;
   $('#btnRestart').style.display = 'none';
@@ -616,6 +647,11 @@ function oBind() {
 
     // 大厅
     if (e.target.closest('#btnJoin')) { oDoJoin(); return; }
+    /* 换宠物包：只有房主、且只有还没开局时服务器才会接受。
+     * 注意这里【不】用 say() 报结果 —— 大厅遮罩挡着，看不见；
+     * 换成功之后 highlight 会跟着变，那就是反馈。 */
+    const lp = e.target.closest('.lp-pack.pick');
+    if (lp && lp.dataset.pack) { oAct({ type: 'setPack', pack: lp.dataset.pack }); return; }
     if (e.target.closest('#btnStart')) {
       NET.start().then(function (r) { if (!r.ok) say(r.msg); });
       return;
@@ -866,7 +902,11 @@ function oBoot() {
     NET.rejoin().then(function (r) {
       if (r.ok) {
         OUI.seat = r.seat;
-        NET.startPolling();          // 快照会通过轮询推回来
+        /* ⚠️ 直接用 rejoin 返回的快照渲染，别干等轮询推回来 ——
+         *    服务器在 rejoin 的响应里已经把完整快照给了，再等一轮 poll
+         *    就是白等一次往返（刷新页面回大厅会明显卡一下）。 */
+        if (r.snapshot) oOnEvent(r.snapshot);
+        NET.startPolling();
       } else {
         oShowLobbyJoin(NET.serverPhase && NET.serverPhase !== 'lobby'
           ? '房间里已经有一局在打了（' + NET.serverPlayers + ' 人在里面）。等他们打完，或者让房主点「再开一局」，然后刷新本页。'
