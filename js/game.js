@@ -18,7 +18,7 @@ const CFG = {
   LOSE_MAX: 3,          // 3 败结束
   SHOP_PET_SLOTS: 5,
   SHOP_FOOD_SLOTS: 2,
-  AP_SCALE: 0.76,       // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
+  AP_SCALE: 0.61,       // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
                         // 本作只有 Turtle Pack 61 只、对手全是幽灵，按原版会碾压玩家。
                         // ⚠️ 这个值对【羁绊强度】很敏感 —— 每次改羁绊都要重测。
                         //    加进 8 阵营 + 调强数值之后，同样的 0.42 从 22% 涨到了 34%
@@ -30,6 +30,17 @@ const CFG = {
                         //   1/3 的行动点被白扔（「给食物 Perk」在目标已有 Perk 时什么都不做），
                         //   AP 越多浪费越多、于是提前饱和。修掉后重新标定：
                         //   0.72→25% / 0.80→21%，取中点 0.76。
+                        // ⚠️ 再次重标定（幽灵组队不再抽同名 + 羁绊改为按只数）：
+                        //   幽灵以前会 RNG.pick 连抽出两只同名 —— 那两只占着格子却几乎
+                        //   凑不出羁绊，等于白扔位置。改成抽不重复之后幽灵实质变强，
+                        //   同一个 0.76 的通关率从 24% 掉到 19%。每档 600 局实测：
+                        //   0.72→24% / 0.74→23% / 0.76→19%，取 0.72。
+                        // ⚠️ 第三次重标定（8 个阵营按「汇率表」整体重调）：
+                        //   阵营两两对撞的胜率现在全部进了 40-60%（以前有 21%~88%），
+                        //   但整体强度也上去了，而【幽灵靠开战羁绊受益更多】
+                        //   （玩家那份是回合成长的飞禽，反而被削了）。
+                        //   同一个 0.72 的通关率从 24% 掉到 15%。每档 700 局实测：
+                        //   0.58→25% / 0.60→25% / 0.61→22% / 0.62→21% / 0.64→19%，取 0.61。
                         // 目标：把「普通玩家」的通关率压在 20-25%。
 
   /* ---- 经济模式（8 人混战会切成 'tft'）----
@@ -297,7 +308,9 @@ ShopEnv.prototype.removePerkNotify = ShopEnv.prototype.removePerk;
  *     在战斗里（战斗中多给一只经验）。加了 sides 会让它在商店里也按战斗算。
  * ============================================================ */
 ShopEnv.prototype.grantExp = function (pet, n) {
-  this.game.addExp(pet, n);
+  // 把事件归到【当前这个】env —— 商店里的「获得经验」技能带出来的升级效果
+  // 要能显示出来（以前 addExp 自己另起一个没人读的 env，提示全丢了）
+  this.game.addExp(pet, n, this);
 };
 
 /* 商店里没有敌人，所以「对面的宠物」永远是空 */
@@ -731,7 +744,13 @@ Game.prototype.buyPet = function (slotIdx, teamIdx) {
     if (pet.hp  > same.hp)  same.hp  = pet.hp;
 
     const before = same.lvl;
-    this.addExp(same, 1);
+    /* ⚠️ env 必须【先】建好再 addExp：addExp 会把升级带出来的技能事件
+     *    并进这个 env，下面的「购买时」技能复用同一条事件流，
+     *    最后一起变成提示。以前 addExp 自己另起一个没人读的 env，
+     *    合并升级触发的技能效果全丢了。 */
+    const env = new ShopEnv(this);
+    env.lastBattleLost = this.lastBattleLost;
+    this.addExp(same, 1, env);
 
     /* ⚠️ 合并【也必须】触发「购买时」技能。
      *    官方（Otter 页）："Like all Buy pets, the Otter's ability will also
@@ -741,8 +760,6 @@ Game.prototype.buyPet = function (slotIdx, teamIdx) {
      *    「购买时」效果永远拿不到。
      *    以前这里只 addExp 就 return 了，症状就是「奶牛第二次买不刷新牛奶」。
      *    等级要取【合并后】的 same.lvl（技能按新等级结算）。 */
-    const env = new ShopEnv(this);
-    env.lastBattleLost = this.lastBattleLost;
     const md = same.def;
     if (md && md.hooks && md.hooks.buy) {
       env.actor = same;
@@ -861,7 +878,16 @@ Game.prototype.tierUpReward = function () {
 };
 
 /* ---- 加经验 / 升级 ---- */
-Game.prototype.addExp = function (pet, n) {
+/* 给宠物加经验。
+ *
+ * ⚠️ outEnv 可选：调用方已有的 ShopEnv。这里产生的事件（levelUp /
+ *    friendLevelUp 带出来的技能效果）以前【没人读】—— env 是局部的，
+ *    调用方拿不到，于是喂巧克力升级之后界面上只显示「巧克力 用在 X 上」，
+ *    升级触发了什么一条都看不见。现在把事件并进调用方的事件流，
+ *    由调用方统一交给 describeShopNotes()。
+ *    写法和 applyFood 里 Perk 那条一致（另起一个 env，跑完把 events 并回去），
+ *    这样 env.actor 的归属语义一个字都不用改。 */
+Game.prototype.addExp = function (pet, n, outEnv) {
   const env = new ShopEnv(this);
   env.lastBattleLost = this.lastBattleLost;
   for (let i = 0; i < n; i++) {
@@ -897,6 +923,10 @@ Game.prototype.addExp = function (pet, n) {
       // 官方：升星时给「下一星级的两个宠物」；但合成到 3 级不触发
       if (pet.lvl < 3) this.tierUpReward();
     }
+  }
+  /* 把这一趟产生的事件并进调用方的事件流（见上面的 outEnv 说明） */
+  if (outEnv && outEnv.events && outEnv !== env) {
+    for (const ev of env.events) outEnv.events.push(ev);
   }
 };
 
@@ -1061,12 +1091,15 @@ Game.prototype.applyFood = function (teamIdx) {
     setPerk(pet, def.perk, 1);
     pet.weak = false;
   }
+  /* 经验那条链路的事件单独收着 —— 升级技能的提示要并进下面那个 env，
+   * 否则喂巧克力升了级，界面上只有「巧克力 用在 X 上」，触发了什么看不见。 */
+  let expEnv = null;
   if (def.exp) {
     // 巧克力：给经验（会正常触发升级）
-    const envX = new ShopEnv(this);
-    envX.lastBattleLost = this.lastBattleLost;
-    envX.emit({ e: 'exp', t: pet.uid, n: def.exp });
-    this.addExp(pet, def.exp);
+    expEnv = new ShopEnv(this);
+    expEnv.lastBattleLost = this.lastBattleLost;
+    expEnv.emit({ e: 'exp', t: pet.uid, n: def.exp });
+    this.addExp(pet, def.exp, expEnv);
   }
   this.shopFoods[this.pendingFood] = null;
   this.frozenFoods[this.pendingFood] = false;   // 道具没了，冻结标记也要清掉
@@ -1076,6 +1109,9 @@ Game.prototype.applyFood = function (teamIdx) {
   // 「友方吃食物」触发（Rabbit）
   const env = new ShopEnv(this);
   env.lastBattleLost = this.lastBattleLost;
+  if (expEnv) {
+    for (const ev of expEnv.events) env.events.push(ev);
+  }
   // 「友方获得 Perk」触发（星包鹤鸵）
   if (def.perk) {
     const envP = new ShopEnv(this);
@@ -1243,18 +1279,25 @@ Game.prototype.makeOpponent = function () {
   const maxTeam = this.getTeamMax();
 
   // ---- 1) 组队 ----
+  /* ⚠️ 抽【不重复】的宠物。
+   *    官方买同名必定合并（见 buyPet），光靠买宠凑不出两只同名 ——
+   *    幽灵这边以前是 RNG.pick 连抽，会出现两只同名：既和官方不符，
+   *    又因为羁绊按只数算而白占一个位置。 */
+  const drawDistinct = function (src, n) {
+    const bag = src.slice();
+    const out = [];
+    for (let i = 0; i < n && bag.length; i++) {
+      out.push(bag.splice(RNG.int(bag.length), 1)[0]);
+    }
+    return out;
+  };
   let team = [];
   if (t === 1) {
     const tier1 = pool.filter(function (id) { return PETS[id].tier === 1; });
     const src = tier1.length ? tier1 : pool;
-    for (let i = 0; i < Math.min(3, maxTeam); i++) {
-      team.push(makePet(RNG.pick(src), 1));
-    }
+    team = drawDistinct(src, Math.min(3, maxTeam)).map(function (id) { return makePet(id, 1); });
   } else {
-    const n = Math.min(5, maxTeam);
-    for (let i = 0; i < n; i++) {
-      team.push(makePet(RNG.pick(pool), 1));
-    }
+    team = drawDistinct(pool, Math.min(5, maxTeam)).map(function (id) { return makePet(id, 1); });
   }
 
   // ---- 2) 花掉行动点 ----

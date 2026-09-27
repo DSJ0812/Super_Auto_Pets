@@ -1043,7 +1043,8 @@ const PETS = {
       },
       sell: function (g, c) {
         const t = g.random(sellFriends(g, c.self), 1);
-        if (t[0]) g.game.addExp(t[0], c.lvl);
+        // 把 g（当前这个 ShopEnv）传下去，升级带出来的技能才能变成提示
+        if (t[0]) g.game.addExp(t[0], c.lvl, g);
       }
     }
   },
@@ -1591,7 +1592,7 @@ const PETS = {
         const mates = g.behind(c.self, n);
         for (const p of mates) {
           if (g.grantExp) g.grantExp(p, c.lvl);
-          else g.game.addExp(p, c.lvl);
+          else g.game.addExp(p, c.lvl, g);
         }
       }
     }
@@ -1796,7 +1797,7 @@ const PETS = {
         if (!c.target) return;
         const n = g.sides ? c.lvl * 3 : c.lvl;      // 战斗里三倍
         if (g.grantExp) g.grantExp(c.target, n);
-        else g.game.addExp(c.target, n);
+        else g.game.addExp(c.target, n, g);
       },
       startTurn: function (g, c) { c.self._alpaca = 0; }
     }
