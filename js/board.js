@@ -224,7 +224,13 @@ const Board = {
       Board.loading = false;
       const ws = Board._waiters.slice();
       Board._waiters.length = 0;
-      ws.forEach(function (f) { try { f(ok); } catch (e) {} });
+      /* ⚠️ 某个等待者抛异常不能连累其它人，所以照旧一个个隔离；
+       *    但【不能连日志都不打】—— 以前这里是空 catch，
+       *    出问题时玩家只看到「排行榜一直连不上」，控制台一点痕迹都没有。 */
+      ws.forEach(function (f) {
+        try { f(ok); }
+        catch (e) { try { console.error('[排行榜] 等待回调抛异常：', e); } catch (e2) {} }
+      });
     }
 
     if (typeof firebase !== 'undefined' && firebase.firestore) {

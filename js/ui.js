@@ -153,216 +153,62 @@ function renderShop() {
     $('#hint').classList.remove('active');
   }
 
-  $('#foeRow').style.display = 'none';
+  /* ⚠️ 这里【不要】再去隐藏 #foeRow。
+   *    它本来就在 #battlePanel 里面，隐藏 battlePanel 就够了。
+   *    以前多写了这一行，于是回放时必须再补一句「把 display 清掉」，
+   *    否则对手行永远不显示 —— 典型的补丁打补丁，现在两边都删了。 */
   $('#shop').style.display = '';
   $('#battlePanel').style.display = 'none';
   $('#myRowWrap').style.display = '';
 }
 
 /* ------------------------------------------------------------
- *  战斗渲染
+ *  战斗回放
+ *
+ *  ⚠️ 这里以前自己写了一整套（cloneForView / renderBattleBoard / findView /
+ *     stepBattle / applyEventSilent / finishBattle），和 playback.js 的
+ *     BattlePlayer 是【同一个功能两份实现】，而且已经分叉了：
+ *       经典模式少处理 transform / push / perkLost / perkUsed 四种事件，
+ *       于是仙犰狳变形、鲸鱼推位、草莓被消费这些画面完全不动
+ *       （引擎侧是对的，纯粹是画面不同步）。
+ *     现在删掉自己那套，四种界面（经典/混战/联机/排行榜挑战）共用 playback.js。
+ *
+ *  状态依旧托管在 UI 上（UI.view / log / idx / timer），外面照旧能查回放进度。
+ *  ⚠️ 但 view 的结构变了：以前是 v[0]/v[1] 两个数组，现在是 { mine, foe }
+ *     （和混战 MUI、联机 OUI 一致）。读它的地方要跟着改。
  * ---------------------------------------------------------- */
-function cloneForView(p, side) {
-  return { uid: p.uid, defId: p.defId, def: p.def, lvl: p.lvl, atk: p.atk, hp: p.hp,
-           maxHp: p.hp,        // 开战时的生命 —— 血条以它为满值
-           perks: (p.perks || []).map(function (x) { return { id: x.id, uses: x.uses }; }), side: side };
-}
-
-function renderBattleBoard(highlightUids, label) {
-  const v = UI.view;
-  if (!v) return;
-  const fx = UI._fx;            // 这一帧的扣血飘字 / 前冲 / 受击
-
-  const arena = $('#battlePanel .arena');
-  if (arena) arena.classList.toggle('fighting', !!fx);
-
-  const foe = $('#foeRow');
-  foe.innerHTML = '';
-  // ⚠️ 必须把 display 清掉：商店阶段会把它设成 none（ui.js 上面那行），
-  //    改布局时漏了这句，结果对手行永远不显示。
-  foe.style.display = '';
-  for (const p of v[1]) {
-    const c = petCard(p);
-    if (highlightUids && highlightUids.indexOf(p.uid) >= 0) c.classList.add('acting');
-    battleDecorateCard(c, p, fx, false);
-    foe.appendChild(c);
-  }
-
-  const my = $('#myBattleRow');
-  my.innerHTML = '';
-  for (const p of v[0]) {
-    const c = petCard(p);
-    if (highlightUids && highlightUids.indexOf(p.uid) >= 0) c.classList.add('acting');
-    battleDecorateCard(c, p, fx, true);
-    my.appendChild(c);
-  }
-
-  if (label != null) $('#battleLabel').textContent = label;
-  // 对手名字显示在战场的「对手」标签上（新版布局里标签是 HTML 里的）
-  const foeLabel = $('#battlePanel .arena-label');
-  if (foeLabel) foeLabel.textContent = '对手' + (v.opponentName ? ' · ' + v.opponentName : '');
-  $('#shop').style.display = 'none';
-  $('#myRowWrap').style.display = 'none';
-  $('#battlePanel').style.display = '';
-}
+const PLAY = new BattlePlayer({
+  foe: '#foeRow', mine: '#myBattleRow', label: '#battleLabel',
+  skip: '#btnSkip', next: '#btnNext',
+  shopView: '#shop', battleView: '#battlePanel',
+  arena: '#battlePanel .arena',        // 交战时中间的 ⚔ 会闪
+  speedMul: function () { return UI.speedMul; },
+  onFinish: afterBattle
+});
 
 function startBattle(result) {
-  UI.log = result.log;
-  UI.idx = 0;
-  UI.view = {
-    0: UI.game.team.map(function (p) { return cloneForView(p, 0); }),
-    1: result.opponent.map(function (p) { return cloneForView(p, 1); }),
-    opponentName: ''
-  };
-  $('#battlePanel').style.display = '';
-  renderBattleBoard(null, '准备开战…');
-  $('#btnSkip').style.display = '';
-  $('#btnNext').style.display = 'none';
-  stepBattle();
+  /* ⚠️ #myRowWrap 不在 #battlePanel 里，回放器管不到它，得自己隐藏；
+   *    商店阶段由 renderShop() 恢复显示。 */
+  const mw = $('#myRowWrap');
+  if (mw) mw.style.display = 'none';
+  PLAY.start(UI, result.log, UI.game.team, result.opponent,
+    '准备开战…', { mySide: 0, winner: result.winner });
 }
 
-function findView(uid) {
-  const v = UI.view;
-  for (const s of [0, 1]) {
-    for (const p of v[s]) if (p.uid === uid) return { pet: p, side: s };
-  }
-  return null;
-}
-
-function stepBattle() {
-  const v = UI.view;
-  if (!v) return;
-
-  // 先把「上一帧标记阵亡」的宠物真正移出视图。
-  // 延迟一帧既让玩家看到死亡瞬间，又保证 summon 事件的 pos
-  // 与引擎侧（尸体已移除）的位置一致，否则召唤会插错位置。
-  for (const s of [0, 1]) {
-    v[s] = v[s].filter(function (p) { return !p._dead; });
-  }
-
-  if (UI.idx >= UI.log.length) { finishBattle(); return; }
-  const ev = UI.log[UI.idx++];
-  let hi = null, label = null;
-
-  switch (ev.e) {
-    case 'battleStart':
-      label = '开战！';
-      break;
-
-    case 'phase':
-      label = '第 ' + ev.n + ' 回合';
-      break;
-
-    case 'ability': {
-      const hit = findView(ev.t);
-      if (hit) { hi = [ev.t]; label = petName(hit.pet.def) + ' 触发技能'; }
-      break;
-    }
-
-    case 'attack': {
-      const A = findView(ev.a), B = findView(ev.b);
-      if (A) { A.pet.hp -= ev.dmgA; markDeadIfZero(A.pet); }
-      if (B) { B.pet.hp -= ev.dmgB; markDeadIfZero(B.pet); }
-      hi = [ev.a, ev.b];
-      label = (A ? petName(A.pet.def) : '?') + ' ⚔ ' + (B ? petName(B.pet.def) : '?');
-      break;
-    }
-
-    case 'dmg': {
-      const t = findView(ev.t);
-      if (t) { t.pet.hp -= ev.n; markDeadIfZero(t.pet); hi = [ev.t]; label = petName(t.pet.def) + ' 受到 ' + ev.n + ' 点伤害'; }
-      break;
-    }
-
-    case 'buff': {
-      const t = findView(ev.t);
-      if (t) {
-        t.pet.atk += ev.atk; t.pet.hp += ev.hp;
-        hi = [ev.t];
-        label = petName(t.pet.def) + ' 获得 +' + ev.atk + '/+' + ev.hp;
-      }
-      break;
-    }
-
-    case 'perk': {
-      const t = findView(ev.t);
-      // 覆盖语义：Perk 只能带一个
-      if (t) { t.pet.perks = [{ id: ev.id, uses: 1 }]; hi = [ev.t]; label = petName(t.pet.def) + ' 获得' + ev.id; }
-      break;
-    }
-
-    case 'perkUsed': {
-      const t = findView(ev.t);
-      if (t) {
-        const pk = t.pet.perks.find(function (x) { return x.id === ev.id; });
-        if (pk) pk.uses--;
-        hi = [ev.t];
-        label = petName(t.pet.def) + ' 消耗了 ' + ev.id;
-      }
-      break;
-    }
-
-    case 'faint': {
-      const t = findView(ev.t);
-      if (t) { t.pet.hp = 0; t.pet._dead = true; hi = [ev.t]; label = petName(t.pet.def) + ' 阵亡'; }
-      break;
-    }
-
-    case 'summon': {
-      const np = { uid: ev.t, defId: ev.defId, def: PETS[ev.defId], lvl: ev.lvl || 1,
-                   atk: ev.atk, hp: ev.hp, perks: [], side: ev.side };
-      v[ev.side].splice(ev.pos, 0, np);
-      hi = [ev.t];
-      label = '召唤了 ' + petName(PETS[ev.defId]);
-      break;
-    }
-
-    case 'battleEnd':
-      UI.idx = UI.log.length;   // 跳到结束
-      finishBattle(ev.winner);
-      return;
-  }
-
-  // 移除阵亡的（保留一帧让玩家看到）
-  UI._fx = battleFxOfEvent(ev);      // 这一帧的扣血飘字 / 前冲 / 受击
-  renderBattleBoard(hi, label);
-
-  const base = 420 / (UI.speedMul || 1);
-  const delay = (ev.e === 'phase') ? base * 1.6 : base;
-  UI.timer = setTimeout(stepBattle, delay);
-}
-
-function finishBattle(winner) {
+/* 回放播完之后 —— 这里只做【经典模式特有】的收尾。
+ * 尸体清理、按钮显隐、竞技场状态、跳过按钮的隐藏都由回放器自己处理了。 */
+function afterBattle(winner) {
   const g = UI.game;
   if (winner === undefined) winner = g.lastResult.winner;
-  const v = UI.view;
-  UI._fx = null;                       // 结束画面不要再飘扣血数字
-  const arena = $('#battlePanel .arena');
-  if (arena) arena.classList.remove('fighting');
 
-  // 清掉残留尸体，最终画面只显示存活者（与引擎的最终队伍一致）
-  if (v) {
-    for (const s of [0, 1]) {
-      v[s] = v[s].filter(function (p) { return !p._dead; });
-    }
-  }
-
-  // 同步最终血量显示
-  if (v) {
-    for (const s of [0, 1]) {
-      for (const p of v[s]) if (p.hp < 0) p.hp = 0;
-    }
-    renderBattleBoard(null, '战斗结束');
-  }
-
+  /* 胜负文案保持经典模式原来的说法（「胜利！」而不是回放器的「这一场赢了！」）——
+   * 这次是重构，不该顺带改玩家看得见的文案。 */
   let title, cls;
   if (winner === 0)      { title = '🎉 胜利！'; cls = 'win'; }
   else if (winner === 1) { title = '💀 失败…'; cls = 'lose'; }
   else                   { title = '🤝 平局'; cls = 'draw'; }
-
-  $('#battleLabel').textContent = title;
-  $('#battleLabel').className = 'battle-label ' + cls;
-  $('#btnSkip').style.display = 'none';
+  const lb = $('#battleLabel');
+  if (lb) { lb.textContent = title; lb.className = 'battle-label ' + cls; }
 
   if (g.phase === 'gameover') {
     if (UI.seedInfo && UI.seedInfo.daily) recordDailyOnce(g);
@@ -480,16 +326,9 @@ function bind() {
       return;
     }
 
-    // 跳过战斗动画
+    // 跳过战斗动画（回放器自己会 clearTimeout + 把剩余事件应用 + 收尾）
     if (e.target.closest('#btnSkip')) {
-      clearTimeout(UI.timer);
-      // 直接把剩余事件全部应用
-      while (UI.idx < UI.log.length) {
-        const ev = UI.log[UI.idx++];
-        if (ev.e === 'battleEnd') break;
-        applyEventSilent(ev);
-      }
-      finishBattle();
+      PLAY.skip();
       return;
     }
 
@@ -628,28 +467,8 @@ function bind() {
   });
 }
 
-/* 把事件静默应用到视图（用于「跳过」） */
-function applyEventSilent(ev) {
-  const v = UI.view;
-  if (!v) return;
-  switch (ev.e) {
-    case 'attack': {
-      const A = findView(ev.a), B = findView(ev.b);
-      if (A) { A.pet.hp -= ev.dmgA; markDeadIfZero(A.pet); }
-      if (B) { B.pet.hp -= ev.dmgB; markDeadIfZero(B.pet); }
-      break;
-    }
-    case 'dmg': { const t = findView(ev.t); if (t) { t.pet.hp -= ev.n; markDeadIfZero(t.pet); } break; }
-    case 'buff': { const t = findView(ev.t); if (t) { t.pet.atk += ev.atk; t.pet.hp += ev.hp; } break; }
-    case 'perk': { const t = findView(ev.t); if (t) t.pet.perks = [{ id: ev.id, uses: 1 }]; break; }
-    case 'faint': { const t = findView(ev.t); if (t) t.pet.hp = 0; break; }
-    case 'summon': {
-      v[ev.side].splice(ev.pos, 0, { uid: ev.t, defId: ev.defId, def: PETS[ev.defId],
-        lvl: ev.lvl || 1, atk: ev.atk, hp: ev.hp, perks: [], side: ev.side });
-      break;
-    }
-  }
-}
+/* （原来的 applyEventSilent 已删 —— 「跳过动画」现在走 PLAY.skip()，
+ *   用的是 playback.js 里那一份唯一的实现。） */
 
 /* ------------------------------------------------------------
  *  图鉴（宠物 / 召唤物 / 道具 / 遗物）
