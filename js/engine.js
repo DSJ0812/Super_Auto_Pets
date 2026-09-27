@@ -103,6 +103,9 @@ function Battle(teamA, teamB, opts) {
   this.sides[1].forEach(function (p) { p.side = 1; });
   this.log = [];
   this.gold = 0;          // 战斗中获得的额外金币（如 Pig 出售，不在战斗里）
+  /* 当前战斗回合号：开战阶段算 0，之后每轮互殴 +1。
+   * 技能用它实现「每回合 N 次」（北山羊：Works 1 time per turn）。 */
+  this.phaseNum = 0;
 }
 
 /* ---- 基础查询 ---- */
@@ -683,6 +686,9 @@ Battle.prototype.run = function () {
   while (guard++ < 80) {
     if (!this.sides[0].length || !this.sides[1].length) break;
 
+    /* ⚠️ 把当前战斗回合号存在 battle 上，技能里可以读它来做「每回合 N 次」。
+     *    开战阶段（startOfBattle）还没进这个循环，算第 0 回合。 */
+    this.phaseNum = phase;
     this.emit({ e: 'phase', n: phase });
 
     const a = this.sides[0][0];

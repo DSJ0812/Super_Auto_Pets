@@ -30,7 +30,11 @@ const FOOD_EMOJI = {
   /* 星包食物 */
   Strawberry: '🍓', Chocolate: '🍫', Cucumber: '🥒', Cheese: '🧀',
   Grapes: '🍇', Carrot: '🥕', Pepper: '🧂', Popcorn: '🍿',
-  Eucalyptus: '🌿', SleepingPill: '💊'
+  Eucalyptus: '🌿', SleepingPill: '💊',
+  /* 后来照官方补的食物（见 data.js 的说明） */
+  Peach: '🍑', Broccoli: '🥦', FriedShrimp: '🍤', Cupcake: '🧁',
+  Garlic: '🧄', SaladBowl: '🥗', Lollipop: '🍭', Pear: '🍐',
+  Sushi: '🍣', Celery: '🥬', Pizza: '🍕', HotDog: '🌭'
 };
 
 const TIER_NAME = { 1: 'Tier 1', 2: 'Tier 2', 3: 'Tier 3', 4: 'Tier 4', 5: 'Tier 5', 6: 'Tier 6' };
@@ -846,13 +850,19 @@ function renderCodexInto(bodyEl, subEl) {
     const tok  = foods.filter(function (k) { return FOODS[k].token; });
     if (shop.length) {
       body += '<div class="codex-tier">商店道具 · ' + shop.length +
-              ' 种（每只宠物同时只能带 1 个食物标记）</div><div class="codex-grid">';
+              ' 种（每只宠物同时只能带 1 个食物标记）<br>' +
+              '<span class="codex-tier-note">卡片上的 🐢/⭐ 表示它属于哪个宠物包' +
+              '（两个包的食物池是独立的）；T1~T6 是<b>星级</b> —— ' +
+              '商店升到第 N 级才会刷出它（和宠物一样，回合 1/3/5/7/9/11 各解锁一级）。' +
+              '带「技能专属」角标的那种商店里买不到，只能靠特定宠物的技能给。</span>' +
+              '</div><div class="codex-grid">';
       for (const id of shop) body += codexFoodCard(id);
       body += '</div>';
     }
     if (tok.length) {
       body += '<div class="codex-tier">只能靠技能获得的道具 · ' + tok.length +
-              ' 种</div><div class="codex-grid">';
+              ' 种（商店里买不到，得靠特定宠物的技能给，' +
+              '或者九宫格里的「技能专属」角标）</div><div class="codex-grid">';
       for (const id of tok) body += codexFoodCard(id);
       body += '</div>';
     }

@@ -18,13 +18,18 @@ const CFG = {
   LOSE_MAX: 3,          // 3 败结束
   SHOP_PET_SLOTS: 5,
   SHOP_FOOD_SLOTS: 2,
-  AP_SCALE: 0.60,       // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
+  AP_SCALE: 0.76,       // 幽灵行动点折扣。官方曲线是给「完整 6 tier 池 + 真实玩家快照」设计的，
                         // 本作只有 Turtle Pack 61 只、对手全是幽灵，按原版会碾压玩家。
                         // ⚠️ 这个值对【羁绊强度】很敏感 —— 每次改羁绊都要重测。
                         //    加进 8 阵营 + 调强数值之后，同样的 0.42 从 22% 涨到了 34%
                         //    （因为玩家会主动凑羁绊，而幽灵只是随机生成）。
                         // 实测（每档 500 局、固定种子，AI 是「会同名合成 + 买食物 + 凑阵营」的普通水平）：
                         //    0.55 → 28%   0.58 → 25%   0.60 → 23%   0.65 → 21%   0.85 → 16%
+                        // 变动史：0.60 → 补食物池 + 食物按星级解锁后，通关率从 21% 涨到 36%，
+                        //   而 0.60~0.78 怎么调都只在 30-36%（像调不动）。真因是 makeOpponent 里
+                        //   1/3 的行动点被白扔（「给食物 Perk」在目标已有 Perk 时什么都不做），
+                        //   AP 越多浪费越多、于是提前饱和。修掉后重新标定：
+                        //   0.72→25% / 0.80→21%，取中点 0.76。
                         // 目标：把「普通玩家」的通关率压在 20-25%。
 
   /* ---- 经济模式（8 人混战会切成 'tft'）----
@@ -608,15 +613,34 @@ Game.prototype.makeShopPet = function (defId) {
 Game.prototype.makeShopFood = function () {
   /* 食物要按宠物包过滤 —— 两个包的食物池是独立的（官方也是）。
    * ⚠️ 用 foodInPack 而不是看单个 pack 字段：一样食物可以同时属于多个包
-   *    （巧克力在龟包和星包都有）。以前只看 pack 字段，巧克力只能二选一，
-   *    结果龟包玩家永远刷不到它。 */
+   *    （巧克力在龟包和星包都有，梨也是）。以前只看 pack 字段，只能二选一，
+   *    结果龟包玩家永远刷不到它。
+   *
+   * ⚠️ 食物也有官方星级，商店只刷【已解锁星级】的 —— 和宠物一个规则。
+   *    以前所有食物从第 1 回合就全能刷出来，于是第 1 回合就能买到 T6 的披萨。 */
   const pack = activePack();
-  const keys = Object.keys(FOODS).filter(function (k) {
-    if (FOODS[k].token) return false;
+  const maxTier = this.getShopTier();
+  const inPack = function (k) {
     return (typeof foodInPack === 'function')
       ? foodInPack(k, pack)
       : ((FOODS[k].pack || 'turtle') === pack);
+  };
+  const unlocked = Object.keys(FOODS).filter(function (k) {
+    const f = FOODS[k];
+    if (f.token) return false;
+    if (!inPack(k)) return false;
+    return (f.tier || 1) <= maxTier;
   });
+  /* 兜底：万一这个星级一个食物都没有，退回该包【最低星级】的那批，
+   * 绝不能让商店的食物位空着（玩家会以为商店坏了）。 */
+  let keys = unlocked;
+  if (!keys.length) {
+    const any = Object.keys(FOODS).filter(function (k) {
+      return !FOODS[k].token && inPack(k);
+    });
+    const minT = Math.min.apply(null, any.map(function (k) { return FOODS[k].tier || 1; }));
+    keys = any.filter(function (k) { return (FOODS[k].tier || 1) === minT; });
+  }
   if (!keys.length) return null;
   return { id: RNG.pick(keys), cost: CFG.FOOD_COST };
 };
@@ -949,9 +973,11 @@ Game.prototype.applyFood = function (teamIdx) {
     };
   }
 
-  if (def.buff) {
-    // Cat：食物效果 ×2/×3/×4（按猫自己的等级），每回合最多 2 次
-    let mul = 1;
+  /* Cat 的「食物效果 ×2/×3/×4」对【所有给属性的食物】都生效，
+   * 不只是 def.buff 那种 —— 所以先把倍率算出来再分发。 */
+  const hasStatEffect = !!(def.buff || def.tempBuff || def.buffRandom || def.swap);
+  let mul = 1;
+  if (hasStatEffect) {
     const cat = this.team.find(function (p) {
       return p.defId === 'Cat' && p !== pet && (p._catUsed || 0) < 2;
     });
@@ -959,8 +985,41 @@ Game.prototype.applyFood = function (teamIdx) {
       mul = 1 + cat.lvl;
       cat._catUsed = (cat._catUsed || 0) + 1;
     }
-    pet.atk += def.buff[0] * mul;
-    pet.hp  += def.buff[1] * mul;
+  }
+
+  if (def.buff) {
+    /* ⚠️ 要夹一下：官方有「+3 生命、-1 攻击」这种带负值的食物
+     *    （西兰花 / 炸虾），负值不能让攻击变成负数，也不能把生命吃到 0 ——
+     *    食物不该吃死宠物。 */
+    pet.atk = Math.max(0, pet.atk + def.buff[0] * mul);
+    pet.hp  = Math.max(1, pet.hp  + def.buff[1] * mul);
+  }
+  /* 「只在这一场战斗内有效」的临时加成（纸杯蛋糕 +3/+3）。
+   * ⚠️ 复用霍加狓那套 _tempAtk / _tempHp：它们在 endTurn 打完一场之后会被还原
+   *    （见 Game.endTurn 末尾），语义正好就是官方说的 "until end of battle"。 */
+  if (def.tempBuff) {
+    pet.atk += def.tempBuff[0] * mul;
+    pet._tempAtk = (pet._tempAtk || 0) + def.tempBuff[0] * mul;
+    pet.hp += def.tempBuff[1] * mul;
+    pet._tempHp = (pet._tempHp || 0) + def.tempBuff[1] * mul;
+  }
+  /* 给【随机 N 个】友方加属性（沙拉碗 / 寿司 / 披萨 / 热狗）。
+   * 官方原文都是 "Give N random pets/A friends ..."，和「用的那只」无关。 */
+  if (def.buffRandom) {
+    const n = def.buffRandom.n;
+    const pool = this.team.slice();
+    for (let i = 0; i < n && pool.length; i++) {
+      const t = pool.splice(RNG.int(pool.length), 1)[0];
+      if (!t) continue;
+      t.atk = Math.max(0, t.atk + def.buffRandom.atk * mul);
+      t.hp  = Math.max(1, t.hp  + def.buffRandom.hp  * mul);
+    }
+  }
+  /* 交换攻血（棒棒糖 Lollipop：Swap attack and health of a pet） */
+  if (def.swap) {
+    const a = pet.atk;
+    pet.atk = Math.max(0, pet.hp);
+    pet.hp = Math.max(1, a);
   }
   if (def.perk) {
     // 官方规则：新 Perk 覆盖旧 Perk（一只宠物同时只能带 1 个），
@@ -1175,12 +1234,17 @@ Game.prototype.makeOpponent = function () {
     const target = RNG.pick(team);
     const action = RNG.int(3);
 
-    if (action === 0 && perkFoods.length) {
-      // ① 给食物 Perk（同一只最多带一个，已有就跳过）
-      if (!target.perks.length) {
-        const fid = RNG.pick(perkFoods);
-        setPerk(target, FOODS[fid].perk, 1);
-      }
+    /* ⚠️ 三种花法里，「给食物 Perk」只在目标【还没有 Perk】时才有意义。
+     *    以前写法是 `if (action === 0 && perkFoods.length) { if (!target.perks.length) {...} }`
+     *    —— 目标已经有 Perk 时这一轮【什么都不做】，白扔 1/3 的行动点。
+     *    后果：AP 越多浪费越多，幽灵强度提前饱和 ——
+     *    实测把 AP_SCALE 从 0.60 拉到 0.78，通关率只从 36% 掉到 30%，
+     *    看着像「调不动难度」，其实是行动点被吃掉了。
+     *    现在改成：这一轮没送成 Perk 就转去加属性。 */
+    const gavePerk = (action === 0 && perkFoods.length && !target.perks.length);
+    if (gavePerk) {
+      const fid = RNG.pick(perkFoods);
+      setPerk(target, FOODS[fid].perk, 1);
     } else if (action === 1) {
       // ② +1 经验（每点经验 +1/+1；满级后仍给 +1/+1，官方 0.24 起）
       target.exp = (target.exp || 0) + 1;
@@ -1191,7 +1255,7 @@ Game.prototype.makeOpponent = function () {
       // ③ 加属性，逐点随机分配到攻击或生命
       for (let s = 0; s < statGain; s++) {
         if (RNG.next() < 0.5) target.atk += 1;
-        else                     target.hp  += 1;
+        else                 target.hp  += 1;
       }
     }
   }

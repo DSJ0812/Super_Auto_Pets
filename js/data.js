@@ -857,7 +857,7 @@ const PETS = {
   /* ==================== 星包 Tier 1 ==================== */
 
   Pillbug: {
-    name: 'Pillbug', cn: '鼠妇', tier: 1, atk: 2, hp: 3, pack: 'star',
+    name: 'Pillbug', cn: '鼠妇', tier: 1, atk: 2, hp: 2, pack: 'star',
     texts: ['出售：库存 1 个免费安眠药',
             '出售：库存 2 个免费安眠药',
             '出售：库存 3 个免费安眠药'],
@@ -938,7 +938,7 @@ const PETS = {
   },
 
   Gibbon: {
-    name: 'Gibbon', cn: '长臂猿', tier: 1, atk: 1, hp: 2, pack: 'star',
+    name: 'Gibbon', cn: '长臂猿', tier: 1, atk: 2, hp: 2, pack: 'star',
     texts: ['商店升级时：给身后最近的 2 只友方 +1 生命',
             '商店升级时：给身后最近的 2 只友方 +2 生命',
             '商店升级时：给身后最近的 2 只友方 +3 生命'],
@@ -1076,9 +1076,9 @@ const PETS = {
 
   Iguana: {
     name: 'Iguana', cn: '鬣蜥', tier: 2, atk: 2, hp: 4, pack: 'star',
-    texts: ['敌人被召唤或被推时：对它造成 2 伤害',
-            '敌人被召唤或被推时：对它造成 4 伤害',
-            '敌人被召唤或被推时：对它造成 6 伤害'],
+    texts: ['敌人被召唤、或被推向前排时：对它造成 2 伤害',
+            '敌人被召唤、或被推向前排时：对它造成 4 伤害',
+            '敌人被召唤、或被推向前排时：对它造成 6 伤害'],
     hooks: {
       foeSummoned: function (g, c) { if (c.target && c.target.hp > 0) g.hit(c.target, c.lvl * 2); },
       foePushed:   function (g, c) { if (c.target && c.target.hp > 0) g.hit(c.target, c.lvl * 2); }
@@ -1189,7 +1189,7 @@ const PETS = {
   /* 考拉：商店和战斗里都生效（官方原文 "whether in shop or battle"）。
    * 桉树叶 = 受到敌方伤害减 4，一次。 */
   Koala: {
-    name: 'Koala', cn: '考拉', tier: 2, atk: 3, hp: 2, pack: 'star',
+    name: 'Koala', cn: '考拉', tier: 2, atk: 2, hp: 2, pack: 'star',
     texts: ['友方受伤时：给它桉树叶标记。每回合 1 次',
             '友方受伤时：给它桉树叶标记。每回合 2 次',
             '友方受伤时：给它桉树叶标记。每回合 3 次'],
@@ -1392,9 +1392,11 @@ const PETS = {
 
   Crow: {
     name: 'Crow', cn: '乌鸦', tier: 4, atk: 3, hp: 3, pack: 'star',
-    texts: ['出售：库存一个免费巧克力（+1 经验），并给食物降价 3 金',
-            '出售：库存一个免费优质巧克力（+2 经验），并给食物降价 3 金',
-            '出售：库存一个免费顶级巧克力（+3 经验），并给食物降价 3 金'],
+    /* 官方原文只有 "Sell → Stock one Chocolate / Better Chocolate / Best Chocolate"，
+     * 【没有】降价。以前那条「并给食物降价 3 金」是本作自己加的，现已去掉。 */
+    texts: ['出售：库存一个免费巧克力（+1 经验）',
+            '出售：库存一个免费优质巧克力（+2 经验）',
+            '出售：库存一个免费顶级巧克力（+3 经验）'],
     hooks: {
       sell: function (g, c) {
         const game = g.game;
@@ -1411,7 +1413,6 @@ const PETS = {
          *    所以 2 级、3 级乌鸦的「+2/+3 经验」在文案里写着、实际完全没生效。 */
         const f = c.lvl === 1 ? 'Chocolate' : (c.lvl === 2 ? 'BetterChocolate' : 'BestChocolate');
         g.stock(f, 0);
-        game.foodDiscount = (game.foodDiscount || 0) + 3;
       }
     }
   },
@@ -1562,10 +1563,16 @@ const PETS = {
    * 「移除 70% 生命」= 移除【剩余生命】的 70%（wiki.gg 原文 "remaining health"），
    * 取整后数学上永远削不到 0，所以不会直接秒杀。 */
   Ibex: {
-    name: 'Ibex', cn: '北山羊', tier: 5, atk: 6, hp: 7, pack: 'star',
-    texts: ['敌人受伤或被推时：移除它剩余生命的 70%。每场战斗对 1 个不同敌人生效',
-            '敌人受伤或被推时：移除它剩余生命的 70%。每场战斗对 2 个不同敌人生效',
-            '敌人受伤或被推时：移除它剩余生命的 70%。每场战斗对 3 个不同敌人生效'],
+    name: 'Ibex', cn: '北山羊', tier: 5, atk: 6, hp: 4, pack: 'star',
+    /* ⚠️ 官方原文："Enemy hurt or pushed → Remove 70% health from it.
+     *               Works 1 time per turn."
+     *    「每回合 1 次」——不是每场战斗 N 次，也不随等级变多。
+     *    pushed = 被推向前排（被技能往前挪了位置），不是「被击退」。
+     *    以前写成「每场战斗对 1/2/3 个不同敌人生效」：范围和次数都跟官方不同，
+     *    而且一场战斗只能削 3 次，和「每回合都能削一次」完全不是一个强度。 */
+    texts: ['敌人受伤、或被推向前排时：移除它剩余生命的 70%。每回合最多 1 次',
+            '敌人受伤、或被推向前排时：移除它剩余生命的 70%。每回合最多 1 次',
+            '敌人受伤、或被推向前排时：移除它剩余生命的 70%。每回合最多 1 次'],
     hooks: {
       foeHurt: function (g, c) { ibexDrain(g, c, c.hurt); },
       foePushed: function (g, c) { ibexDrain(g, c, c.target); }
@@ -1863,16 +1870,23 @@ const PETS = {
 
   Ostrich: {
     name: 'Ostrich', cn: '鸵鸟', tier: 6, atk: 2, hp: 8, pack: 'star',
+    /* ⚠️ 官方 wiki 上这只有点乱：
+     *      L1/L2 写的是 "Roll → If there are four tier 6 shop pets, roll pets and
+     *      give friends +1/+2 attack and health"，L3 却是
+     *      "End turn → Gain +3 attack and +3 health for every tier 5 pet or higher in the shop"。
+     *    同一个宠物的三级技能不该是两套，L1/L2 那两条疑似 wiki 数据串了别的宠物。
+     *    这里采用【唯一自洽的那条（L3）】，所以三级规则相同、不随等级缩放。
+     *    以前本作写的是「+3/+6/+9」——那是自己加的等级成长，官方没有依据。 */
     texts: ['回合结束：商店里每有一个 5 阶或以上的宠物，自己 +3/+3',
-            '回合结束：商店里每有一个 5 阶或以上的宠物，自己 +6/+6',
-            '回合结束：商店里每有一个 5 阶或以上的宠物，自己 +9/+9'],
+            '回合结束：商店里每有一个 5 阶或以上的宠物，自己 +3/+3',
+            '回合结束：商店里每有一个 5 阶或以上的宠物，自己 +3/+3'],
     hooks: {
       endTurn: function (g, c) {
         let n = 0;
         for (const sp of g.game.shopPets) {
           if (sp && ((PETS[sp.defId] || {}).tier || 0) >= 5) n++;
         }
-        if (n) g.buff(c.self, n * c.lvl * 3, n * c.lvl * 3);
+        if (n) g.buff(c.self, n * 3, n * 3);
       }
     }
   },
@@ -1981,15 +1995,20 @@ const PETS = {
    * 官方说的是「变成保护球」，这里的变身只发生在战斗内 ——
    * 商店里的仙犰狳保留原名继续吃永久生命，这样它才能持续成长。 */
   FairyArmadillo: {
-    name: 'Fairy Armadillo', cn: '仙犰狳', tier: 4, atk: 2, hp: 6, pack: 'star',
+    name: 'Fairy Armadillo', cn: '仙犰狳', tier: 4, atk: 3, hp: 6, pack: 'star',
+    /* ⚠️ 永久生命是【随等级】的：官方三级分别是 +2 / +4 / +6 health。
+     *    以前文案三级都写「永久 +2 生命」，实现也把 2 写死了 ——
+     *    所以 2 级、3 级仙犰狳的永久加成都只有 +2。
+     *    （括号里的减伤是变身后的仙球给的，那个本来就按等级 2/4/6。） */
     texts: ['受伤时：若还活着，永久 +2 生命，并变成仙球（受伤减 2）',
-            '受伤时：若还活着，永久 +2 生命，并变成仙球（受伤减 4）',
-            '受伤时：若还活着，永久 +2 生命，并变成仙球（受伤减 6）'],
+            '受伤时：若还活着，永久 +4 生命，并变成仙球（受伤减 4）',
+            '受伤时：若还活着，永久 +6 生命，并变成仙球（受伤减 6）'],
     hooks: {
       hurt: function (g, c) {
         if (c.self.hp <= 0) return;              // 「若还活着」
-        if (g.buffPerm) g.buffPerm(c.self, 0, 2);
-        else g.buff(c.self, 0, 2);
+        const add = c.lvl * 2;
+        if (g.buffPerm) g.buffPerm(c.self, 0, add);
+        else g.buff(c.self, 0, add);
         if (g.transform) g.transform(c.self, 'FairyBall', { lvl: c.lvl });
       }
     }
@@ -2002,7 +2021,7 @@ const PETS = {
    * 所以拿安眠药在商店里杀掉菊石时只会变身、不给经验。
    * 官方小技巧：4 次刷新 → 2 经验 → 2 级；10 次 → 5 经验 → 3 级。 */
   Ammonite: {
-    name: 'Ammonite', cn: '菊石', tier: 6, atk: 5, hp: 3, pack: 'star',
+    name: 'Ammonite', cn: '菊石', tier: 6, atk: 2, hp: 3, pack: 'star',
     texts: ['阵亡：把身后的友方变成 1 级拟态章鱼。战斗中每刷新 2 次再给它 +1 经验',
             '阵亡：把身后的友方变成 1 级拟态章鱼。战斗中每刷新 2 次再给它 +2 经验',
             '阵亡：把身后的友方变成 1 级拟态章鱼。战斗中每刷新 2 次再给它 +3 经验'],
@@ -2162,13 +2181,18 @@ function setPerk(pet, id, uses) {
 /* 北山羊：移除目标【剩余生命】的 70%。
  * ⚠️ 这是「移除生命」不是「造成伤害」，所以不走 calcDamage（不吃西瓜/大蒜/椰子减伤，
  *    也不吃虚弱 +3）。取整后数学上永远削不到 0：hp - floor(hp*0.7) >= 1，不会秒杀。
- * 每场战斗只对 N 个【不同】敌人生效（官方 v0.36 之后改的）。 */
+ *
+ * ⚠️ 次数规则照官方："Works 1 time per turn." ——【每回合 1 次】。
+ *    以前的实现是「每场战斗对 N 个不同敌人生效」：
+ *      · 次数上限跟等级走（1/2/3），官方不随等级变
+ *      · 一场最多削 3 次，而官方是每个战斗回合都能削一次 —— 强度差很远
+ *    战斗回合号从 g.phaseNum 读（开战阶段是 0，之后每轮互殴 +1），
+ *    所以「本回合已经用过了」就是 _ibexTurn === 当前回合号。 */
 function ibexDrain(g, c, target) {
   if (!target || target.hp <= 0) return;
-  const seen = c.self._ibex || (c.self._ibex = []);
-  if (seen.indexOf(target.uid) >= 0) return;     // 这个敌人已经削过了
-  if (seen.length >= c.lvl) return;              // 名额用完了
-  seen.push(target.uid);
+  const turn = (g && g.phaseNum != null) ? g.phaseNum : 0;
+  if (c.self._ibexTurn === turn) return;        // 这个回合已经削过了
+  c.self._ibexTurn = turn;
   const cut = Math.floor(target.hp * 0.7);
   if (!cut) return;
   target.hp -= cut;
@@ -2200,6 +2224,44 @@ const FOODS = {
   Milk:        { name: 'Milk',        cn: '牛奶',     cost: 0, tier: 6, buff: [1, 2], text: '给一只宠物 +1/+2', token: true },
   BetterMilk:  { name: 'Better Milk', cn: '优质牛奶', cost: 0, tier: 6, buff: [2, 4], text: '给一只宠物 +2/+4', token: true },
   BestMilk:    { name: 'Best Milk',   cn: '顶级牛奶', cost: 0, tier: 6, buff: [3, 6], text: '给一只宠物 +3/+6', token: true },
+
+  /* ---- 补食物：官方龟包 / 星包商店池里本作还缺的 ----
+   * 为什么必须补：一旦商店按星级解锁（见 Game.makeShopFood），
+   * 不补就会出现「某个星级一个食物都没有」——
+   * 实测龟包 T3/T4/T6、星包 T2 原本都是空的，到那个星级商店会刷不出任何食物。
+   *
+   * 包归属和星级都取自官方 Food 页面的 turtlepack / starpack 标记。
+   * 还没实现的几种（需要新的引擎机制）记在这里，免得以后又当新发现：
+   *   Meat Bone(T2 龟) 攻击 +3 伤害      · Canned Food(T4 龟) 给所有当前+未来商店宠物 +1/+1
+   *   Cake(T3 龟) 回合结束 +1 售价        · Mushroom(T6 龟) 遗言变回 1/1
+   *   Steak(T6 龟) 攻击 +20 一次          · Seaweed(T3 星) 攻击前变成小海胆
+   *   Baguette(T4 星) 攻击前移除敌人 Perk · Caramel(T2 星) 焦糖联动
+   *   Strawberry Jam(T5 星) 常驻在售      · Starfruit(T6 星) 免费库存一个 T5-6 食物 */
+  Peach:       { name: 'Peach',       cn: '桃子',     cost: 3, tier: 1, buff: [0, 2], pack: 'star',
+                 text: '给一只宠物 +2 生命' },
+  Broccoli:    { name: 'Broccoli',    cn: '西兰花',   cost: 3, tier: 2, buff: [-1, 3], pack: 'star',
+                 text: '给一只宠物 +3 生命、-1 攻击' },
+  FriedShrimp: { name: 'Fried Shrimp', cn: '炸虾',    cost: 3, tier: 2, buff: [3, -1], pack: 'star',
+                 text: '给一只宠物 +3 攻击、-1 生命' },
+  Cupcake:     { name: 'Cupcake',     cn: '纸杯蛋糕', cost: 3, tier: 2, tempBuff: [3, 3], pack: 'turtle',
+                 text: '给一只宠物 +3/+3（只在这一场战斗内有效）' },
+  Garlic:      { name: 'Garlic',      cn: '大蒜',     cost: 3, tier: 3, perk: 'Garlic', pack: 'turtle',
+                 text: '受到伤害减少 2（生效 1 次）' },
+  SaladBowl:   { name: 'Salad Bowl',  cn: '沙拉碗',   cost: 3, tier: 3, buffRandom: { n: 2, atk: 1, hp: 1 }, pack: 'turtle',
+                 text: '给随机 2 个友方 +1/+1' },
+  Lollipop:    { name: 'Lollipop',    cn: '棒棒糖',   cost: 3, tier: 3, swap: true, pack: 'star',
+                 text: '把一只宠物的攻击和生命互换' },
+  /* 梨官方是两个包都有（turtlepack=yes 且 starpack=yes） */
+  Pear:        { name: 'Pear',        cn: '梨',       cost: 3, tier: 4, buff: [2, 2], packs: ['turtle', 'star'],
+                 text: '给一只宠物 +2/+2' },
+  Sushi:       { name: 'Sushi',       cn: '寿司',     cost: 3, tier: 5, buffRandom: { n: 3, atk: 1, hp: 1 }, pack: 'turtle',
+                 text: '给随机 3 个友方 +1/+1' },
+  Celery:      { name: 'Celery',      cn: '芹菜',     cost: 3, tier: 6, buff: [0, 6], pack: 'star',
+                 text: '给一只宠物 +6 生命' },
+  Pizza:       { name: 'Pizza',       cn: '披萨',     cost: 3, tier: 6, buffRandom: { n: 2, atk: 2, hp: 2 }, pack: 'turtle',
+                 text: '给随机 2 个友方 +2/+2' },
+  HotDog:      { name: 'Hot Dog',     cn: '热狗',     cost: 3, tier: 6, buffRandom: { n: 2, atk: 4, hp: 0 }, pack: 'star',
+                 text: '给随机 2 个友方 +4 攻击' },
 
   /* ---- 星包食物 ----
    * ⚠️ 官方每个包的食物池是【独立的】，所以食物必须按包过滤（见 Game.makeShopFood）。
