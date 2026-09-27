@@ -289,6 +289,20 @@ function boardTodayKey() {
   return 'daily-' + d.getFullYear() + '-' + mm + '-' + dd;
 }
 
+/* 重试前把 SDK 状态清干净。
+ * ⚠️ 首次加载 firebase 脚本就失败（没代理 / 被广告拦截 / 断网）时，
+ *    Board.ready 是 false，而 Board.loading 有可能还卡在 true ——
+ *    这时直接再调一次 fetch 会被 init 里的 `if (Board.loading) return;` 挡掉，
+ *    回调永远不来，界面就一直停在「正在连接排行榜…」。
+ *    所以重试必须先把这几样和等待队列一起重置。
+ *    榜单列表和挑战弹层都要用，抽成一份，免得只修一边。 */
+function boardResetSdk() {
+  Board.ready = false;
+  Board.loading = false;
+  Board.error = '';
+  Board._waiters.length = 0;
+}
+
 function boardLoad() {
   const body = document.getElementById('boardBody');
   if (!body) return;
@@ -309,10 +323,7 @@ function boardLoad() {
         '<button class="btn tiny" id="boardRetry" style="margin-top:12px">🔄 重试</button></div>';
       const rb = document.getElementById('boardRetry');
       if (rb) rb.addEventListener('click', function () {
-        /* 重试时把 SDK 状态也重置 —— 有时候是首次加载脚本就失败了 */
-        Board.ready = false;
-        Board.loading = false;
-        Board.error = '';
+        boardResetSdk();
         boardLoad();
       });
       return;
@@ -466,9 +477,22 @@ function chalBegin() {
   Board.fetch(c.mode, c.dateKey, c.pack, function (entries, err) {
     c.busy = false;
     if (entries == null) {
+      /* ⚠️ 必须给「重试」。这里的提示语是 boardFriendlyError 写的，
+       *    它明确告诉玩家「开代理再试」—— 可界面以前只给一个「返回」，
+       *    提示了却没法照着做。返回虽然也能绕回上一步再点一次挑战，
+       *    但那要玩家自己猜到。 */
       chalSetBody('<div class="chal-msg bad">😕 连不上排行榜<br>' +
-        '<span class="board-sub">' + boardEsc(err || '') + '</span></div>' +
-        '<div class="chal-btns"><button class="btn" id="chalBack">返回</button></div>');
+        '<span class="board-sub">' + boardEsc(err || '') + '</span><br>' +
+        '<span class="board-sub">只是排行榜连不上，不影响你已经打完的这一局</span></div>' +
+        '<div class="chal-btns">' +
+          '<button class="btn primary" id="chalRetry">🔄 重试</button>' +
+          '<button class="btn" id="chalBack">返回</button>' +
+        '</div>');
+      const rt = document.getElementById('chalRetry');
+      if (rt) rt.addEventListener('click', function () {
+        boardResetSdk();          // 和榜单那边的重试同一份逻辑
+        chalBegin();
+      });
       document.getElementById('chalBack').addEventListener('click', chalRenderIntro2);
       return;
     }
