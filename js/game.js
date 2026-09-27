@@ -449,8 +449,13 @@ function petHasPerk(pet, id) {
 
 /* 反向查：某个 Perk 对应哪种食物（星包红雀要「库存前方友方的 Perk」） */
 function foodForPerk(perkId) {
+  /* ⚠️ 这里【不能】排除 token（商店买不到的食物）。
+   *    红雀的技能是「库存 1 个前方最近友方 Perk 的副本」，那个 Perk 完全可能
+   *    来自商店买不到的食物（西瓜 / 花生 / 椰子 / 桉树叶）。
+   *    以前这句带着 `&& !FOODS[k].token`，那几样一旦标成 token，
+   *    红雀的技能就静默失效了（实测：库存不出任何东西，也不报错）。 */
   for (const k of Object.keys(FOODS)) {
-    if (FOODS[k].perk === perkId && !FOODS[k].token) return k;
+    if (FOODS[k].perk === perkId) return k;
   }
   return null;
 }
@@ -601,11 +606,16 @@ Game.prototype.makeShopPet = function (defId) {
 };
 
 Game.prototype.makeShopFood = function () {
-  // 食物也要按宠物包过滤 —— 草莓是星包的，不该出现在龟包的商店里
+  /* 食物要按宠物包过滤 —— 两个包的食物池是独立的（官方也是）。
+   * ⚠️ 用 foodInPack 而不是看单个 pack 字段：一样食物可以同时属于多个包
+   *    （巧克力在龟包和星包都有）。以前只看 pack 字段，巧克力只能二选一，
+   *    结果龟包玩家永远刷不到它。 */
   const pack = activePack();
   const keys = Object.keys(FOODS).filter(function (k) {
     if (FOODS[k].token) return false;
-    return (FOODS[k].pack || 'turtle') === pack;
+    return (typeof foodInPack === 'function')
+      ? foodInPack(k, pack)
+      : ((FOODS[k].pack || 'turtle') === pack);
   });
   if (!keys.length) return null;
   return { id: RNG.pick(keys), cost: CFG.FOOD_COST };

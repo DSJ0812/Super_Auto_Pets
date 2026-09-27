@@ -22,6 +22,7 @@ const CORE_FILES = ['rng.js', 'data.js', 'factions.js', 'pack.js', 'relics.js', 
 /* 服务端要用到的符号 */
 const EXPORTS = [
   'PETS', 'FOODS', 'RELICS', 'RELIC_IDS', 'CFG', 'MELEE_CFG', 'EXP_BONUS',
+  'foodPacks', 'foodInPack',
   'petName', 'setPerk',
   'makePet', 'clonePet', 'cloneTeam', 'runBattle', 'Battle',
   'Game', 'ShopEnv', 'Fighter', 'Melee',

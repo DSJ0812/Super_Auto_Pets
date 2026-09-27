@@ -643,6 +643,32 @@ html, body {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- 道具卡片的角标：属于哪个包 / 官方几星 / 是否技能专属 ----
+ * 两个包的食物池是独立的（苹果只有龟包、草莓只有星包、巧克力两边都有），
+ * 星级则表示官方商店要升到几级才会刷出它。以前两样都没标，玩家看不出区别。 */
+.codex-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.codex-pack, .codex-tierbadge, .codex-tokenbadge {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+}
+.codex-pack { color: #9aa6b8; background: #262b35; }
+.codex-tierbadge {
+  color: #e8ad3a;
+  background: rgba(232,173,58,.12);
+  border-color: rgba(232,173,58,.45);
+  cursor: help;
+}
+.codex-tokenbadge {
+  color: #a58cf0;
+  background: rgba(165,140,240,.12);
+  border-color: rgba(165,140,240,.45);
+  cursor: help;
+}
 .codex-base .atk { color: var(--atk); }
 .codex-base .hp  { color: var(--hp); }
 .codex-base .slash { color: var(--dim); }

@@ -2180,70 +2180,101 @@ function ibexDrain(g, c, target) {
  *  buff: [攻击, 生命]；perk: 挂在宠物身上的被动效果
  * ---------------------------------------------------------- */
 const FOODS = {
-  Apple:       { name: 'Apple',       cn: '苹果',     cost: 3, buff: [1, 1], text: '给一只宠物 +1/+1' },
-  BetterApple: { name: 'Better Apple', cn: '优质苹果', cost: 3, buff: [2, 2], text: '给一只宠物 +2/+2', token: true },
-  BestApple:   { name: 'Best Apple',  cn: '顶级苹果', cost: 3, buff: [3, 3], text: '给一只宠物 +3/+3', token: true },
-  Honey:       { name: 'Honey',       cn: '蜂蜜',     cost: 3, perk: 'Honey',   text: '宠物阵亡时召唤一只 1/1 蜜蜂' },
-  Melon:       { name: 'Melon',       cn: '西瓜',     cost: 3, perk: 'Melon',   text: '受到伤害减少 20（生效 1 次）' },
-  // ---- T4-T6 扩展新增 ----
-  Chili:       { name: 'Chili',       cn: '辣椒',     cost: 3, perk: 'Chili',   text: '攻击时对第二个敌人造成 5 伤害' },
-  Peanut:      { name: 'Peanut',      cn: '花生',     cost: 3, perk: 'Peanut',  text: '秒杀被它攻击并受伤的宠物' },
-  Coconut:     { name: 'Coconut',     cn: '椰子',     cost: 3, perk: 'Coconut', text: '无视一次伤害' },
+  /* ⚠️ tier 是【官方星级】，取自官方 wiki 的 Food 页面（每个食物都有 tier 1~6，
+   *    官方商店按星级解锁食物）。本作目前【还没有】按星级限制商店，
+   *    这个字段先只用于图鉴展示，免得玩家看到一个「T6 西瓜」却不明白什么意思。 */
+  Apple:       { name: 'Apple',       cn: '苹果',     cost: 3, tier: 1, buff: [1, 1], text: '给一只宠物 +1/+1' },
+  BetterApple: { name: 'Better Apple', cn: '优质苹果', cost: 3, tier: 1, buff: [2, 2], text: '给一只宠物 +2/+2', token: true },
+  BestApple:   { name: 'Best Apple',  cn: '顶级苹果', cost: 3, tier: 1, buff: [3, 3], text: '给一只宠物 +3/+3', token: true },
+  Honey:       { name: 'Honey',       cn: '蜂蜜',     cost: 3, tier: 1, perk: 'Honey',   text: '宠物阵亡时召唤一只 1/1 蜜蜂' },
+  /* ⚠️ 官方这三样是 turtle:summoned —— 龟包商店【刷不出】，只能靠技能给。
+   *    本作现在照官方处理（token: true），获得途径：
+   *      西瓜：牛 Ox / 乌龟 Turtle / 驯鹿 Reindeer / 小兽羁绊
+   *      花生：蝎子 Scorpion / 恐怖鸟 TerrorBird
+   *      椰子：大猩猩 Gorilla / 镰刀龙 Therizinosaurus / 遗物「铁甲」 */
+  Melon:       { name: 'Melon',       cn: '西瓜',     cost: 3, tier: 6, perk: 'Melon',   text: '受到伤害减少 20（生效 1 次）', token: true },
+  Chili:       { name: 'Chili',       cn: '辣椒',     cost: 3, tier: 5, perk: 'Chili',   text: '攻击时对第二个敌人造成 5 伤害' },
+  Peanut:      { name: 'Peanut',      cn: '花生',     cost: 3, tier: 6, perk: 'Peanut',  text: '秒杀被它攻击并受伤的宠物', token: true },
+  Coconut:     { name: 'Coconut',     cn: '椰子',     cost: 3, tier: 6, perk: 'Coconut', text: '无视一次伤害', token: true },
   // 牛奶由 Cow 的技能提供（免费，逐级更强）
-  Milk:        { name: 'Milk',        cn: '牛奶',     cost: 0, buff: [1, 2], text: '给一只宠物 +1/+2', token: true },
-  BetterMilk:  { name: 'Better Milk', cn: '优质牛奶', cost: 0, buff: [2, 4], text: '给一只宠物 +2/+4', token: true },
-  BestMilk:    { name: 'Best Milk',   cn: '顶级牛奶', cost: 0, buff: [3, 6], text: '给一只宠物 +3/+6', token: true },
+  Milk:        { name: 'Milk',        cn: '牛奶',     cost: 0, tier: 6, buff: [1, 2], text: '给一只宠物 +1/+2', token: true },
+  BetterMilk:  { name: 'Better Milk', cn: '优质牛奶', cost: 0, tier: 6, buff: [2, 4], text: '给一只宠物 +2/+4', token: true },
+  BestMilk:    { name: 'Best Milk',   cn: '顶级牛奶', cost: 0, tier: 6, buff: [3, 6], text: '给一只宠物 +3/+6', token: true },
 
   /* ---- 星包食物 ----
-   * ⚠️ 官方每个包的食物池是【独立的】。星包的食物只有这 7 种：
-   *     草莓 / 黄瓜 / 奶酪 / 葡萄 / 胡萝卜 / 胡椒 / 爆米花
-   *    —— 星包里【没有】苹果、蜂蜜、西瓜。所以宠物包的食物也必须按包过滤
-   *      （见 Game.makeShopFood）。
+   * ⚠️ 官方每个包的食物池是【独立的】，所以食物必须按包过滤（见 Game.makeShopFood）。
+   *    包归属都用官方的 starpack 标记核对过：
+   *      star:yes      草莓(T1) 奶酪(T4) 胡椒(T5)
+   *      star:summoned 苹果 / 西瓜 / 椰子 / 花生（商店刷不出，只能技能给）
    *
    * 草莓（官方 wiki「Food Perks」页原文："Enables Strawberry abilities."）
    * 它【自身没有任何效果】—— 只是一个标记，供星包特定宠物消费
    * （海鹦 / 鸽子 / 几维鸟）。它占掉唯一的食物槽，带上就没法再带别的 Perk。 */
-  Strawberry:  { name: 'Strawberry',  cn: '草莓',     cost: 3, perk: 'Strawberry', pack: 'star',
+  Strawberry:  { name: 'Strawberry',  cn: '草莓',     cost: 3, tier: 1, perk: 'Strawberry', pack: 'star',
                  text: '给一只宠物草莓标记（供特定技能使用，本身无效果）' },
   /* 巧克力（官方 wiki："Give an animal +1 Experience."）
+   * ⚠️ 官方标记是 turtlepack=yes、puppypack=yes、starpack=yes……几乎所有包都有。
+   *    以前这里写死 pack:'star'，结果【龟包玩家永远刷不到巧克力】。
+   *    现在用 packs 数组表达「两个包都有」。
    * 官方原文还有一条：因巧克力升级时，会在该食物位生成上一星级的宠物 —— 未实现。
    * ⚠️ 官方是三个等级三种食物（Crow 页面）：
    *      1 Sell → Stock one Chocolate ／ 2 → Better Chocolate ／ 3 → Best Chocolate
    *    所以像苹果那样逐级强化。后两个是 token（商店刷不出，只能靠乌鸦的技能给）。 */
-  Chocolate:   { name: 'Chocolate',   cn: '巧克力',   cost: 3, exp: 1, pack: 'star',
+  Chocolate:   { name: 'Chocolate',   cn: '巧克力',   cost: 3, tier: 5, exp: 1, packs: ['turtle', 'star'],
                  text: '给一只宠物 +1 经验' },
-  BetterChocolate: { name: 'Better Chocolate', cn: '优质巧克力', cost: 3, exp: 2, pack: 'star', token: true,
+  BetterChocolate: { name: 'Better Chocolate', cn: '优质巧克力', cost: 3, tier: 5, exp: 2, packs: ['turtle', 'star'], token: true,
                  text: '给一只宠物 +2 经验' },
-  BestChocolate:   { name: 'Best Chocolate',   cn: '顶级巧克力', cost: 3, exp: 3, pack: 'star', token: true,
+  BestChocolate:   { name: 'Best Chocolate',   cn: '顶级巧克力', cost: 3, tier: 5, exp: 3, packs: ['turtle', 'star'], token: true,
                  text: '给一只宠物 +3 经验' },
 
-  /* ---- 星包其余食物（效果取自官方 Food Perks 页）---- */
-  Cucumber:    { name: 'Cucumber',    cn: '黄瓜',     cost: 3, perk: 'Cucumber', pack: 'star',
+  /* ---- 星包其余食物（效果取自官方 Food Perks 页）----
+   * ⚠️ 黄瓜 / 葡萄 / 胡萝卜 / 爆米花在官方 wiki 上标的是 weeklypack（周包），
+   *    并不是星包。但本作的「星包」是自创的第二包（77 只，不是官方 Star Pack 的
+   *    完整还原），当时就是按这个组合挑的，所以暂时保持不动 —— 记在这里免得
+   *    以后对官方时又当成新发现。 */
+  Cucumber:    { name: 'Cucumber',    cn: '黄瓜',     cost: 3, tier: 3, perk: 'Cucumber', pack: 'star',
                  text: '回合结束：+1 生命' },
-  Cheese:      { name: 'Cheese',      cn: '奶酪',     cost: 3, perk: 'Cheese',   pack: 'star',
+  Cheese:      { name: 'Cheese',      cn: '奶酪',     cost: 3, tier: 4, perk: 'Cheese',   pack: 'star',
                  text: '攻击时伤害翻倍（一次）' },
-  Grapes:      { name: 'Grapes',      cn: '葡萄',     cost: 3, perk: 'Grapes',   pack: 'star',
+  Grapes:      { name: 'Grapes',      cn: '葡萄',     cost: 3, tier: 4, perk: 'Grapes',   pack: 'star',
                  text: '每回合开始 +1 金' },
-  Carrot:      { name: 'Carrot',      cn: '胡萝卜',   cost: 3, perk: 'Carrot',   pack: 'star',
+  Carrot:      { name: 'Carrot',      cn: '胡萝卜',   cost: 3, tier: 5, perk: 'Carrot',   pack: 'star',
                  text: '回合结束：+1/+1' },
-  Pepper:      { name: 'Pepper',      cn: '胡椒',     cost: 3, perk: 'Pepper',   pack: 'star',
+  Pepper:      { name: 'Pepper',      cn: '胡椒',     cost: 3, tier: 5, perk: 'Pepper',   pack: 'star',
                  text: '生命不会低于 1，受伤后消失' },
-  Popcorn:     { name: 'Popcorn',     cn: '爆米花',   cost: 3, perk: 'Popcorn',  pack: 'star',
+  Popcorn:     { name: 'Popcorn',     cn: '爆米花',   cost: 3, tier: 6, perk: 'Popcorn',  pack: 'star',
                  text: '阵亡后召唤 1 个同星级的随机宠物' },
   /* 桉树叶（wiki.gg 原文："Takes 4 less enemy damage, once."）
    * 官方它是 Tier 2 食物，但【商店里买不到】，只能靠考拉（或塑料锯玩具）给。
    * 所以标 token:true 把它排除在商店池外。
    * ⚠️ 只挡【敌方】伤害 —— 像水蛭那种友方伤害挡不了。 */
-  Eucalyptus:  { name: 'Eucalyptus',  cn: '桉树叶',   cost: 3, perk: 'Eucalyptus', pack: 'star', token: true,
+  Eucalyptus:  { name: 'Eucalyptus',  cn: '桉树叶',   cost: 3, tier: 2, perk: 'Eucalyptus', pack: 'star', token: true,
                  text: '受到敌方伤害减少 4（生效 1 次）' },
 
   /* 安眠药（官方 wiki："Make one pet faint. Always on sale!"）
    * 让一只宠物阵亡并永久移出队伍，但会触发它的遗言；只卖 1 金。
-   * 官方它属于龟包 / 小狗包，所以这里挂在龟包（星包的鼠妇会用自己的技能库存它）。 */
-  SleepingPill: { name: 'Sleeping Pill', cn: '安眠药', cost: 1, faint: true, pack: 'turtle',
+   * 官方它属于龟包 / 小狗包，而且是【常驻独立槽】不参与随机刷（"Always on sale"）——
+   * 本作暂未实现那个独立槽，所以这里保持能被随机刷出来（没标 token）。 */
+  SleepingPill: { name: 'Sleeping Pill', cn: '安眠药', cost: 1, tier: 2, faint: true, pack: 'turtle',
                   text: '让一只宠物阵亡（永久移出队伍，但会触发它的遗言）' }
 };
 
+/* 一样食物属于哪些宠物包。
+ * ⚠️ 官方不同包的食物池是【独立】的，而一样食物可以同时属于多个包
+ *    （巧克力在 turtle / star 都有）。以前只用单个 pack 字段表达，
+ *    只能二选一 —— 结果龟包玩家永远刷不到巧克力。
+ *    所以改成 packs 数组优先，pack 字段继续向后兼容。 */
+function foodPacks(id) {
+  const f = FOODS[id];
+  if (!f) return [];
+  if (f.packs) return f.packs.slice();
+  return [f.pack || 'turtle'];
+}
+function foodInPack(id, pack) {
+  return foodPacks(id).indexOf(pack) >= 0;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { PETS: PETS, FOODS: FOODS, TOKEN_PETS: TOKEN_PETS, LVL_MUL: LVL_MUL };
+  module.exports = { PETS: PETS, FOODS: FOODS, TOKEN_PETS: TOKEN_PETS, LVL_MUL: LVL_MUL,
+                     foodPacks: foodPacks, foodInPack: foodInPack };
 }

@@ -719,16 +719,38 @@ function codexPetCard(id) {
     '</div>';
 }
 
-/* ---- 图鉴：道具卡片（FOOD_EMOJI 见本文件顶部）---- */
+/* ---- 图鉴：道具卡片（FOOD_EMOJI 见本文件顶部）----
+ * 卡片上要标清楚【哪个包的】和【官方几星】，因为两个包的食物池是独立的
+ * （苹果只有龟包有、草莓只有星包有、巧克力两边都有），而星级决定官方商店
+ * 要几级才能刷出它。以前这两样都没写，玩家根本看不出区别。 */
 function codexFoodCard(id) {
   const f = FOODS[id];
   if (!f) return '';
-  return '<div class="codex-card food" data-tier="0">' +
+
+  let packHtml = '';
+  const pks = (typeof foodPacks === 'function') ? foodPacks(id) : [f.pack || 'turtle'];
+  for (const pk of pks) {
+    const info = (typeof PACKS !== 'undefined' && PACKS[pk]) ? PACKS[pk] : null;
+    packHtml += '<span class="codex-pack">' +
+      (info ? info.icon + ' ' + esc(info.cn) : esc(pk)) + '</span>';
+  }
+
+  const tier = f.tier || 0;
+  const tierHtml = tier
+    ? '<span class="codex-tierbadge" title="官方星级：商店升到第 ' + tier +
+      ' 级才会刷出这种食物（本作目前还没有按星级限制商店）">T' + tier + '</span>'
+    : '';
+
+  return '<div class="codex-card food" data-tier="' + tier + '">' +
       '<div class="codex-top">' +
         '<span class="codex-emoji">' + (FOOD_EMOJI[id] || '🎁') + '</span>' +
         '<span class="codex-name">' + esc(f.cn || f.name) + '</span>' +
         '<span class="codex-en">' + esc(f.name) + '</span>' +
         '<span class="codex-base">' + f.cost + ' 金</span>' +
+      '</div>' +
+      '<div class="codex-badges">' + packHtml + tierHtml +
+        (f.token ? '<span class="codex-tokenbadge" ' +
+          'title="商店里买不到，只能靠特定宠物的技能获得">技能专属</span>' : '') +
       '</div>' +
       '<div class="codex-ability">' +
         '<div class="codex-row"><span>' + esc(f.text) + '</span></div>' +
