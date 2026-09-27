@@ -28,7 +28,7 @@ const FOOD_EMOJI = {
   Honey: '🍯', Melon: '🍉', Chili: '🌶️', Peanut: '🥜', Coconut: '🥥',
   Milk: '🥛', BetterMilk: '🥛', BestMilk: '🥛', BreadCrumbs: '🍞',
   /* 星包食物 */
-  Strawberry: '🍓', Chocolate: '🍫', Cucumber: '🥒', Cheese: '🧀',
+  Strawberry: '🍓', Chocolate: '🍫', BetterChocolate: '🍫', BestChocolate: '🍫', Cucumber: '🥒', Cheese: '🧀',
   Grapes: '🍇', Carrot: '🥕', Pepper: '🧂', Popcorn: '🍿',
   Eucalyptus: '🌿', SleepingPill: '💊',
   /* 后来照官方补的食物（见 data.js 的说明） */
@@ -82,8 +82,11 @@ function teamTapAction(state, i, teamLen) {
     return (sel >= 0) ? { act: 'move', from: sel, to: i } : { act: 'none', from: -1, to: i };
   }
 
-  // 点自己 → 出售
-  if (sel === i) return { act: 'sell', from: i, to: i };
+  /* 点自己 → 取消选中。
+   * ⚠️ 以前这里是「再点一次就出售」。问题是它和「点选→点目标换站位」共用
+   *    同一个手势，手快一点就会把想挪位置的宠物直接卖掉。
+   *    现在出售统一走右侧的 #sellZone：拖过去，或选中后点它一下。 */
+  if (sel === i) return { act: 'none', from: -1, to: i };
 
   // 选中了别的 → 挪过去（这是手机上换站位的唯一途径）
   if (sel >= 0) return { act: 'move', from: sel, to: i };
@@ -103,8 +106,8 @@ function isTouchUI() {
 /* 队伍操作提示（两种输入方式给出各自真正能做到的说明） */
 function teamHintText() {
   return isTouchUI()
-    ? '点商店宠物购买 · 点队伍里的宠物选中，再点另一只/空位就能换站位 · 再点自己出售'
-    : '点击购买 · 拖动或「点选→点目标」调整站位 · 点两次出售 · 可攒钱吃利息';
+    ? '点商店宠物购买 · 点队伍里的宠物选中，再点另一只/空位就能换站位 · 选中后点「出售」卖掉'
+    : '点击购买 · 拖动或「点选→点目标」调整站位 · 把宠物拖到右边的「出售」区卖掉 · 道具可直接拖到宠物身上 · 可攒钱吃利息';
 }
 
 /* ============================================================

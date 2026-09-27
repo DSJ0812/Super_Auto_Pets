@@ -153,6 +153,10 @@ function renderShop() {
     $('#hint').classList.remove('active');
   }
 
+  /* 出售区高亮：选中了某只宠物时提示「点这里就能卖」 */
+  const sellZ = $('#sellZone');
+  if (sellZ) sellZ.classList.toggle('armed', UI.selectedTeam >= 0);
+
   /* ⚠️ 这里【不要】再去隐藏 #foeRow。
    *    它本来就在 #battlePanel 里面，隐藏 battlePanel 就够了。
    *    以前多写了这一行，于是回放时必须再补一句「把 display 清掉」，
@@ -375,6 +379,20 @@ function bind() {
       return;
     }
 
+    /* 点出售区 → 卖掉选中的那只。
+     * 触屏上拖拽不可用，这是触屏唯一的出售方式；鼠标用户拖过去也行。 */
+    if (e.target.closest('#sellZone')) {
+      if (UI.selectedTeam >= 0) {
+        const r = g.sellPet(UI.selectedTeam);
+        say(r.msg);
+        UI.selectedTeam = -1;
+        renderTop(); renderShop();
+      } else {
+        say('先点一只宠物选中它，再点这里出售');
+      }
+      return;
+    }
+
     // 点击队伍格子（宠物或空位）—— 语义见 render.js 的 teamTapAction
     const tp = e.target.closest('#myRow [data-team-idx]');
     if (tp) {
@@ -414,15 +432,30 @@ function bind() {
     }
   });
 
-  // 拖拽：队伍内排序 + 从商店拖到指定位置购买
+  // 拖拽：队伍内排序 + 商店买到指定位置 + 道具拖到宠物身上 + 拖到出售区卖掉
   let dragTeamFrom = -1;    // 队伍内拖动
-  let dragShopFrom = -1;    // 从商店拖出
+  let dragShopFrom = -1;    // 从商店宠物拖出
+  let dragFoodFrom = -1;    // 从商店道具拖出
+
+  const clearDrag = function () {
+    dragTeamFrom = -1; dragShopFrom = -1; dragFoodFrom = -1;
+    const dz = $('#sellZone');
+    if (dz) dz.classList.remove('hot');
+  };
 
   root.addEventListener('dragstart', function (e) {
+    if (e.target.closest('.freeze')) return;      // 冻结按钮不是拖拽手柄
     const shopCard = e.target.closest('[data-shop-pet]');
     if (shopCard) {
       dragShopFrom = +shopCard.dataset.shopPet;
       shopCard.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'copy';
+      return;
+    }
+    const foodCard = e.target.closest('[data-shop-food]');
+    if (foodCard) {
+      dragFoodFrom = +foodCard.dataset.shopFood;
+      foodCard.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'copy';
       return;
     }
@@ -436,16 +469,48 @@ function bind() {
   root.addEventListener('dragend', function (e) {
     const c = e.target.closest('.dragging');
     if (c) c.classList.remove('dragging');
+    clearDrag();
   });
 
   root.addEventListener('dragover', function (e) {
-    if (dragShopFrom >= 0 ? e.target.closest('#myRow') : e.target.closest('#myRow')) {
+    // 出售区：只有队伍里的宠物能卖
+    const dz = e.target.closest('#sellZone');
+    if (dz) {
+      if (dragTeamFrom >= 0) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        dz.classList.add('hot');
+      }
+      return;
+    }
+    if (e.target.closest('#myRow')) {
       e.preventDefault();
-      if (dragShopFrom >= 0) e.dataTransfer.dropEffect = 'copy';
+      if (dragShopFrom >= 0 || dragFoodFrom >= 0) e.dataTransfer.dropEffect = 'copy';
     }
   });
 
+  root.addEventListener('dragleave', function (e) {
+    /* 只在【真的离开】出售区时灭灯 —— relatedTarget 还在区里说明只是
+     * 从 zone 移到了它内部的 span，不算离开。 */
+    const dz = e.target.closest('#sellZone');
+    if (dz && !dz.contains(e.relatedTarget)) dz.classList.remove('hot');
+  });
+
   root.addEventListener('drop', function (e) {
+    // ① 丢到出售区 → 卖掉
+    const dz = e.target.closest('#sellZone');
+    if (dz) {
+      e.preventDefault();
+      if (dragTeamFrom >= 0) {
+        const r = UI.game.sellPet(dragTeamFrom);
+        say(r.msg);
+        UI.selectedTeam = -1;
+      }
+      clearDrag();
+      renderTop(); renderShop();
+      return;
+    }
+
     const c = e.target.closest('#myRow [data-team-idx]');
     if (!c) return;
     e.preventDefault();
@@ -455,13 +520,30 @@ function bind() {
       // 从商店拖到队伍的指定位置 → 买下并插到该位置
       const r = UI.game.buyPet(dragShopFrom, to);
       say(r.msg);
+    } else if (dragFoodFrom >= 0) {
+      /* 道具拖到某只宠物身上直接使用。
+       * ⚠️ 空位要先挡掉：否则 buyFood 已经扣了钱、再报「目标无效」，
+       *    白白留下一份待用道具，玩家还得再点一次目标。 */
+      if (to >= UI.game.team.length) {
+        say('这里没有宠物，道具要用在宠物身上');
+        clearDrag();
+        renderShop();
+        return;
+      }
+      const r = UI.game.buyFood(dragFoodFrom);
+      if (r && r.ok && r.needTarget) {
+        const r2 = UI.game.applyFood(to);
+        say(r2.msg);
+      } else {
+        say(r.msg);      // 目标无关的食物：buyFood 内部已经直接生效了
+      }
     } else if (dragTeamFrom >= 0) {
       UI.game.movePet(dragTeamFrom, to);
     } else {
+      clearDrag();
       return;
     }
-    dragTeamFrom = -1;
-    dragShopFrom = -1;
+    clearDrag();
     UI.selectedTeam = -1;
     renderTop(); renderShop();
   });

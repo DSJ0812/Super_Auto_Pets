@@ -706,8 +706,16 @@ Game.prototype.buyPet = function (slotIdx, teamIdx) {
   const cost = petCostOf(pet.defId, this);        // SAP 固定价 / TFT 按星级 / 遗物折扣
   if (this.gold < cost) return { ok: false, msg: '金币不够（需要 ' + cost + ' 金）' };
 
-  // 1) 先看能否合并（队伍里有同名且未满级）—— 合并时位置无意义
-  const same = this.team.find(function (p) { return p.defId === pet.defId && p.lvl < 3; });
+  /* 1) 先看能否合并（队伍里有同名）—— 合并时位置无意义。
+   * ⚠️ 官方：买同名【必定】合并，光靠买宠是凑不出两只同名的
+   *    （wiki.gg 的 Otter 页："an Otter from the shop is merged with an
+   *    existing Otter"；机制说明："combine two of the same pet, you end up
+   *    with one pet"）。
+   *    以前这里条件带了 `p.lvl < 3`，于是【满级宠不会被合并】，买同名会
+   *    再占一个队伍格、变成两只同名并存 —— 等于花 3 金买一只用不上的
+   *    1 级小号，还搭进去一个格子。现在满级那只照样合并，并按官方给
+   *    +1/+1（见 addExp 里满级那段）。 */
+  const same = this.team.find(function (p) { return p.defId === pet.defId; });
   if (same) {
     this.gold -= cost;
     this.shopPets[slotIdx] = null;
@@ -857,7 +865,14 @@ Game.prototype.addExp = function (pet, n) {
   const env = new ShopEnv(this);
   env.lastBattleLost = this.lastBattleLost;
   for (let i = 0; i < n; i++) {
-    if (pet.lvl >= 3) break;
+    /* 官方 Experience 页原文：
+     *   "Pets can gain or be given experience even if they are level 3,
+     *    only gaining +1 attack and +1 health for every experience point gained."
+     * 满级【不是】停止吃经验，只是不再升级 —— 每点经验照样 +1/+1。
+     * ⚠️ 以前这里是 `if (pet.lvl >= 3) break;`，一点属性都不给；而幽灵 AI
+     *    （见下面的 makeOpponent）却按官方给了 +1/+1 —— 两套标准，玩家吃亏。
+     * 满级后刻意不再累加 pet.exp：它已经不参与任何判定了。 */
+    if (pet.lvl >= 3) { pet.atk += 1; pet.hp += 1; continue; }
     pet.exp = (pet.exp || 0) + 1;
     pet.atk += 1;
     pet.hp  += 1;
@@ -937,7 +952,26 @@ Game.prototype.buyFood = function (slotIdx) {
   const cost = this.foodCost(f);
   if (this.gold < cost) return { ok: false, msg: '金币不够' };
   if (!this.team.length) return { ok: false, msg: '队伍是空的，先买宠物' };
-  // 进入"选目标"状态
+
+  /* ---- 目标无关的食物：买了就直接生效，不用再点一只宠物 ----
+   * 官方原文都是 "Give N random pets/A friends …"（沙拉碗 / 寿司 / 披萨 / 热狗），
+   * 效果跟「用的哪只」毫无关系，再逼玩家点一下纯属多余。
+   * ⚠️ 内部仍然指定 team[0] 当名义目标，这样 Cat 的翻倍判定、Rabbit 的
+   *    「友方吃食物」等既有链路一个字都不用改。 */
+  const def0 = FOODS[f.id];
+  if (def0 && def0.buffRandom) {
+    this.pendingFood = slotIdx;
+    const r = this.applyFood(0);
+    if (r && r.ok) {
+      /* applyFood 的文案是「沙拉碗 用在 蚂蚁 上」，对这类食物不准确；
+       * 换成「使用了「沙拉碗」」，但把技能触发的附注（· 开头那段）保留。 */
+      const i = r.msg.indexOf(' · ');
+      r.msg = '使用了「' + def0.cn + '」' + (i >= 0 ? r.msg.slice(i) : '');
+    }
+    return r;
+  }
+
+  // 其余食物进入"选目标"状态
   this.pendingFood = slotIdx;
   return { ok: true, msg: '选择一只宠物使用「' + FOODS[f.id].cn + '」', needTarget: true };
 };

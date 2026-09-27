@@ -161,6 +161,9 @@ function mRenderTeam() {
   if (!row) return;
   row.innerHTML = '';
   row.classList.toggle('picking', MUI.selTeam >= 0);
+  /* 选中了宠物 → 出售区亮起来，提示「点这里就能卖」 */
+  const sz = document.getElementById('sellZone');
+  if (sz) sz.classList.toggle('armed', MUI.selTeam >= 0);
   const teamMax = g.getTeamMax();
   for (let i = 0; i < teamMax; i++) {
     const p = g.team[i];
@@ -458,6 +461,19 @@ function mBind() {
       return;
     }
 
+    /* 点出售区 → 卖掉选中的那只（触屏上拖拽不可用，这是触屏唯一的卖法） */
+    if (e.target.closest('#sellZone')) {
+      if (MUI.selTeam >= 0) {
+        const r = g.sellPet(MUI.selTeam);
+        say(r.msg);
+        MUI.selTeam = -1;
+        mRefreshShopUI();
+      } else {
+        say('先点一只宠物选中它，再点这里出售');
+      }
+      return;
+    }
+
     // 点队伍格子（宠物或空位）—— 语义见 render.js 的 teamTapAction
     const tp = e.target.closest('#mMyRow [data-m-team-idx]');
     if (tp) {
@@ -495,13 +511,26 @@ function mBind() {
     }
   });
 
-  // 拖拽：队伍内排序 + 商店拖到指定位置购买
-  let dragTeam = -1, dragShop = -1;
+  // 拖拽：队伍内排序 + 商店买到指定位置 + 道具拖到宠物身上 + 拖到出售区卖掉
+  let dragTeam = -1, dragShop = -1, dragFood = -1;
+  const clearDrag = function () {
+    dragTeam = -1; dragShop = -1; dragFood = -1;
+    const dz = document.getElementById('sellZone');
+    if (dz) dz.classList.remove('hot');
+  };
   root.addEventListener('dragstart', function (e) {
+    if (e.target.closest('.freeze')) return;      // 冻结按钮不是拖拽手柄
     const shopCard = e.target.closest('[data-m-shop-pet]');
     if (shopCard) {
       dragShop = +shopCard.dataset.mShopPet;
       shopCard.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'copy';
+      return;
+    }
+    const foodCard = e.target.closest('[data-m-shop-food]');
+    if (foodCard) {
+      dragFood = +foodCard.dataset.mShopFood;
+      foodCard.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'copy';
       return;
     }
@@ -514,14 +543,44 @@ function mBind() {
   root.addEventListener('dragend', function (e) {
     const c = e.target.closest('.dragging');
     if (c) c.classList.remove('dragging');
+    clearDrag();
   });
   root.addEventListener('dragover', function (e) {
+    // 出售区：只有队伍里的宠物能卖
+    const dz = e.target.closest('#sellZone');
+    if (dz) {
+      if (dragTeam >= 0) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        dz.classList.add('hot');
+      }
+      return;
+    }
     if (e.target.closest('#mMyRow')) {
       e.preventDefault();
-      if (dragShop >= 0) e.dataTransfer.dropEffect = 'copy';
+      if (dragShop >= 0 || dragFood >= 0) e.dataTransfer.dropEffect = 'copy';
     }
   });
+  root.addEventListener('dragleave', function (e) {
+    // 只在真的离开出售区时灭灯（移到区内的 span 不算离开）
+    const dz = e.target.closest('#sellZone');
+    if (dz && !dz.contains(e.relatedTarget)) dz.classList.remove('hot');
+  });
   root.addEventListener('drop', function (e) {
+    // ① 丢到出售区 → 卖掉
+    const dz = e.target.closest('#sellZone');
+    if (dz) {
+      e.preventDefault();
+      if (dragTeam >= 0) {
+        const r = MUI.m.human.game.sellPet(dragTeam);
+        say(r.msg);
+        MUI.selTeam = -1;
+      }
+      clearDrag();
+      mRefreshShopUI();
+      return;
+    }
+
     const c = e.target.closest('#mMyRow [data-m-team-idx]');
     if (!c) return;
     e.preventDefault();
@@ -530,10 +589,26 @@ function mBind() {
     if (dragShop >= 0) {
       const r = g.buyPet(dragShop, to);
       say(r.msg);
+    } else if (dragFood >= 0) {
+      // ⚠️ 空位先挡掉：否则钱已经扣了、再报「目标无效」，白留一份待用道具
+      if (to >= g.team.length) {
+        say('这里没有宠物，道具要用在宠物身上');
+        clearDrag();
+        mRefreshShopUI();
+        return;
+      }
+      const r = g.buyFood(dragFood);
+      if (r && r.ok && r.needTarget) {
+        const r2 = g.applyFood(to);
+        say(r2.msg);
+      } else {
+        say(r.msg);      // 目标无关的食物：buyFood 内部已经直接生效了
+      }
     } else if (dragTeam >= 0) {
       g.movePet(dragTeam, to);
-    } else return;
-    dragTeam = -1; dragShop = -1; MUI.selTeam = -1;
+    } else { clearDrag(); return; }
+    clearDrag();
+    MUI.selTeam = -1;
     mRefreshShopUI();
   });
 }

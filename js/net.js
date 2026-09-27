@@ -94,6 +94,12 @@ NET.rejoin = function () {
     if (r.ok) {
       NET.seat = r.seat; NET.name = r.name;
       NET.applyRoomConfig(r.config);
+      /* ⚠️ 必须把游标推到服务器当前的 seq。
+       *    收到 reset 才来 rejoin 的场合，本地 since 一定【落在事件裁剪线之前】，
+       *    不推的话下一轮 poll 立刻又判定 reset —— reset ↔ rejoin 无限空转。
+       *    快照是完整状态，跳到当前 seq 不会漏事件。
+       *    （老服务器可能不回 seq，那时保持原值，行为同以前。） */
+      if (r.seq != null) NET.since = r.seq;
     }
     else { NET.token = null; try { localStorage.removeItem(NET_LS_KEY); } catch (e) {} }
     return r;

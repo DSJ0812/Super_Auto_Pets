@@ -129,6 +129,47 @@ html, body {
   flex-wrap: wrap;
 }
 
+/* ---- 队伍行 = 宠物区 + 出售投放区 ----
+ * ⚠️ 出售区【必须在 .pet-row 外面】。放进 #myRow 里的话，它会被
+ *    「队伍内拖拽排序」和「点空位换站位」的逻辑当成一个队伍格子吃掉。 */
+.row-body {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+.row-body .pet-row { flex: 1 1 auto; min-width: 0; }
+
+.sell-zone {
+  flex: 0 0 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 2px dashed #4d5a6d;
+  border-radius: 10px;
+  color: #6d7686;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.sell-zone .sz-icon { font-size: 20px; line-height: 1; }
+.sell-zone .sz-text { font-size: 12px; }
+/* 已经选中一只宠物 → 提示「点这里就能卖」 */
+.sell-zone.armed { border-color: #d9a441; color: #e0b455; }
+/* 正拖着宠物悬在上面 → 提示「松手就卖」 */
+.sell-zone.hot {
+  border-color: #e0574a;
+  background: rgba(224, 87, 74, .14);
+  color: #ff9d8d;
+}
+/* 窄屏：出售区挪到队伍下面，横过来放 */
+@media (max-width: 620px) {
+  .row-body { flex-direction: column; }
+  .sell-zone { flex: 0 0 auto; flex-direction: row; padding: 7px; }
+}
+
 /* ===================== 宠物卡片（奶油色实物卡） ===================== */
 .pet {
   width: 112px;

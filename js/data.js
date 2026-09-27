@@ -1147,7 +1147,7 @@ const PETS = {
             '阵亡：以 9/6 召唤上一星级随机一只 3 级宠物'],
     hooks: {
       faint: function (g, c) {
-        const tier = Math.max(1, (g.tier || 1) - 1);   // 上一星级
+        const tier = Math.max(1, (g.ctxTier ? g.ctxTier(c.self) : (g.tier || 1)) - 1);   // 上一星级
         const pack = (typeof activePack === 'function') ? activePack() : 'turtle';
         const pool = petsOfTier(tier, pack);
         if (!pool.length) return;
@@ -1451,7 +1451,7 @@ const PETS = {
             '开战时：本回合每刷新一次，前两个敌人 -3 生命'],
     hooks: {
       startOfBattle: function (g, c) {
-        const n = (g.rolls || 0) * c.lvl;
+        const n = (g.ctxRolls ? g.ctxRolls(c.self) : (g.rolls || 0)) * c.lvl;
         if (!n) return;
         const foes = g.foes(c.self).filter(function (p) { return p.hp > 0; }).slice(0, 2);
         for (const p of foes) {
@@ -2031,8 +2031,9 @@ const PETS = {
         if (!behind || behind.hp <= 0) return;
         const oct = g.transform(behind, 'MimicOctopus', { lvl: 1 });
         if (!oct) return;
-        if (g.rolls == null) return;                 // 商店里不给经验
-        const exp = c.lvl * Math.floor(g.rolls / 2);
+        const rolls = g.ctxRolls ? g.ctxRolls(c.self) : g.rolls;
+        if (rolls == null) return;                   // 商店里不给经验
+        const exp = c.lvl * Math.floor(rolls / 2);
         if (exp > 0) g.grantExp(oct, exp);
       }
     }

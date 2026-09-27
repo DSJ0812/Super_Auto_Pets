@@ -151,7 +151,13 @@ OnlineGame.prototype.rejoin = function (token) {
   if (!seat || seat.kind !== 'remote') return { ok: false, msg: '找不到你的座位（可能房间已重置）' };
   seat.connected = true;
   this.pushLobby();
-  return { ok: true, seat: seat.idx, name: seat.name,
+  /* ⚠️ 必须把 seq 一起给客户端。
+   *    客户端收到 poll 的 reset（事件被裁剪 / 房间换代）后会来 rejoin，
+   *    如果这里不回 seq，客户端就无从校正它本地的游标，于是下一轮 poll
+   *    又落在裁剪线之前 → 又 reset → 又 rejoin …… 死循环。
+   *    pushLobby() 已经发过一件，所以这里取的是【含 lobby 之后】的 seq，
+   *    而 snapshot() 带的是同一时刻的完整状态，跳到这个 seq 不会漏事件。 */
+  return { ok: true, seat: seat.idx, name: seat.name, seq: this.seq,
            snapshot: this.snapshot(seat), config: this.roomConfig() };
 };
 
@@ -261,6 +267,13 @@ OnlineGame.prototype.action = function (token, a) {
     case 'freezeFood':g.toggleFreezeFood(a.i); r = { ok: true, msg: '' }; break;
     case 'buyFood':   r = g.buyFood(a.slot); break;
     case 'applyFood': r = g.applyFood(a.idx); break;
+    /* 「把商店某格道具直接用在某只宠物身上」—— 客户端拖拽用，一步到位。
+     * ⚠️ 目标无关的食物（沙拉碗 / 寿司 / 披萨 / 热狗）在 buyFood 内部
+     *    就已经生效了，这时不能再 applyFood，否则会报「没有待使用的道具」。 */
+    case 'useFoodOn':
+      r = g.buyFood(a.slot);
+      if (r.ok && r.needTarget) r = g.applyFood(a.idx);
+      break;
     case 'pickRelic': r = g.pickRelic(a.id); break;
     case 'ready':     return this.setReady(seat, true);
     case 'unready':   return this.setReady(seat, false);
@@ -357,7 +370,13 @@ OnlineGame.prototype.resolveTurn = function () {
     const aTeam = a.game.team.map(clonePet);
     const bTeam = b.game.team.map(clonePet);
     prepareBattleTeams(a.game.relics, aTeam, b.game.relics, bTeam);
-    const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0, turn: a.game.turn });
+    const res = runBattle(aTeam, bTeam, {
+      tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0, turn: a.game.turn,
+      /* 同 melee.js：联机里两个座位各有各的商店等级 / 刷新次数，
+       * 必须按各自那一方结算，不能拿 a 的顶替 b 的。 */
+      sideTier:  [a.game.getShopTier(), b.game.getShopTier()],
+      sideRolls: [a.game.rollsThisTurn || 0, b.game.rollsThisTurn || 0]
+    });
     // 战斗里的「永久」加成回写到双方真实队伍（星包仙犰狳）
     applyPermBuffs([a.game.team, b.game.team], res.log);
 

@@ -98,6 +98,12 @@ function Battle(teamA, teamB, opts) {
   this.tier = opts.tier || 1;      // 当前商店等级（星包鹳要「上一星级」）
   this.rolls = opts.rolls || 0;    // 本回合刷新次数（星包马岛长尾狸猫）
   this.turn = opts.turn || 1;      // 当前回合数（星包剑龙按回合数放大）
+  /* 按 side 区分的商店状态。8 人混战 / 联机里场上两个人【各有各的】商店等级
+   * 和本回合刷新次数，所以对手的鹳、马岛长尾狸猫必须按【它自己那份】结算。
+   * 缺省时退回上面的全局值 —— 经典模式的幽灵本来就是按玩家水平生成的，
+   * 双方同值才是对的（所以经典那边不用传 sideTier / sideRolls）。 */
+  this.tierBySide  = opts.sideTier  || null;   // [side0 的商店等级, side1 的商店等级]
+  this.rollsBySide = opts.sideRolls || null;   // [side0 的刷新次数, side1 的刷新次数]
   this.sides = [cloneTeam(teamA), cloneTeam(teamB)];
   this.sides[0].forEach(function (p) { p.side = 0; });
   this.sides[1].forEach(function (p) { p.side = 1; });
@@ -117,6 +123,25 @@ Battle.prototype.byUid = function (uid) {
   const a = this.sides[0].concat(this.sides[1]);
   for (let i = 0; i < a.length; i++) if (a[i].uid === uid) return a[i];
   return null;
+};
+
+/* ---- 取「这只宠物那一方」的商店状态 ----
+ * data.js 里的技能（鹳 / 马岛长尾狸猫 / 拟态章鱼）用它们取代原来直接读
+ * g.tier / g.rolls 的写法 —— 那样子在混战里会拿对手的商店状态去算。
+ * ⚠️ 只有 Battle 有这两个方法；ShopEnv 上没有，所以 data.js 那边用
+ *    `g.ctxRolls ? ... : g.rolls` 的形式兼容（商店里 g.rolls 是 undefined，
+ *    正好继续充当「现在是商店还是战斗」的判据）。 */
+Battle.prototype.ctxTier = function (pet) {
+  if (!this.tierBySide) return this.tier;
+  const s = (pet && pet.side != null) ? pet.side : 0;
+  const v = this.tierBySide[s];
+  return (v == null) ? this.tier : v;
+};
+Battle.prototype.ctxRolls = function (pet) {
+  if (!this.rollsBySide) return this.rolls;
+  const s = (pet && pet.side != null) ? pet.side : 0;
+  const v = this.rollsBySide[s];
+  return (v == null) ? this.rolls : v;
 };
 
 /* ---- 日志 ---- */
@@ -468,12 +493,14 @@ Battle.prototype.transform = function (pet, defId, opts) {
 };
 
 /* ---- 战斗内给经验（每 1 点经验 = +1/+1，够了就升级）----
- * 蟑螂「召唤熟蟑螂并给它 +N 经验」用。 */
+ * 蟑螂「召唤熟蟑螂并给它 +N 经验」用。
+ * ⚠️ 满级那条规则必须和 game.js 的 Game.addExp 保持一致（官方：满级宠照样
+ *    吃经验，每点 +1/+1，只是不再升级）—— 同一个规则别再有第二份实现。 */
 Battle.prototype.grantExp = function (pet, n) {
   if (!pet) return;
   let gained = 0;
   for (let i = 0; i < n; i++) {
-    if (pet.lvl >= 3) break;              // 已满级就不再吃经验
+    if (pet.lvl >= 3) { pet.atk += 1; pet.hp += 1; gained++; continue; }
     pet.exp = (pet.exp || 0) + 1;
     pet.atk += 1;
     pet.hp  += 1;

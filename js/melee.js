@@ -262,7 +262,14 @@ Melee.prototype.endTurn = function () {
     const aTeam = a.game.team.map(clonePet);
     const bTeam = b.game.team.map(clonePet);
     prepareBattleTeams(a.game.relics, aTeam, b.game.relics, bTeam);
-    const res = runBattle(aTeam, bTeam, { tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0, turn: a.game.turn });
+    const res = runBattle(aTeam, bTeam, {
+      tier: a.game.getShopTier(), rolls: a.game.rollsThisTurn || 0, turn: a.game.turn,
+      /* 两个人各有各的商店等级和本回合刷新次数。下面的 tier/rolls 只是缺省值，
+       * 真正生效的是 sideTier / sideRolls —— 否则对手的鹳、马岛长尾狸猫会拿
+       * 【我方】的商店状态来结算。 */
+      sideTier:  [a.game.getShopTier(), b.game.getShopTier()],
+      sideRolls: [a.game.rollsThisTurn || 0, b.game.rollsThisTurn || 0]
+    });
     // 战斗里的「永久」加成回写到双方真实队伍（星包仙犰狳）
     applyPermBuffs([a.game.team, b.game.team], res.log);
 

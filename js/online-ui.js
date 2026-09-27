@@ -188,6 +188,9 @@ function oRenderTeam() {
   if (!row || !g) return;
   row.innerHTML = '';
   row.classList.toggle('picking', OUI.selTeam >= 0);
+  /* 选中了宠物 → 出售区亮起来，提示「点这里就能卖」 */
+  const sz = document.getElementById('sellZone');
+  if (sz) sz.classList.toggle('armed', OUI.selTeam >= 0);
   const teamMax = g.getTeamMax();
   for (let i = 0; i < teamMax; i++) {
     const p = g.team[i];
@@ -687,6 +690,19 @@ function oBind() {
     const sp = e.target.closest('[data-o-shop-pet]');
     if (sp) { oAct({ type: 'buyPet', slot: +sp.dataset.oShopPet }); return; }
 
+    /* 点出售区 → 卖掉选中的那只（联机走服务端结算） */
+    if (e.target.closest('#sellZone')) {
+      if (OUI.selTeam >= 0) {
+        const i = OUI.selTeam;
+        OUI.selTeam = -1;
+        oRenderTeam();
+        oAct({ type: 'sellPet', idx: i });
+      } else {
+        say('先点一只宠物选中它，再点这里出售');
+      }
+      return;
+    }
+
     // 点队伍格子（宠物或空位）—— 语义见 render.js 的 teamTapAction
     const tp = e.target.closest('#mMyRow [data-o-team-idx]');
     if (tp) {
@@ -717,13 +733,26 @@ function oBind() {
     });
   }
 
-  // 拖拽：队伍内排序 + 商店拖到指定位置
-  let dragTeam = -1, dragShop = -1;
+  // 拖拽：队伍内排序 + 商店买到指定位置 + 道具拖到宠物身上 + 拖到出售区卖掉
+  let dragTeam = -1, dragShop = -1, dragFood = -1;
+  const clearDrag = function () {
+    dragTeam = -1; dragShop = -1; dragFood = -1;
+    const dz = document.getElementById('sellZone');
+    if (dz) dz.classList.remove('hot');
+  };
   root.addEventListener('dragstart', function (e) {
+    if (e.target.closest('.freeze')) return;      // 冻结按钮不是拖拽手柄
     const shopCard = e.target.closest('[data-o-shop-pet]');
     if (shopCard) {
       dragShop = +shopCard.dataset.oShopPet;
       shopCard.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'copy';
+      return;
+    }
+    const foodCard = e.target.closest('[data-o-shop-food]');
+    if (foodCard) {
+      dragFood = +foodCard.dataset.oShopFood;
+      foodCard.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'copy';
       return;
     }
@@ -736,21 +765,62 @@ function oBind() {
   root.addEventListener('dragend', function (e) {
     const c = e.target.closest('.dragging');
     if (c) c.classList.remove('dragging');
+    clearDrag();
   });
   root.addEventListener('dragover', function (e) {
+    // 出售区：只有队伍里的宠物能卖
+    const dz = e.target.closest('#sellZone');
+    if (dz) {
+      if (dragTeam >= 0) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        dz.classList.add('hot');
+      }
+      return;
+    }
     if (e.target.closest('#mMyRow')) {
       e.preventDefault();
-      if (dragShop >= 0) e.dataTransfer.dropEffect = 'copy';
+      if (dragShop >= 0 || dragFood >= 0) e.dataTransfer.dropEffect = 'copy';
     }
   });
+  root.addEventListener('dragleave', function (e) {
+    // 只在真的离开出售区时灭灯（移到区内的 span 不算离开）
+    const dz = e.target.closest('#sellZone');
+    if (dz && !dz.contains(e.relatedTarget)) dz.classList.remove('hot');
+  });
   root.addEventListener('drop', function (e) {
+    // ① 丢到出售区 → 卖掉
+    const dz = e.target.closest('#sellZone');
+    if (dz) {
+      e.preventDefault();
+      if (dragTeam >= 0) {
+        const i = dragTeam;
+        OUI.selTeam = -1;
+        oRenderTeam();
+        clearDrag();
+        oAct({ type: 'sellPet', idx: i });
+        return;
+      }
+      clearDrag();
+      return;
+    }
+
     const c = e.target.closest('#mMyRow [data-o-team-idx]');
     if (!c) return;
     e.preventDefault();
     const to = +c.dataset.oTeamIdx;
+    /* ⚠️ 道具落空位要先挡掉：否则服务端已经扣了钱、再报「目标无效」，
+     *    白白留下一份待用道具。 */
+    if (dragFood >= 0 && to >= (OUI.game ? OUI.game.team.length : 0)) {
+      say('这里没有宠物，道具要用在宠物身上');
+      clearDrag();
+      return;
+    }
     if (dragShop >= 0)      oAct({ type: 'buyPet', slot: dragShop, to: to });
+    else if (dragFood >= 0) oAct({ type: 'useFoodOn', slot: dragFood, idx: to });
     else if (dragTeam >= 0) oAct({ type: 'movePet', from: dragTeam, to: to });
-    dragTeam = -1; dragShop = -1; OUI.selTeam = -1;
+    clearDrag();
+    OUI.selTeam = -1;
   });
 
   // 关页面时通知服务器，免得别人干等
