@@ -47,11 +47,15 @@ function Seat(idx) {
  * ---------------------------------------------------------- */
 function OnlineGame() {
   CFG.ECONOMY = 'tft';                       // 联机走 8 人混战那套经济
-  /* 房间配置在【开房这一刻快照】，之后不再变。
+  /* 房间配置在【开房这一刻快照】。
    *
    * ⚠️ 不要写成每次动态读 CFG：那样任何人在同进程里改了 CFG（比如本地
    *    切到别的模式），这个房间报出去的配置就会跟着漂移，而客户端的价格
-   *    显示是拿它算的。房间一旦建好，经济模式和宠物包就该是固定的。 */
+   *    显示是拿它算的。
+   *
+   * 经济模式一局之内固定不变。宠物包【可以】在大厅阶段由房主改
+   * （见 setPack）—— 但也仅限大厅、且改完要同步全局 CFG.PACK：
+   * 包决定商店的宠物池，开局后再换就会和已经刷出来的商店对不上。 */
   this.cfg = { economy: CFG.ECONOMY, pack: (typeof activePack === 'function' ? activePack() : 'turtle') };
   this.seats = [];
   for (let i = 0; i < MELEE_CFG.COUNT; i++) this.seats.push(new Seat(i));
