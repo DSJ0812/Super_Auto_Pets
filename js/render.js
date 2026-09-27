@@ -34,7 +34,8 @@ const FOOD_EMOJI = {
   /* 后来照官方补的食物（见 data.js 的说明） */
   Peach: '🍑', Broccoli: '🥦', FriedShrimp: '🍤', Cupcake: '🧁',
   Garlic: '🧄', SaladBowl: '🥗', Lollipop: '🍭', Pear: '🍐',
-  Sushi: '🍣', Celery: '🥬', Pizza: '🍕', HotDog: '🌭'
+  Sushi: '🍣', Celery: '🥬', Pizza: '🍕', HotDog: '🌭',
+  MeatBone: '🍖', Cake: '🍰', Baguette: '🥖', Steak: '🥩'
 };
 
 const TIER_NAME = { 1: 'Tier 1', 2: 'Tier 2', 3: 'Tier 3', 4: 'Tier 4', 5: 'Tier 5', 6: 'Tier 6' };

@@ -252,6 +252,27 @@ Battle.prototype.hasPerk = function (pet, id) {
   return false;
 };
 
+/* 食物 Perk 的「攻击前」效果。
+ * ⚠️ hooks 是挂在【宠物定义】上的，Perk 没有 hooks —— 所以这类效果只能在这里
+ *    统一处理一次，由引擎在每个战斗回合的「攻击前」阶段调用。
+ *
+ * 法棍 Baguette：官方 "Before attack → Remove the front-most enemy Perk, once."
+ *   · 移除的是【最前排敌人】身上的食物标记
+ *   · 只有真的移除了才消耗自己（对手没标记就留着，不然白费）
+ *   · 移除了要发 perkLost 事件，画面才会把那个标记去掉 */
+Battle.prototype.perkBeforeAttack = function (pet) {
+  if (!pet || pet.hp <= 0) return;
+  if (!this.hasPerk(pet, 'Baguette')) return;
+  const foes = this.sides[1 - pet.side].filter(function (p) { return p.hp > 0; });
+  const front = foes[0];
+  if (!front || !front.perks.length) return;
+  const lost = front.perks.filter(function (p) { return p.uses > 0; }).map(function (p) { return p.id; })[0];
+  if (!lost) return;
+  front.perks = [];
+  this.emit({ e: 'perkLost', t: front.uid, id: lost });
+  this.usePerk(pet, 'Baguette');
+};
+
 Battle.prototype.givePerk = function (pet, id, uses) {
   if (!pet || pet.hp <= 0) return;
   // 官方规则：一只宠物同时只能带 1 个 Food Perk，新的覆盖旧的
@@ -582,6 +603,16 @@ Battle.prototype.exchange = function (a, b) {
   if (dmgToB > 0 && this.hasPerk(a, 'Cheese')) { dmgToB *= 2; this.usePerk(a, 'Cheese'); }
   if (dmgToA > 0 && this.hasPerk(b, 'Cheese')) { dmgToA *= 2; this.usePerk(b, 'Cheese'); }
 
+  /* 肉骨头：攻击时额外 +3 伤害（官方 "Attack with +3 damage"）—— 常驻，不消耗 */
+  if (dmgToB > 0 && this.hasPerk(a, 'MeatBone')) dmgToB += 3;
+  if (dmgToA > 0 && this.hasPerk(b, 'MeatBone')) dmgToA += 3;
+
+  /* 牛排：攻击时额外 +20 伤害，一次（官方 "Attack with +20 damage, once"）
+   * ⚠️ 它不在 consumeDefensive 的名单里（那个只管西瓜/大蒜/桉树叶/椰子），
+   *    所以要在这里自己 usePerk 把它消耗掉。 */
+  if (dmgToB > 0 && this.hasPerk(a, 'Steak')) { dmgToB += 20; this.usePerk(a, 'Steak'); }
+  if (dmgToA > 0 && this.hasPerk(b, 'Steak')) { dmgToA += 20; this.usePerk(b, 'Steak'); }
+
   // Peanut：带花生的宠物「秒杀」被它攻击并受伤的目标（血量 > 1 时直接归零）
   if (dmgToB > 0 && this.hasPerk(a, 'Peanut') && b.hp > 1) dmgToB = b.hp;
   if (dmgToA > 0 && this.hasPerk(b, 'Peanut') && a.hp > 1) dmgToA = a.hp;
@@ -696,6 +727,10 @@ Battle.prototype.run = function () {
     if (!a || !b) break;
 
     // ---- 阶段 2：攻击前 ----
+    /* 食物 Perk 的「攻击前」效果先走一遍（法棍：移除最前排敌人的食物标记）。
+     * ⚠️ Perk 没有 hooks（hooks 是宠物定义上的），所以只能在这里单独调一次。 */
+    this.perkBeforeAttack(a);
+    this.perkBeforeAttack(b);
     this.triggerOn('beforeAttack', a, {});
     this.triggerOn('beforeAttack', b, {});
     this.resolveDeaths();

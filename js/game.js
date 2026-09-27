@@ -1164,10 +1164,13 @@ Game.prototype.triggerTurnStart = function () {
 Game.prototype.triggerTurnEnd = function () {
   const env = new ShopEnv(this);
   env.lastBattleLost = this.lastBattleLost;
-  // 回合结束生效的食物 Perk（星包黄瓜 +1 生命 / 胡萝卜 +1/+1）
+  // 回合结束生效的食物 Perk（龟包蛋糕加售价 / 星包黄瓜 +1 生命 / 胡萝卜 +1/+1）
   for (const p of this.team) {
     if (petHasPerk(p, 'Cucumber')) { p.hp += 1; env.actor = p; env.emit({ e: 'buff', t: p.uid, atk: 0, hp: 1 }); }
     if (petHasPerk(p, 'Carrot'))   { p.atk += 1; p.hp += 1; env.actor = p; env.emit({ e: 'buff', t: p.uid, atk: 1, hp: 1 }); }
+    /* 蛋糕：官方 "End turn → Increase sell value by 1 gold."，一直累积。
+     * ⚠️ 复用麋鹿那套 _sellBonus —— 卖掉时由 Game.sellPet 读它并加到售价里。 */
+    if (petHasPerk(p, 'Cake'))     { p._sellBonus = (p._sellBonus || 0) + 1; env.actor = p; env.emit({ e: 'sellBonus', t: p.uid, n: 1 }); }
   }
   env.actor = null;
   for (const p of this.team) {

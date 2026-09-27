@@ -113,7 +113,9 @@ const PERK_EMOJI = {
   Chili: '🌶️', Peanut: '🥜', Coconut: '🥥',
   /* 星包 */
   Strawberry: '🍓', Cucumber: '🥒', Cheese: '🧀', Grapes: '🍇',
-  Carrot: '🥕', Pepper: '🧂', Popcorn: '🍿', Eucalyptus: '🌿'
+  Carrot: '🥕', Pepper: '🧂', Popcorn: '🍿', Eucalyptus: '🌿',
+  /* 后来照官方补的食物 Perk */
+  MeatBone: '🍖', Cake: '🍰', Baguette: '🥖', Steak: '🥩'
 };
 
 /* 道具的中文名直接取自 FOODS（data.js 里唯一的那份），

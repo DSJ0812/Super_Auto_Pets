@@ -2262,6 +2262,17 @@ const FOODS = {
                  text: '给随机 2 个友方 +2/+2' },
   HotDog:      { name: 'Hot Dog',     cn: '热狗',     cost: 3, tier: 6, buffRandom: { n: 2, atk: 4, hp: 0 }, pack: 'star',
                  text: '给随机 2 个友方 +4 攻击' },
+  /* ---- 需要新引擎机制的那几种，现在补上了 ---- */
+  MeatBone:    { name: 'Meat Bone',   cn: '肉骨头',   cost: 3, tier: 2, perk: 'MeatBone', pack: 'turtle',
+                 text: '攻击时额外造成 3 点伤害' },
+  Cake:        { name: 'Cake',        cn: '蛋糕',     cost: 3, tier: 3, perk: 'Cake', pack: 'turtle',
+                 text: '回合结束时：这只宠物的售价 +1 金（一直累积）' },
+  Baguette:    { name: 'Baguette',    cn: '法棍',     cost: 3, tier: 4, perk: 'Baguette', pack: 'star',
+                 text: '攻击前：移除最前排敌人的食物标记（最多生效一次）' },
+  Steak:       { name: 'Steak',       cn: '牛排',     cost: 3, tier: 6, perk: 'Steak', pack: 'turtle',
+                 text: '攻击时额外造成 20 点伤害（一次）' },
+  /* 还没做：Seaweed 海带（T3 星）—— 官方是「攻击前变成小海胆」，
+   * 而本作【还没有小海胆这只宠物】，得先把那只做出来。 */
 
   /* ---- 星包食物 ----
    * ⚠️ 官方每个包的食物池是【独立的】，所以食物必须按包过滤（见 Game.makeShopFood）。
