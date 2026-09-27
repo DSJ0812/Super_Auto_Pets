@@ -2208,22 +2208,22 @@ const FOODS = {
    *    官方商店按星级解锁食物）。本作目前【还没有】按星级限制商店，
    *    这个字段先只用于图鉴展示，免得玩家看到一个「T6 西瓜」却不明白什么意思。 */
   Apple:       { name: 'Apple',       cn: '苹果',     cost: 3, tier: 1, buff: [1, 1], text: '给一只宠物 +1/+1' },
-  BetterApple: { name: 'Better Apple', cn: '优质苹果', cost: 3, tier: 1, buff: [2, 2], text: '给一只宠物 +2/+2', token: true },
-  BestApple:   { name: 'Best Apple',  cn: '顶级苹果', cost: 3, tier: 1, buff: [3, 3], text: '给一只宠物 +3/+3', token: true },
+  BetterApple: { name: 'Better Apple', cn: '优质苹果', cost: 3, tier: 1, buff: [2, 2], text: '给一只宠物 +2/+2', token: true, from: ['Mouse'] },
+  BestApple:   { name: 'Best Apple',  cn: '顶级苹果', cost: 3, tier: 1, buff: [3, 3], text: '给一只宠物 +3/+3', token: true, from: ['Mouse'] },
   Honey:       { name: 'Honey',       cn: '蜂蜜',     cost: 3, tier: 1, perk: 'Honey',   text: '宠物阵亡时召唤一只 1/1 蜜蜂' },
   /* ⚠️ 官方这三样是 turtle:summoned —— 龟包商店【刷不出】，只能靠技能给。
    *    本作现在照官方处理（token: true），获得途径：
    *      西瓜：牛 Ox / 乌龟 Turtle / 驯鹿 Reindeer / 小兽羁绊
    *      花生：蝎子 Scorpion / 恐怖鸟 TerrorBird
    *      椰子：大猩猩 Gorilla / 镰刀龙 Therizinosaurus / 遗物「铁甲」 */
-  Melon:       { name: 'Melon',       cn: '西瓜',     cost: 3, tier: 6, perk: 'Melon',   text: '受到伤害减少 20（生效 1 次）', token: true },
+  Melon:       { name: 'Melon',       cn: '西瓜',     cost: 3, tier: 6, perk: 'Melon',   text: '受到伤害减少 20（生效 1 次）', token: true, from: ['Ox', 'Turtle', 'Reindeer'], fromExtra: '小兽羁绊（2 档全队）' },
   Chili:       { name: 'Chili',       cn: '辣椒',     cost: 3, tier: 5, perk: 'Chili',   text: '攻击时对第二个敌人造成 5 伤害' },
-  Peanut:      { name: 'Peanut',      cn: '花生',     cost: 3, tier: 6, perk: 'Peanut',  text: '秒杀被它攻击并受伤的宠物', token: true },
-  Coconut:     { name: 'Coconut',     cn: '椰子',     cost: 3, tier: 6, perk: 'Coconut', text: '无视一次伤害', token: true },
+  Peanut:      { name: 'Peanut',      cn: '花生',     cost: 3, tier: 6, perk: 'Peanut',  text: '秒杀被它攻击并受伤的宠物', token: true, from: ['Scorpion', 'TerrorBird'] },
+  Coconut:     { name: 'Coconut',     cn: '椰子',     cost: 3, tier: 6, perk: 'Coconut', text: '无视一次伤害', token: true, from: ['Gorilla', 'Therizinosaurus'], fromExtra: '遗物「铁甲」' },
   // 牛奶由 Cow 的技能提供（免费，逐级更强）
-  Milk:        { name: 'Milk',        cn: '牛奶',     cost: 0, tier: 6, buff: [1, 2], text: '给一只宠物 +1/+2', token: true },
-  BetterMilk:  { name: 'Better Milk', cn: '优质牛奶', cost: 0, tier: 6, buff: [2, 4], text: '给一只宠物 +2/+4', token: true },
-  BestMilk:    { name: 'Best Milk',   cn: '顶级牛奶', cost: 0, tier: 6, buff: [3, 6], text: '给一只宠物 +3/+6', token: true },
+  Milk:        { name: 'Milk',        cn: '牛奶',     cost: 0, tier: 6, buff: [1, 2], text: '给一只宠物 +1/+2', token: true, from: ['Cow'] },
+  BetterMilk:  { name: 'Better Milk', cn: '优质牛奶', cost: 0, tier: 6, buff: [2, 4], text: '给一只宠物 +2/+4', token: true, from: ['Cow'] },
+  BestMilk:    { name: 'Best Milk',   cn: '顶级牛奶', cost: 0, tier: 6, buff: [3, 6], text: '给一只宠物 +3/+6', token: true, from: ['Cow'] },
 
   /* ---- 补食物：官方龟包 / 星包商店池里本作还缺的 ----
    * 为什么必须补：一旦商店按星级解锁（见 Game.makeShopFood），
@@ -2270,10 +2270,15 @@ const FOODS = {
    *      star:summoned 苹果 / 西瓜 / 椰子 / 花生（商店刷不出，只能技能给）
    *
    * 草莓（官方 wiki「Food Perks」页原文："Enables Strawberry abilities."）
-   * 它【自身没有任何效果】—— 只是一个标记，供星包特定宠物消费
-   * （海鹦 / 鸽子 / 几维鸟）。它占掉唯一的食物槽，带上就没法再带别的 Perk。 */
+   * 它【自身没有任何效果】—— 只是一个标记，供星包特定宠物消费。
+   * 它占掉唯一的食物槽，带上就没法再带别的 Perk。
+   * ⚠️ 在星包这一整套里它是个【核心机制】而不是边角料：见下面 eaters 那 9 只，
+   *    玩家不看说明根本猜不到「草莓是给谁用的」。图鉴里会把这个列表显示出来。 */
   Strawberry:  { name: 'Strawberry',  cn: '草莓',     cost: 3, tier: 1, perk: 'Strawberry', pack: 'star',
-                 text: '给一只宠物草莓标记（供特定技能使用，本身无效果）' },
+                 text: '给一只宠物草莓标记（本身没有任何效果；下面的宠物会消费它换取收益）',
+                 from: ['Hummingbird', 'Roadrunner', 'RacketTail'],
+                 eaters: ['AtlanticPuffin', 'Dove', 'Cassowary', 'Sparrow', 'Shoebill',
+                          'Velociraptor', 'TerrorBird', 'Therizinosaurus', 'Kiwi'] },
   /* 巧克力（官方 wiki："Give an animal +1 Experience."）
    * ⚠️ 官方标记是 turtlepack=yes、puppypack=yes、starpack=yes……几乎所有包都有。
    *    以前这里写死 pack:'star'，结果【龟包玩家永远刷不到巧克力】。
@@ -2283,11 +2288,11 @@ const FOODS = {
    *      1 Sell → Stock one Chocolate ／ 2 → Better Chocolate ／ 3 → Best Chocolate
    *    所以像苹果那样逐级强化。后两个是 token（商店刷不出，只能靠乌鸦的技能给）。 */
   Chocolate:   { name: 'Chocolate',   cn: '巧克力',   cost: 3, tier: 5, exp: 1, packs: ['turtle', 'star'],
-                 text: '给一只宠物 +1 经验' },
+                 text: '给一只宠物 +1 经验', from: ['Crow'] },
   BetterChocolate: { name: 'Better Chocolate', cn: '优质巧克力', cost: 3, tier: 5, exp: 2, packs: ['turtle', 'star'], token: true,
-                 text: '给一只宠物 +2 经验' },
+                 from: ['Crow'], text: '给一只宠物 +2 经验' },
   BestChocolate:   { name: 'Best Chocolate',   cn: '顶级巧克力', cost: 3, tier: 5, exp: 3, packs: ['turtle', 'star'], token: true,
-                 text: '给一只宠物 +3 经验' },
+                 from: ['Crow'], text: '给一只宠物 +3 经验' },
 
   /* ---- 星包其余食物（效果取自官方 Food Perks 页）----
    * ⚠️ 黄瓜 / 葡萄 / 胡萝卜 / 爆米花在官方 wiki 上标的是 weeklypack（周包），
@@ -2311,6 +2316,7 @@ const FOODS = {
    * 所以标 token:true 把它排除在商店池外。
    * ⚠️ 只挡【敌方】伤害 —— 像水蛭那种友方伤害挡不了。 */
   Eucalyptus:  { name: 'Eucalyptus',  cn: '桉树叶',   cost: 3, tier: 2, perk: 'Eucalyptus', pack: 'star', token: true,
+                 from: ['Koala'],
                  text: '受到敌方伤害减少 4（生效 1 次）' },
 
   /* 安眠药（官方 wiki："Make one pet faint. Always on sale!"）

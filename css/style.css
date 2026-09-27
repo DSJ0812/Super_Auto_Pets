@@ -678,6 +678,36 @@ html, body {
   border-color: rgba(165,140,240,.45);
   cursor: help;
 }
+/* 「技能专属 · 小鼠 给」这种来源角标 */
+.codex-frombadge {
+  color: #7fd0c0;
+  background: rgba(127,208,192,.12);
+  border-color: rgba(127,208,192,.45);
+  cursor: help;
+  font-weight: 700;
+}
+
+/* ---- 草莓机制说明块（星包专属，放在道具页底部）---- */
+.codex-straw {
+  margin-top: 18px;
+  padding: 13px 15px;
+  background: linear-gradient(180deg, rgba(232,90,120,.10), rgba(232,90,120,.03));
+  border: 1px solid rgba(232,90,120,.35);
+  border-radius: 12px;
+}
+.codex-straw .cs-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f08aa0;
+  margin-bottom: 8px;
+}
+.codex-straw .cs-line {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #b9c2d0;
+}
+.codex-straw .cs-line b { color: var(--text); }
+.codex-straw .cs-line.dim { color: #7d8798; }
 .codex-base .atk { color: var(--atk); }
 .codex-base .hp  { color: var(--hp); }
 .codex-base .slash { color: var(--dim); }

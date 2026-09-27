@@ -724,9 +724,10 @@ function codexPetCard(id) {
 }
 
 /* ---- 图鉴：道具卡片（FOOD_EMOJI 见本文件顶部）----
- * 卡片上要标清楚【哪个包的】和【官方几星】，因为两个包的食物池是独立的
- * （苹果只有龟包有、草莓只有星包有、巧克力两边都有），而星级决定官方商店
- * 要几级才能刷出它。以前这两样都没写，玩家根本看不出区别。 */
+ * 卡片上要标清楚【哪个包的】【几星】【谁给的】：
+ *   · 两个包的食物池是独立的（苹果只有龟包、草莓只有星包、巧克力两边都有）
+ *   · 星级决定商店几级才刷得出它
+ *   · 「技能专属」的要说明是【哪只宠物】给的 —— 只说「技能专属」玩家还是一头雾水 */
 function codexFoodCard(id) {
   const f = FOODS[id];
   if (!f) return '';
@@ -741,9 +742,29 @@ function codexFoodCard(id) {
 
   const tier = f.tier || 0;
   const tierHtml = tier
-    ? '<span class="codex-tierbadge" title="官方星级：商店升到第 ' + tier +
-      ' 级才会刷出这种食物（本作目前还没有按星级限制商店）">T' + tier + '</span>'
+    ? '<span class="codex-tierbadge" title="星级：商店升到第 ' + tier +
+      ' 级才会刷出这种道具（回合 1/3/5/7/9/11 各解锁一级，遗物「星探」提前一回合）">T' + tier + '</span>'
     : '';
+
+  /* 来源角标：技能专属的要说清是谁给的 */
+  const cnOf = function (ids) {
+    return ids.map(function (x) {
+      return (typeof PETS !== 'undefined' && PETS[x]) ? PETS[x].cn : x;
+    }).join(' / ');
+  };
+  let fromHtml = '';
+  if (f.from && f.from.length) {
+    const names = cnOf(f.from);
+    const extra = f.fromExtra ? '、' + f.fromExtra : '';
+    const label = f.token ? '技能专属' : '也能由技能获得';
+    const title = f.token
+      ? ('商店里买不到，只能靠这些宠物给：' + names + extra)
+      : ('商店能买到，这些宠物也会直接给：' + names + extra);
+    fromHtml = '<span class="codex-frombadge" title="' + esc(title) + '">' +
+      esc(label) + ' · ' + esc(names) + (f.fromExtra ? ' + ' + esc(f.fromExtra) : '') + '</span>';
+  } else if (f.token) {
+    fromHtml = '<span class="codex-tokenbadge" title="商店里买不到，只能靠特定宠物的技能获得">技能专属</span>';
+  }
 
   return '<div class="codex-card food" data-tier="' + tier + '">' +
       '<div class="codex-top">' +
@@ -752,10 +773,7 @@ function codexFoodCard(id) {
         '<span class="codex-en">' + esc(f.name) + '</span>' +
         '<span class="codex-base">' + f.cost + ' 金</span>' +
       '</div>' +
-      '<div class="codex-badges">' + packHtml + tierHtml +
-        (f.token ? '<span class="codex-tokenbadge" ' +
-          'title="商店里买不到，只能靠特定宠物的技能获得">技能专属</span>' : '') +
-      '</div>' +
+      '<div class="codex-badges">' + packHtml + tierHtml + fromHtml + '</div>' +
       '<div class="codex-ability">' +
         '<div class="codex-row"><span>' + esc(f.text) + '</span></div>' +
       '</div>' +
@@ -841,30 +859,57 @@ function renderCodexInto(bodyEl, subEl) {
     for (const id of tokens) body += codexPetCard(id);
     body += '</div>';
   } else if (__codexTab === 'food') {
-    const foods = Object.keys(FOODS).sort(function (a, b) {
-      const ta = FOODS[a].token ? 1 : 0, tb = FOODS[b].token ? 1 : 0;
-      if (ta !== tb) return ta - tb;
-      return (FOODS[a].cn || a).localeCompare(FOODS[b].cn || b, 'zh-CN');
-    });
-    const shop = foods.filter(function (k) { return !FOODS[k].token; });
-    const tok  = foods.filter(function (k) { return FOODS[k].token; });
-    if (shop.length) {
-      body += '<div class="codex-tier">商店道具 · ' + shop.length +
-              ' 种（每只宠物同时只能带 1 个食物标记）<br>' +
-              '<span class="codex-tier-note">卡片上的 🐢/⭐ 表示它属于哪个宠物包' +
-              '（两个包的食物池是独立的）；T1~T6 是<b>星级</b> —— ' +
-              '商店升到第 N 级才会刷出它（和宠物一样，回合 1/3/5/7/9/11 各解锁一级）。' +
-              '带「技能专属」角标的那种商店里买不到，只能靠特定宠物的技能给。</span>' +
-              '</div><div class="codex-grid">';
-      for (const id of shop) body += codexFoodCard(id);
+    /* ⚠️ 按【星级】分组，和宠物页一个思路。
+     *    以前分的是「商店道具 / 技能专属」两组 —— 那样看不出星级解锁的节奏，
+     *    玩家也没法一眼判断「我现在的商店等级能刷到什么」。 */
+    const byTier = {};
+    let shopN = 0, tokenN = 0;
+    for (const k of Object.keys(FOODS)) {
+      const t = FOODS[k].tier || 1;
+      (byTier[t] = byTier[t] || []).push(k);
+      if (FOODS[k].token) tokenN++; else shopN++;
+    }
+    const UNLOCK_TURN = { 1: 1, 2: 3, 3: 5, 4: 7, 5: 9, 6: 11 };
+    body += '<div class="codex-tier">道具 · ' + Object.keys(FOODS).length + ' 种' +
+            '（商店能买 ' + shopN + ' 种 + 技能专属 ' + tokenN + ' 种）<br>' +
+            '<span class="codex-tier-note">每只宠物同时只能带 1 个<b>食物标记</b>（新的会顶掉旧的）。<br>' +
+            '下面按<b>星级</b>分组：商店升到第 N 级才会刷出该星级的道具' +
+            '（回合 1/3/5/7/9/11 各解锁一级；遗物「<b>星探</b>」会把宠物【和道具】一起提前一回合）。' +
+            '卡片上的 🐢/⭐ 是它属于哪个宠物包，' +
+            '写「技能专属」的商店里买不到、只能靠标出来的那些宠物给。</span></div>';
+    for (let t = 1; t <= 6; t++) {
+      const list = (byTier[t] || []).slice().sort(function (a, b) {
+        const ta = FOODS[a].token ? 1 : 0, tb = FOODS[b].token ? 1 : 0;
+        if (ta !== tb) return ta - tb;
+        return (FOODS[a].cn || a).localeCompare(FOODS[b].cn || b, 'zh-CN');
+      });
+      if (!list.length) continue;
+      const shopInT = list.filter(function (k) { return !FOODS[k].token; }).length;
+      body += '<div class="codex-tier">Tier ' + t + ' · ' + list.length +
+              ' 种（商店能买 ' + shopInT + ' 种）· 回合 ' + (UNLOCK_TURN[t] || t) +
+              ' 解锁</div><div class="codex-grid">';
+      for (const id of list) body += codexFoodCard(id);
       body += '</div>';
     }
-    if (tok.length) {
-      body += '<div class="codex-tier">只能靠技能获得的道具 · ' + tok.length +
-              ' 种（商店里买不到，得靠特定宠物的技能给，' +
-              '或者九宫格里的「技能专属」角标）</div><div class="codex-grid">';
-      for (const id of tok) body += codexFoodCard(id);
-      body += '</div>';
+
+    /* 草莓机制单独说清楚 —— 它是星包的核心机制之一，光看卡片根本猜不到。
+     * 摘要是从数据里现算的（FOODS.Strawberry.from / eaters），不另写一份。 */
+    const st = FOODS.Strawberry;
+    if (st && st.eaters && st.eaters.length) {
+      const cnList = function (ids) {
+        return ids.map(function (x) { return (PETS[x] ? PETS[x].cn : x); }).join(' · ');
+      };
+      body += '<div class="codex-straw">' +
+        '<div class="cs-title">🍓 草莓机制（星包专属）</div>' +
+        '<div class="cs-line">草莓<b>本身没有任何效果</b> —— 它只是给一只宠物挂上「草莓标记」。' +
+          '标记会占掉那只宠物【唯一的食物标记槽】，所以带了草莓就没法再带辣椒 / 大蒜 / 西瓜那些。</div>' +
+        '<div class="cs-line"><b>谁会消费它（' + st.eaters.length + ' 只）：</b>' +
+          esc(cnList(st.eaters)) + '</div>' +
+        '<div class="cs-line"><b>怎么获得：</b>商店 T1 就能买到（3 金）；' +
+          esc(cnList(st.from)) + ' 的技能也会直接贴上标记。</div>' +
+        '<div class="cs-line dim">换句话说：草莓是给上面那 9 只宠物「喂饭」用的，' +
+          '喂对了能换出很大的收益，喂错了就白占一个槽。</div>' +
+        '</div>';
     }
   } else if (__codexTab === 'relic') {
     const relicIds = (typeof RELIC_IDS !== 'undefined' ? RELIC_IDS : Object.keys(RELICS));
