@@ -1393,8 +1393,8 @@ const PETS = {
   Crow: {
     name: 'Crow', cn: '乌鸦', tier: 4, atk: 3, hp: 3, pack: 'star',
     texts: ['出售：库存一个免费巧克力（+1 经验），并给食物降价 3 金',
-            '出售：库存一个免费巧克力（+2 经验），并给食物降价 3 金',
-            '出售：库存一个免费巧克力（+3 经验），并给食物降价 3 金'],
+            '出售：库存一个免费优质巧克力（+2 经验），并给食物降价 3 金',
+            '出售：库存一个免费顶级巧克力（+3 经验），并给食物降价 3 金'],
     hooks: {
       sell: function (g, c) {
         const game = g.game;
@@ -1403,7 +1403,14 @@ const PETS = {
           game.shopFoods[i] = null;
           game.frozenFoods[i] = false;
         }
-        g.stock('Chocolate', 0);
+        /* ⚠️ 三个等级对应三种巧克力（官方 wiki 原文）：
+         *     1 Sell → Stock one Chocolate
+         *     2 Sell → Stock one Better Chocolate
+         *     3 Sell → Stock one Best Chocolate
+         *    以前三级都放同一个 Chocolate（固定 +1 经验），
+         *    所以 2 级、3 级乌鸦的「+2/+3 经验」在文案里写着、实际完全没生效。 */
+        const f = c.lvl === 1 ? 'Chocolate' : (c.lvl === 2 ? 'BetterChocolate' : 'BestChocolate');
+        g.stock(f, 0);
         game.foodDiscount = (game.foodDiscount || 0) + 3;
       }
     }
@@ -2199,9 +2206,16 @@ const FOODS = {
   Strawberry:  { name: 'Strawberry',  cn: '草莓',     cost: 3, perk: 'Strawberry', pack: 'star',
                  text: '给一只宠物草莓标记（供特定技能使用，本身无效果）' },
   /* 巧克力（官方 wiki："Give an animal +1 Experience."）
-   * 官方原文还有一条：因巧克力升级时，会在该食物位生成上一星级的宠物 —— 未实现。 */
+   * 官方原文还有一条：因巧克力升级时，会在该食物位生成上一星级的宠物 —— 未实现。
+   * ⚠️ 官方是三个等级三种食物（Crow 页面）：
+   *      1 Sell → Stock one Chocolate ／ 2 → Better Chocolate ／ 3 → Best Chocolate
+   *    所以像苹果那样逐级强化。后两个是 token（商店刷不出，只能靠乌鸦的技能给）。 */
   Chocolate:   { name: 'Chocolate',   cn: '巧克力',   cost: 3, exp: 1, pack: 'star',
                  text: '给一只宠物 +1 经验' },
+  BetterChocolate: { name: 'Better Chocolate', cn: '优质巧克力', cost: 3, exp: 2, pack: 'star', token: true,
+                 text: '给一只宠物 +2 经验' },
+  BestChocolate:   { name: 'Best Chocolate',   cn: '顶级巧克力', cost: 3, exp: 3, pack: 'star', token: true,
+                 text: '给一只宠物 +3 经验' },
 
   /* ---- 星包其余食物（效果取自官方 Food Perks 页）---- */
   Cucumber:    { name: 'Cucumber',    cn: '黄瓜',     cost: 3, perk: 'Cucumber', pack: 'star',
