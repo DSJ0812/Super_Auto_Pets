@@ -171,6 +171,16 @@ Battle.prototype.buffPerm = function (pet, atk, hp) {
 // 造成伤害（含减伤计算），返回实际伤害。opts.friendly 见 calcDamage
 Battle.prototype.hit = function (pet, amount, opts) {
   if (!pet || pet.hp <= 0) return 0;
+  /* ⚠️ 【整条遗言链期间新召唤出来】的宠物不参与本轮伤害结算
+   *    （_fresh 由 resolveDeaths 维护，覆盖整个遗言链，不只是单波）。
+   *    依据官方结算顺序（groundedsap 的 order of operations 指南）：
+   *      08 Faint       —— 遗言伤害（刺猬炸、獾撕咬…）
+   *      10 After faint —— 官方注释原文「…so summons…」，即召唤类遗言
+   *    也就是官方把【召唤类遗言】排在【遗言伤害】之后。所以：一只宠物被
+   *    【这条链里的遗言伤害】打死、并因此召唤出的新宠物，不该再被同一条链
+   *    里后续的遗言伤害打到。
+   *    （实测症状：我方羊召唤出的 2 只公羊，被这条链里后结算的对方刺猬炸死。） */
+  if (pet._fresh) return 0;
   const dmg = this.pepperGuard(pet, this.calcDamage(pet, amount, opts));
   pet.hp -= dmg;
   this.consumeUsedDefensive(pet);        // 技能伤害也要消耗掉减伤 Perk（否则西瓜能无限挡）
@@ -374,6 +384,12 @@ Battle.prototype.summon = function (side, index, defId, opts) {
   for (let i = 0; i < foes.length; i++) {
     if (foes[i].hp > 0) this.triggerOn('foeSummoned', foes[i], { target: pet });
   }
+
+  /* ⚠️ 「遗言链新生」标记必须放在【召唤钩子全部跑完之后】：
+   *    「敌人被召唤时」这类钩子（星包鬣蜥）本来就该打到刚召唤出来的宠物，
+   *    提前标记会把它们一起挡掉（实测 star_t2：鬣蜥伤害变成 0 次）。
+   *    这个标记只用于挡住【同一条遗言链里后续的遗言伤害】。 */
+  if (this._waveActive) pet._fresh = true;
   return pet;
 };
 
@@ -559,59 +575,109 @@ Battle.prototype.triggerSide = function (hook, side, ctx) {
 /* ------------------------------------------------------------
  *  死亡结算（含遗言链）
  *  宠物 hp<=0 时：先触发 faint 技能，再从队伍移除
+ *
+ *  ⚠️ 这里有两层保证，缺一不可：
+ *
+ *  【一】分波（batch）：先把「此刻已经 hp<=0」的全部收集成一批，再逐个触发遗言。
+ *  为什么不能边扫描边处理（老写法）：同一次伤害可能同时打死多只（典型：双方刺猬
+ *  在一次互殴里同归于尽）。老写法每轮只找一只、把它连同「它引发的召唤」一起处理完，
+ *  再去找下一只。于是【先结算的一方】召唤出来的宠物，会被【后结算的另一方】的遗言
+ *  波及 —— 实测：我方刺猬炸死自家羊 → 羊召唤出 2 只公羊 → 这时才轮到对方刺猬结算，
+ *  它一炸，刚出生的公羊当场全灭。
+ *
+ *  【二】整条遗言链保护（_fresh）：本函数从进入到返回，期间【新召唤出来的】宠物
+ *  一律不参与本轮伤害结算（见 hit）。依据官方结算顺序（groundedsap 的
+ *  order of operations 指南）：
+ *      08 Faint       —— 遗言伤害（刺猬炸、獾撕咬…）
+ *      10 After faint —— 官方注释原文：「These are faint abilities that only
+ *                         activate after fainted pets disappeared, so summons
+ *                         and some other weird ones」
+ *  即官方把【召唤类遗言】排在【遗言伤害】之后。推论：同一条链里，因遗言伤害而
+ *  死、并被召唤出来的宠物，不该再被这条链里后续的遗言伤害打到。
+ *
+ *  只保护「同一波」是不够的：A 的刺猬炸死 B 的刺猬 → B 的刺猬要到下一波才炸 →
+ *  上一波召唤的公羊此时已算「在场」，照样挨打（实测残留 3 个这种场景）。
+ *  扩到整条链后归零，且与官方顺序一致。
+ *
+ *  链结束后标记统一清除：这些召唤物从下一次伤害起就是正常在场的宠物。
  * ---------------------------------------------------------- */
 Battle.prototype.resolveDeaths = function () {
   let guard = 0;
+  this._waveActive = true;   // 整条遗言链期间，新召唤出来的宠物都不参与结算
   while (guard++ < 60) {
-    let dead = null, side = -1, idx = -1;
-    for (let s = 0; s < 2 && !dead; s++) {
+    // 收集本波：双方所有 hp<=0 的宠物（side 0 在前，仅决定【触发顺序】）
+    const batch = [];
+    for (let s = 0; s < 2; s++) {
       for (let i = 0; i < this.sides[s].length; i++) {
-        if (this.sides[s][i].hp <= 0) { dead = this.sides[s][i]; side = s; idx = i; break; }
+        if (this.sides[s][i].hp <= 0) batch.push({ pet: this.sides[s][i], side: s });
       }
     }
-    if (!dead) break;
+    if (!batch.length) break;
 
-    // 1) 标记死亡 + 记录「前排阵亡」给后面的宠物
-    this.emit({ e: 'faint', t: dead.uid, side: side, pos: idx });
-    const behindList = this.sides[side].slice(idx + 1);
+    for (const item of batch) {
+      const dead = item.pet, side = item.side;
+      // 本波内被同伴的回血救回来了（正常不该发生，保险）
+      if (dead.hp > 0) continue;
 
-    // 2) 遗言类技能
-    this.triggerOn('faint', dead, {});
+      // 位置要【现算】：同一波里排在它前面的同伴可能已经被移除，数组缩短了
+      const idx = this.sides[side].indexOf(dead);
+      if (idx < 0) continue;
 
-    // 3) Honey / Popcorn 之类：死亡时召唤
-    for (let k = 0; k < dead.perks.length; k++) {
-      const pk = dead.perks[k];
-      if (pk.id === 'Honey' && pk.uses > 0) {
-        pk.uses--;
-        this.summon(side, idx, 'Bee', { atk: 1, hp: 1, lvl: 1 });
-      } else if (pk.id === 'Popcorn' && pk.uses > 0) {
-        // 星包爆米花：阵亡后召唤 1 个【同星级】的随机宠物
-        // ⚠️ 用召唤物自己的基础属性 —— 不能沿用 dead 的属性，因为 dead.hp 已经是
-        //    负的（刚被打死），照抄会召出一只「生下来就死了」的宠物
-        pk.uses--;
-        const t = (dead.def || {}).tier || 1;
-        const pool = petsOfTier(t);
-        if (pool.length) this.summon(side, idx, RNG.pick(pool), { lvl: 1 });
+      // 1) 标记死亡 + 记录「前排阵亡」给后面的宠物
+      this.emit({ e: 'faint', t: dead.uid, side: side, pos: idx });
+      const behindList = this.sides[side].slice(idx + 1);
+
+      // 2) 遗言类技能
+      this.triggerOn('faint', dead, {});
+
+      // 3) Honey / Popcorn 之类：死亡时召唤
+      for (let k = 0; k < dead.perks.length; k++) {
+        const pk = dead.perks[k];
+        if (pk.id === 'Honey' && pk.uses > 0) {
+          pk.uses--;
+          this.summon(side, idx, 'Bee', { atk: 1, hp: 1, lvl: 1 });
+        } else if (pk.id === 'Popcorn' && pk.uses > 0) {
+          // 星包爆米花：阵亡后召唤 1 个【同星级】的随机宠物
+          // ⚠️ 用召唤物自己的基础属性 —— 不能沿用 dead 的属性，因为 dead.hp 已经是
+          //    负的（刚被打死），照抄会召出一只「生下来就死了」的宠物
+          pk.uses--;
+          const t = (dead.def || {}).tier || 1;
+          const pool = petsOfTier(t);
+          if (pool.length) this.summon(side, idx, RNG.pick(pool), { lvl: 1 });
+        }
+      }
+
+      // 4) 真正移除（后排补位）
+      const pos = this.sides[side].indexOf(dead);
+      if (pos >= 0) this.sides[side].splice(pos, 1);
+
+      // 5) 后方见证者：前排阵亡
+      for (let k = 0; k < behindList.length; k++) {
+        if (behindList[k].hp > 0) this.triggerOn('aheadFaint', behindList[k], { dead: dead });
+      }
+
+      // 6) 全体友方见证：有同伴阵亡（Shark / Fly 用）
+      //    ⚠️ 必须把【阵亡位置】一起传下去：官方 Fly 是「在它倒下的位置召唤」
+      //       （in its place / where that pet fainted）。而 dead 到这一步已经被
+      //       从数组里移除了，hook 里再想算它的位置就晚了（只能拿到队伍末尾）。
+      const rest = this.sides[side].slice();
+      for (let k = 0; k < rest.length; k++) {
+        if (rest[k].hp > 0) this.triggerOn('friendFaints', rest[k], { dead: dead, deadPos: pos });
       }
     }
 
-    // 4) 真正移除（后排补位）
-    const pos = this.sides[side].indexOf(dead);
-    if (pos >= 0) this.sides[side].splice(pos, 1);
+    // 注意：这里【不再】clearFresh —— 本波召唤的宠物要到整条链结束后才算「在场」
+  }
 
-    // 5) 后方见证者：前排阵亡
-    for (let k = 0; k < behindList.length; k++) {
-      if (behindList[k].hp > 0) this.triggerOn('aheadFaint', behindList[k], { dead: dead });
-    }
+  // 链结束（含 break 退出）：所有召唤物正式「在场」，标记清除
+  this._waveActive = false;
+  this.clearFresh();
+};
 
-    // 6) 全体友方见证：有同伴阵亡（Shark / Fly 用）
-    //    ⚠️ 必须把【阵亡位置】一起传下去：官方 Fly 是「在它倒下的位置召唤」
-    //       （in its place / where that pet fainted）。而 dead 到这一步已经被
-    //       从数组里移除了，hook 里再想算它的位置就晚了（只能拿到队伍末尾）。
-    const rest = this.sides[side].slice();
-    for (let k = 0; k < rest.length; k++) {
-      if (rest[k].hp > 0) this.triggerOn('friendFaints', rest[k], { dead: dead, deadPos: pos });
-    }
+/* 清掉「遗言链新生」标记（见 resolveDeaths 与 hit 的说明） */
+Battle.prototype.clearFresh = function () {
+  for (let s = 0; s < 2; s++) {
+    for (let i = 0; i < this.sides[s].length; i++) delete this.sides[s][i]._fresh;
   }
 };
 

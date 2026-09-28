@@ -167,13 +167,24 @@ function renderFactionLegend(box, team) {
 function factionDetailHtml(id, team, noClose) {
   const info = (typeof FACTIONS !== 'undefined') ? FACTIONS[id] : null;
   if (!info) return '';
-  const members = (typeof FACTION_MEMBERS !== 'undefined' && FACTION_MEMBERS[id]) || [];
-  // 队里已经凑了几个（按 defId 去重，和羁绊计数规则一致）
+  /* ⚠️ 成员必须按【当前宠物包】过滤。
+   *    FACTION_MEMBERS 是龟包 + 星包的并集（阵营本身是跨包概念），
+   *    不过滤的话，玩龟包时会列出一堆星包宠物，玩家会误判「这些我也买得到」。
+   *    packOf / activePack 定义在 game.js，render.js 比它先加载 ——
+   *    但它们是函数声明（会提升），且 PACKS 只在调用时才求值，运行时没问题。 */
+  const allMembers = (typeof FACTION_MEMBERS !== 'undefined' && FACTION_MEMBERS[id]) || [];
+  const members = (typeof packOf === 'function' && typeof activePack === 'function')
+    ? allMembers.filter(function (m) { return packOf(m) === activePack(); })
+    : allMembers;
+  // 队里已经凑了几个（按【只数】计，和 teamFactions 的规则一致）
   const mineSet = {};
+  let mineN = 0;
   for (const p of (team || [])) {
-    if (p && typeof factionOf === 'function' && factionOf(p.defId) === id) mineSet[p.defId] = 1;
+    if (p && typeof factionOf === 'function' && factionOf(p.defId) === id) {
+      mineSet[p.defId] = 1;      // 给下面的成员卡片标「你队里有」
+      mineN++;
+    }
   }
-  const mineN = Object.keys(mineSet).length;
 
   let h = '<div class="fac-pop-box">';
   h += '<div class="fac-pop-head"><span class="fac-pop-title">' + info.icon + ' ' +
