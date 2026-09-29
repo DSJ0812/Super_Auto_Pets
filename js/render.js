@@ -122,13 +122,13 @@ function renderSynergyBar(box, team) {
   if (!list.length) {
     // 一个羁绊都还没凑到：把六个阵营都列出来，玩家能点开看它们分别要谁
     box.innerHTML = '<span class="sy-empty">还没有阵营羁绊' +
-      '（同一个阵营的【不同】宠物凑够 2 只就激活）</span>';
+      '（队伍里凑够同一个阵营的宠物就激活）</span>';
     renderFactionLegend(box, team);
     return;
   }
   let html = '';
   for (const f of list) {
-    const info = FACTIONS[f.id];
+    const info = factionInfo(f.id);
     const on = f.lvl > 0;
     // data-faction = 点击打开羁绊详情（参考金铲铲的羁绊说明）
     html += '<span class="sy-chip' + (on ? ' on' : '') + '" data-faction="' + f.id + '" title="' +
@@ -141,7 +141,8 @@ function renderSynergyBar(box, team) {
   const on2 = list.filter(function (f) { return f.lvl > 0; });
   if (on2.length) {
     html += '<span class="sy-effect">' + on2.map(function (f) {
-      return FACTIONS[f.id].icon + ' ' + esc(factionDesc(f));
+      const fi = factionInfo(f.id);
+      return (fi ? fi.icon : '') + ' ' + esc(factionDesc(f));
     }).join(' ・ ') + '</span>';
   }
   box.innerHTML = html;
@@ -149,10 +150,10 @@ function renderSynergyBar(box, team) {
 
 /* 没有羁绊时也列出全部阵营（可点开看详情） */
 function renderFactionLegend(box, team) {
-  if (!box || typeof FACTIONS === 'undefined') return;
+  if (!box || typeof factionIds !== 'function') return;
   let h = '<span class="sy-legend">';
-  for (const id of Object.keys(FACTIONS)) {
-    const info = FACTIONS[id];
+  for (const id of factionIds()) {
+    const info = factionInfo(id);
     h += '<span class="sy-chip mini" data-faction="' + id + '" title="' +
          esc(info.cn + '（点击看详情和成员）') + '">' + info.icon + ' ' + esc(info.cn) + '</span>';
   }
@@ -165,17 +166,14 @@ function renderFactionLegend(box, team) {
  *  「这个羁绊有什么用、包含哪些宠物、我队里现在有几个」——一次看全。
  * ---------------------------------------------------------- */
 function factionDetailHtml(id, team, noClose) {
-  const info = (typeof FACTIONS !== 'undefined') ? FACTIONS[id] : null;
+  /* ⚠️ 阵营表现在是【按包】的（factions.js 的 FACTIONS_BY_PACK）——
+   *    factionInfo() 直接返回当前包的那一套：成员、门槛、说明都是本包的。
+   *    以前这里是「拿两包并集再按 packOf 过滤」，等价但绕；而且像龟包史前/灵长
+   *    那种「本包根本凑不齐」的阵营也会照常列出来，反而误导玩家。
+   *    现在龟包没有的阵营直接返回 null，不会渲染。 */
+  const info = (typeof factionInfo === 'function') ? factionInfo(id) : null;
   if (!info) return '';
-  /* ⚠️ 成员必须按【当前宠物包】过滤。
-   *    FACTION_MEMBERS 是龟包 + 星包的并集（阵营本身是跨包概念），
-   *    不过滤的话，玩龟包时会列出一堆星包宠物，玩家会误判「这些我也买得到」。
-   *    packOf / activePack 定义在 game.js，render.js 比它先加载 ——
-   *    但它们是函数声明（会提升），且 PACKS 只在调用时才求值，运行时没问题。 */
-  const allMembers = (typeof FACTION_MEMBERS !== 'undefined' && FACTION_MEMBERS[id]) || [];
-  const members = (typeof packOf === 'function' && typeof activePack === 'function')
-    ? allMembers.filter(function (m) { return packOf(m) === activePack(); })
-    : allMembers;
+  const members = info.members || [];
   // 队里已经凑了几个（按【只数】计，和 teamFactions 的规则一致）
   const mineSet = {};
   let mineN = 0;
@@ -842,7 +840,7 @@ function codexTabCount(tabId) {
   if (tabId === 'token')   return Object.keys(PETS).filter(function (k) { return PETS[k].token; }).length;
   if (tabId === 'food')    return Object.keys(FOODS).length;
   if (tabId === 'relic')   return (typeof RELIC_IDS !== 'undefined' ? RELIC_IDS : Object.keys(RELICS)).length;
-  if (tabId === 'faction') return (typeof FACTIONS !== 'undefined') ? Object.keys(FACTIONS).length : 0;
+  if (tabId === 'faction') return (typeof factionIds === 'function') ? factionIds().length : 0;
   return 0;
 }
 
@@ -945,9 +943,10 @@ function renderCodexInto(bodyEl, subEl) {
     }
   } else if (__codexTab === 'faction') {
     body += '<div class="codex-note">⚠️ 官方没有羁绊机制，这是自创的：' +
-            '队伍里凑够同一个阵营的【不同】宠物就激活加成。' +
-            '「不同」指按宠物种类去重 —— 3 只同名蚂蚁只算 1 只。</div>';
-    for (const id of Object.keys(FACTIONS)) {
+            '队伍里凑够同一个阵营的宠物就激活加成（按【只数】算）。' +
+            '每个宠物包有自己的一套阵营 —— 下面列出的都是【当前包】里能买到的成员。' +
+            '（同名宠物买不到第二只：买同名必定合并，所以「凑两只同名」不成立。）</div>';
+    for (const id of factionIds()) {
       body += factionDetailHtml(id, null, true);
     }
   }

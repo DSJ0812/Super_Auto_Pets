@@ -31,7 +31,8 @@ const EXPORTS = [
   'applyPermBuffs',
   'petToJSON', 'petFromJSON', 'packSelf', 'gameFromPack', 'rosterOf',
   'OnlineGame', 'Seat', 'RNG',
-  'FACTIONS', 'FACTION_MEMBERS', 'PET_FACTION', 'factionOf', 'factionInfo', 'teamFactions',
+  'FACTION_META', 'FACTIONS_BY_PACK', 'PET_FACTION',
+  'factionPack', 'factionIds', 'factionOf', 'factionInfo', 'teamFactions',
   'activeFactions', 'factionDesc', 'applySynergyBattleStart', 'applySynergyTurnStart'
 ];
 
